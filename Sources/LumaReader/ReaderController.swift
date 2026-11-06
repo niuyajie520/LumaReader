@@ -13,6 +13,8 @@ final class ReaderController: NSObject {
     var presentationReady = false
     @ObservationIgnored private var initialPaperCover: NSView?
     var isTurning = false
+    var pageTurnPulse = 0
+    var readingClickPulse = 0
     var hasSelection = false
     var location = ""
     var chapters: [Chapter] = []
@@ -121,7 +123,11 @@ final class ReaderController: NSObject {
                 view.noteIDsForSelection = { [weak self] in self?.selectedNoteIDs ?? [] }
                 view.onDeleteNotes = { [weak self] ids in self?.removeNotes(ids) }
                 view.onWheelTurn = { [weak self] direction in self?.move(direction) }
-                view.onBlankClick = { [weak self] in if self?.store?.aiPanelPinned != true { self?.store?.aiPanelVisible = false } }
+                view.onBlankClick = { [weak self] in
+                    guard let self else { return }
+                    self.readingClickPulse += 1
+                    if self.store?.aiPanelPinned != true { self.store?.aiPanelVisible = false }
+                }
                 view.onCopyText = { [weak self] in self?.showCopyFeedback() }
                 view.onCreateNote = { [weak self] in if let self, let store = self.store { self.highlight(store.activeInk); store.showInspector = true } }
                 view.onEditNote = { [weak self] id in self?.editNote(id) }
@@ -347,6 +353,7 @@ final class ReaderController: NSObject {
     }
 
     func move(_ delta: Int) {
+        pageTurnPulse += 1
         if store?.aiPanelPinned != true { store?.aiPanelVisible = false }
         if viewportToken != nil, !isTurning {
             queuedMove = max(-4,min(4,(queuedMove ?? 0)+(delta < 0 ? -1:1))); return
@@ -953,7 +960,10 @@ extension ReaderController: WKScriptMessageHandler, WKNavigationDelegate {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let activeBookID = bookID, store?.selectedID == activeBookID else { return }
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        if type == "readerBlankClicked", store?.aiPanelPinned != true { store?.aiPanelVisible = false }
+        if type == "readerBlankClicked" {
+            readingClickPulse += 1
+            if store?.aiPanelPinned != true { store?.aiPanelVisible = false }
+        }
         if type == "contextMenu" { showWebContextMenu(body) }
         if type == "askAI", let quote = body["quote"] as? String, !quote.isEmpty { askAI(selection:quote) }
         if type == "image", let source = body["source"] as? String { previewImage(source) }

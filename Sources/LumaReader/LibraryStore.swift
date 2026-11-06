@@ -8,6 +8,13 @@ import ImageIO
 final class LibraryStore {
     var books: [Book] = []
     var collections = LibraryGroups()
+    var collectionDisplayOrder = UserDefaults.standard.stringArray(forKey:"collectionDisplayOrder") ?? [] {
+        didSet { UserDefaults.standard.set(collectionDisplayOrder,forKey:"collectionDisplayOrder") }
+    }
+    var orderedCollections:[LibraryGroup] { CollectionDisplayOrder.sorted(collections.groups,saved:collectionDisplayOrder) }
+    func moveCollection(_ source:UUID,to target:UUID,after:Bool) {
+        collectionDisplayOrder = CollectionDisplayOrder.moving(source,to:target,after:after,groups:collections.groups,saved:collectionDisplayOrder)
+    }
     var selectedID: UUID? { didSet { if selectedID != oldValue { aiPanelVisible = false; aiPanelExpanded = false } } }
     var selectedNoteID: UUID?
     var pageMotionMode = UserDefaults.standard.string(forKey:"pageMotionMode") ?? "original" { didSet { UserDefaults.standard.set(pageMotionMode,forKey:"pageMotionMode") } }
@@ -294,6 +301,7 @@ final class LibraryStore {
     }
 
     func flush() {
+        ai.flushHistory()
         flushReadingPreferences()
         pendingSave?.cancel(); pendingSave = nil
         guard persistenceReady, dirty else { return }

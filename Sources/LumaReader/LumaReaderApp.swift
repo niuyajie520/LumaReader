@@ -24,6 +24,7 @@ struct LumaReaderApp: App {
                 Button(L10n.text("展开 / 收起 AI 助手")) { if store.aiPanelVisible { store.aiPanelVisible = false } else { store.askAI() }; openWindow(id:"main") }.keyboardShortcut("a",modifiers:[.command,.option])
                 Divider()
                 Button(L10n.text("在此书中搜索")) { NotificationCenter.default.post(name:.lumaFindInBook,object:nil) }.keyboardShortcut("f").disabled(store.selectedBook == nil)
+                Button(L10n.text("显示阅读工具栏")) { NotificationCenter.default.post(name:.lumaShowReaderChrome,object:nil) }.keyboardShortcut("t",modifiers:[.command,.option]).disabled(store.selectedBook == nil)
                 Button(L10n.text("添加书签")) { store.reader?.addBookmark() }.keyboardShortcut("d")
                     .disabled(store.selectedBook == nil)
                 Button(L10n.text("高亮所选文字")) { store.reader?.highlight(store.activeInk) }
@@ -48,4 +49,5 @@ struct LumaReaderApp: App {
 
 extension Notification.Name {
     static let lumaFindInBook = Notification.Name("LumaReader.FindInBook")
+    static let lumaShowReaderChrome = Notification.Name("LumaReader.ShowReaderChrome")
 }

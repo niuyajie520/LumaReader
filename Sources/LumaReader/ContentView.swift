@@ -21,6 +21,11 @@ struct ContentView: View {
     @State private var groupName = ""
     @State private var groupBookID: UUID?
     @State private var focusHeaderShown = false
+    @State private var chromeTopHovered = false
+    @State private var chromeHeaderHovered = false
+    @State private var chromeKeyboardPinned = false
+    @State private var chromeHideTask: Task<Void,Never>?
+    @FocusState private var readerBackFocused: Bool
     @State private var showSettings = false
     @State private var showCustomization = false
     @State private var previewPDFAfterSettings = false
@@ -35,6 +40,11 @@ struct ContentView: View {
     @AppStorage("librarySort") private var librarySort = "recent"
     @State private var dropGroupID: UUID?
     @State private var importDropTarget = false
+    @State private var categorySearchShown = false
+    @State private var categorySearch = ""
+    @State private var dropCategoryID: UUID?
+    @State private var dropCategoryAfter = false
+    @State private var hoveredBookID: UUID?
     @FocusState private var shelfSearchFocused: Bool
     private enum ReaderPanel: Hashable { case contents, bookmarks, notes }
 
@@ -74,6 +84,8 @@ struct ContentView: View {
         }
         .onChange(of:store.selectedID) { _,id in
             activeReaderPanel = nil; showBookSearch = false; bookSearchText = ""
+            chromeHideTask?.cancel(); focusHeaderShown = false; chromeKeyboardPinned = false
+            chromeTopHovered = false; chromeHeaderHovered = false
             store.showInspector = false
             let keyboard = NSApp.currentEvent?.type == .keyDown
             withAnimation(keyboard || reduceMotion || store.effectiveMotionLevel == .off ? nil:.smooth(duration:0.24,extraBounce:0)) {
@@ -100,7 +112,8 @@ struct ContentView: View {
             store.systemLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
         }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.willResignActiveNotification)) { _ in store.flush() }
-        .onDisappear { store.flush() }
+        .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in store.flush() }
+        .onDisappear { chromeHideTask?.cancel(); store.flush() }
         .onAppear { store.syncAllConnectedClouds() }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.didBecomeActiveNotification)) { _ in store.syncAllConnectedClouds() }
     }
@@ -110,10 +123,21 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:.lumaFindInBook)) { _ in
             guard store.selectedBook != nil else { return }; activeReaderPanel = nil; showBookSearch = true
         }
+        .onReceive(NotificationCenter.default.publisher(for:.lumaShowReaderChrome)) { _ in
+            guard store.selectedBook != nil else { return }
+            chromeKeyboardPinned = true; revealReaderChrome(); readerBackFocused = true
+        }
+        .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:2000) }
+        .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
+        .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
+        .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
+        .onChange(of:showSettings) { _,_ in scheduleChromeHide() }
+        .onChange(of:showCustomization) { _,_ in scheduleChromeHide() }
         .onReceive(NotificationCenter.default.publisher(for:.lumaAskAI)) { _ in store.aiPanelVisible = true }
         .onExitCommand {
             if showBookSearch { showBookSearch = false }
             else if activeReaderPanel != nil { activeReaderPanel = nil }
+            else if chromeKeyboardPinned { chromeKeyboardPinned = false; readerBackFocused = false; scheduleChromeHide() }
             else if store.immersive { store.toggleImmersive() }
         }
         .tint(store.accent).accentColor(store.accent)
@@ -159,21 +183,15 @@ struct ContentView: View {
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
         appHeader
             .padding(.trailing,store.aiPanelVisible ? aiWidth+16:0)
-            .opacity(!store.immersive || focusHeaderShown || activeReaderPanel != nil || showBookSearch ? 1:0)
-            .allowsHitTesting(!store.immersive || focusHeaderShown || activeReaderPanel != nil || showBookSearch)
-            .accessibilityHidden(store.immersive && !focusHeaderShown && activeReaderPanel == nil && !showBookSearch)
-            .onHover { focusHeaderShown = $0 }
-        if store.immersive && !focusHeaderShown && activeReaderPanel == nil && !showBookSearch {
-            Button { focusHeaderShown = true } label: { Color.clear.frame(height:16).contentShape(Rectangle()) }
-                .buttonStyle(.plain).accessibilityLabel(L10n.text("显示阅读工具栏"))
-                .onHover { if $0 { focusHeaderShown = true } }
-        }
+            .allowsHitTesting(readerChromeVisible)
+            .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
             AIChatView(store:store,onCollapse:{ store.aiPanelVisible = false })
                 .frame(width:aiWidth)
                 .animation(aiDragWidth != nil || reduceMotion || store.effectiveMotionLevel == .off ? nil:AIPanelMotion.opening,value:store.aiPanelExpanded)
                 .frame(maxHeight:.infinity)
-                .clipShape(RoundedRectangle(cornerRadius:16,style:.continuous))
-                .monetLiquidGlass(tint:store.accent,cornerRadius:16)
+                .background(store.paper(dark:colorScheme == .dark))
+                .clipped()
+                .overlay(alignment:.leading) { Rectangle().fill(muted.opacity(0.18)).frame(width:0.5).allowsHitTesting(false) }
                 .overlay(alignment:.leading) {
                     AIResizeHandle(width:Double(aiWidth),onStart:{
                         aiDragWidth = aiWidth; savedAIPanelWidth = Double(aiWidth); controller.beginViewportChange(); store.aiPanelExpanded = false
@@ -187,13 +205,16 @@ struct ContentView: View {
                         savedAIPanelWidth = min(Double(max(340,geometry.size.width-336)),max(340,savedAIPanelWidth+(direction == .increment ? 20:-20)))
                     }
                 }
-                .padding(.vertical,8).padding(.trailing,8)
                 .offset(x:store.aiPanelVisible ? 0:aiWidth+18)
                 .allowsHitTesting(store.aiPanelVisible)
                 .accessibilityHidden(!store.aiPanelVisible)
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
                 .zIndex(3)
             }
+            .background(ReaderChromeMonitor(enabled:store.selectedBook != nil,trailingInset:store.aiPanelVisible ? aiWidth+16:0,onTopHover:{ inside in
+                chromeTopHovered = inside
+                if inside { revealReaderChrome() } else { scheduleChromeHide() }
+            }).frame(width:0,height:0))
             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
                 guard width > 0 else { return }; controller.beginViewportChange(); settleAILayout(delay:140)
             }
@@ -208,6 +229,25 @@ struct ContentView: View {
         .overlayPreferenceValue(SearchAnchorPreference.self) { anchor in searchOverlay(anchor) }
         .animation(LumaMotion.adjusted(SurfaceMotion.popover,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:showBookSearch)
         .ignoresSafeArea(.container,edges:.top)
+    }
+
+    private var readerChromeVisible:Bool {
+        store.selectedBook == nil || focusHeaderShown || chromeKeyboardPinned || activeReaderPanel != nil || showBookSearch || showSettings || showCustomization
+    }
+    private func revealReaderChrome(delay:Int = 1250) {
+        chromeHideTask?.cancel()
+        withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = true }
+        scheduleChromeHide(delay:delay)
+    }
+    private func scheduleChromeHide(delay:Int = 1250) {
+        chromeHideTask?.cancel()
+        guard store.selectedBook != nil else { return }
+        chromeHideTask = Task { @MainActor in
+            do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
+            guard !Task.isCancelled, !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned,
+                  activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
+            withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
+        }
     }
 
     private func settleAILayout(delay:Int) {
@@ -254,18 +294,26 @@ struct ContentView: View {
         HStack(spacing:8) {
             Color.clear.frame(width:columnVisibility == .detailOnly ? 78:0,height:1).allowsHitTesting(false)
             if store.selectedBook != nil {
-                Button { closeReaderPanels(); store.returnToLibrary() } label: {
-                    Image(systemName:"chevron.left").frame(width:44,height:44).contentShape(Rectangle())
-                }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库"))
-                HStack(spacing:0) {
+                HStack(spacing:3) {
+                    Button { closeReaderPanels(); store.returnToLibrary() } label: {
+                        Image(systemName:"chevron.left").frame(width:44,height:44).contentShape(Rectangle())
+                    }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
+                    Button { activeReaderPanel = nil; showBookSearch.toggle() } label: {
+                        Image(systemName:"magnifyingglass").frame(width:44,height:44).contentShape(Rectangle())
+                    }.anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+                        .help(L10n.text("在此书中搜索")).accessibilityLabel(L10n.text("在此书中搜索"))
                     readerPanelButton(.contents,symbol:"list.bullet",label:"目录")
                     readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记")
-                }.popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
+                }.padding(3)
+                    .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                    .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
+                    .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
             }
-            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false)
+            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false).opacity(store.immersive && !readerChromeVisible ? 0:1)
             HStack(spacing:3) { headerActions }.padding(3)
-                .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+                .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { store.selectedBook == nil ? $0:nil }
                 .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
         }.buttonStyle(InteractiveToolbarButtonStyle()).padding(.horizontal,12).frame(height:64)
             .background(store.paper(dark:colorScheme == .dark))
         }
@@ -336,7 +384,6 @@ struct ContentView: View {
     @ViewBuilder private func classificationActions(for book:Book) -> some View {
         Button(L10n.text(book.isFinished ? "标记为未读":"标记为已读")) { store.editShelf(book.id) { $0.isRead = !book.isFinished } }
         Menu(L10n.text("分类")) {
-            Button { store.editShelf(book.id) { $0.wantRead.toggle() } } label: { Label(L10n.text("想读清单"),systemImage:book.shelf?.wantRead == true ? "checkmark":"text.badge.plus") }
             ForEach(store.collections.active) { group in
                 Button { store.toggleGroup(group.id,for:book) } label: {
                     Label(group.name,systemImage:store.collections.contains(book:book.id,in:group.id) ? "checkmark":"folder")
@@ -358,12 +405,10 @@ struct ContentView: View {
             showBookSearch = false
             activeReaderPanel = activeReaderPanel == panel ? nil:panel
         } label: {
-            Image(systemName:symbol).font(.system(size:17)).frame(width:44,height:44)
+            Image(systemName:symbol).frame(width:44,height:44)
                 .background(activeReaderPanel == panel ? Color.primary.opacity(0.12):.clear,in:Capsule())
                 .contentShape(Rectangle())
-        }.buttonStyle(LumaHeaderButtonStyle())
-            .readerGlass(radius:22,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
-            .modifier(LumaGlassIdentity(id:"reader-"+symbol,namespace:chromeNamespace,enabled:glassActive))
+        }
             .help(label).accessibilityLabel(label)
     }
     private var readerPanelTitle:String {
@@ -427,50 +472,37 @@ struct ContentView: View {
                     .tracking(LumaFontFamily.opticalTracking(for: 22))
             }.padding(.horizontal,18).padding(.top,48).padding(.bottom,22)
 
-            VStack(spacing:3) {
-                Button { store.returnToLibrary(); activeGroupID = nil; activeCloudFilter = nil; collection = "搜索"; store.search = ""; shelfSearchFocused = true } label: { Label(L10n.text("搜索"),systemImage:"magnifyingglass").frame(maxWidth:.infinity,minHeight:44,alignment:.leading).contentShape(Rectangle()) }
-                sideRow("主页",symbol:"house",count:nil)
-                sideRow("书架",symbol:"books.vertical",count:nil)
-            }.buttonStyle(.plain).padding(.horizontal,22).padding(.bottom,8)
-            LumaSidebarSection("我的书库",key:"librarySectionExpanded") {
+            LumaSidebarSection("书架",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
                     sideRow("正在阅读",symbol:"book",count:store.shelfBooks.filter{$0.progress>0 && !$0.isFinished}.count)
-                    sideRow("想读清单",symbol:"text.badge.plus",count:store.shelfBooks.filter{$0.shelf?.wantRead == true}.count)
                     sideRow("已读完",symbol:"checkmark.circle",count:store.shelfBooks.filter{$0.isFinished}.count)
                     sideRow("我的批注",symbol:"highlighter",count:store.shelfBooks.filter{!$0.notes.isEmpty}.count)
                     sideRow("阅读统计",symbol:"chart.bar.xaxis",count:nil)
                 }.padding(.horizontal,10)
-            }
-            LumaSidebarSection("分类",key:"collectionSectionExpanded",onAdd:{ beginGroupEdit() }) {
-                VStack(spacing:3) {
-                ForEach(store.collections.active) { group in
-                    Button {
-                        activeGroupID = group.id; activeCloudFilter = nil; collection = group.name
-                        store.returnToLibrary()
-                    } label: {
-                        HStack(spacing:10) {
-                            Image(systemName:"folder").frame(width:20)
-                            Text(group.name).lineLimit(1)
-                            Spacer()
-                            Text("\(store.shelfBooks.filter { group.members[$0.id.uuidString]?.included == true }.count)").font(store.homeFont(11)).foregroundStyle(muted)
-                        }.font(store.homeFont(13)).padding(.horizontal,11).padding(.vertical,9).frame(maxWidth:.infinity,minHeight:44,alignment:.leading).contentShape(Rectangle())
-                    }.buttonStyle(LumaSidebarButtonStyle(isSelected:activeGroupID == group.id,accent:store.accent))
-                    .contextMenu {
-                        Button(L10n.text("重命名…")) { beginGroupEdit(group) }
-                        Button(L10n.text("删除分类"),role:.destructive) {
-                            store.removeGroup(group.id)
-                            if activeGroupID == group.id { activeGroupID = nil; collection = "全部图书" }
+                LumaSidebarSection("分类",key:"collectionSectionExpanded",onAdd:{ beginGroupEdit() },onSearch:{ categorySearchShown.toggle() }) {
+                    VStack(spacing:3) {
+                        if categorySearchShown {
+                            HStack(spacing:5) {
+                                TextField(L10n.text("搜索分类"),text:$categorySearch).textFieldStyle(.plain)
+                                if !categorySearch.isEmpty {
+                                    Button { categorySearch = "" } label: { Image(systemName:"xmark.circle.fill").frame(width:28,height:28) }
+                                        .buttonStyle(.plain).accessibilityLabel(L10n.text("清空分类搜索"))
+                                }
+                            }.font(store.homeFont(12)).padding(7).lumaInputSurface().padding(.horizontal,12)
                         }
+                        ForEach(filteredCollections) { group in categoryRow(group) }
+                        if filteredCollections.isEmpty {
+                            Text(L10n.text(categorySearch.isEmpty ? "暂无分类":"没有匹配的分类")).font(store.homeFont(11)).foregroundStyle(muted).padding(12)
+                        }
+                        if !categorySearch.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
+                            Text(L10n.text("搜索时暂停分类排序")).font(store.homeFont(10)).foregroundStyle(muted).padding(.horizontal,12)
+                        }
+                        Button(L10n.text("新建分类…")) { beginGroupEdit() }.buttonStyle(.plain).frame(maxWidth:.infinity,minHeight:40,alignment:.leading).padding(.horizontal,22)
                     }
-                    .background(dropGroupID == group.id ? store.accent.opacity(0.16):.clear,in:RoundedRectangle(cornerRadius:8))
-                    .dropDestination(for:String.self) { values,_ in store.acceptBookDrop(values,groupID:group.id) } isTargeted: { inside in dropGroupID = inside ? group.id:nil }
-                    .padding(.horizontal,10)
-                }
-                Button(L10n.text("新建分类…")) { beginGroupEdit() }.buttonStyle(.plain).frame(maxWidth:.infinity,minHeight:40,alignment:.leading).padding(.horizontal,22)
-                }
-            }.padding(.top,12)
-            LumaSidebarSection("云盘",key:"cloudSectionExpanded",busy:store.isSyncingCloud) {
+                }.padding(.leading,14).padding(.top,8)
+            }
+            LumaSidebarSection("云盘",key:"cloudSectionExpanded",symbol:"cloud",prominent:true,font:store.homeFont(17,weight:.medium),busy:store.isSyncingCloud) {
                 VStack(spacing:3) {
                     ForEach(CloudProvider.allCases) { provider in cloudSideRow(provider) }
                 }.padding(.horizontal,10)
@@ -481,6 +513,42 @@ struct ContentView: View {
         }
         }
         .background(store.paper(dark:colorScheme == .dark))
+    }
+
+    private var filteredCollections:[LibraryGroup] {
+        let query = categorySearch.trimmingCharacters(in:.whitespacesAndNewlines)
+        return store.orderedCollections.filter { query.isEmpty || $0.name.localizedStandardContains(query) }
+    }
+    @ViewBuilder private func categoryRow(_ group:LibraryGroup)->some View {
+        let row = Button {
+            activeGroupID = group.id; activeCloudFilter = nil; collection = group.name
+            store.returnToLibrary()
+        } label: {
+            HStack(spacing:10) {
+                Image(systemName:"folder").frame(width:20)
+                Text(group.name).lineLimit(1)
+                Spacer()
+                Text("\(store.shelfBooks.filter { group.members[$0.id.uuidString]?.included == true }.count)").font(store.homeFont(11)).foregroundStyle(muted)
+            }.font(store.homeFont(13)).padding(.horizontal,11).padding(.vertical,9).frame(maxWidth:.infinity,minHeight:44,alignment:.leading).contentShape(Rectangle())
+        }.buttonStyle(LumaSidebarButtonStyle(isSelected:activeGroupID == group.id,accent:store.accent))
+        .contextMenu {
+            Button(L10n.text("重命名…")) { beginGroupEdit(group) }
+            Button(L10n.text("删除分类"),role:.destructive) {
+                store.removeGroup(group.id)
+                if activeGroupID == group.id { activeGroupID = nil; collection = "全部图书" }
+            }
+        }
+        let allowsReorder = categorySearch.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty
+        Group {
+            if allowsReorder { row.onDrag { ShelfCategoryDrag.provider(group.id) } }
+            else { row }
+        }
+        .background(dropGroupID == group.id ? store.accent.opacity(0.16):.clear,in:RoundedRectangle(cornerRadius:8))
+        .overlay(alignment:dropCategoryAfter ? .bottom:.top) {
+            if dropCategoryID == group.id { Rectangle().fill(store.accent).frame(height:2).padding(.horizontal,8).allowsHitTesting(false) }
+        }
+        .onDrop(of:[ShelfCategoryDrag.type,UTType.plainText.identifier],delegate:ShelfCategoryDrop(store:store,target:group.id,allowsReorder:allowsReorder,bookTarget:$dropGroupID,categoryTarget:$dropCategoryID,insertAfter:$dropCategoryAfter))
+        .padding(.horizontal,10)
     }
 
     private func sideRow(_ title: String, symbol: String, count: Int?) -> some View {
@@ -640,7 +708,16 @@ struct ContentView: View {
                                 VStack(alignment:.leading,spacing:9) {
                                     ShelfCover(book:book,root:store.root,fontFamily:store.homeFontFamily,scale:store.homeScale,style:book.shelf?.coverStyle ?? store.shelfCoverStyle)
                                         .frame(width:CGFloat(store.shelfCardWidth),height:CGFloat(store.shelfCardWidth*1.45))
+                                        .overlay(alignment:.bottomTrailing) {
+                                            if coverOnlyShelf, hoveredBookID == book.id, book.progress > 0 {
+                                                Text(L10n.text("已读 \(Int(book.progress*100))%"))
+                                                    .font(store.homeFont(10)).monospacedDigit().padding(.horizontal,8).padding(.vertical,5)
+                                                    .readerGlass(radius:9,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                                                    .padding(8).allowsHitTesting(false).transition(.opacity)
+                                            }
+                                        }
 
+                                    if !coverOnlyShelf {
                                     VStack(alignment:.leading,spacing:9) {
                                     Text(book.title)
                                         .font(store.homeFont(13, weight: .medium))
@@ -666,14 +743,25 @@ struct ContentView: View {
                                             .foregroundStyle(muted)
                                     }
                                     }.padding(10).modifier(BookMonetFooter(book:book,root:store.root))
+                                    }
                                 }.contentShape(Rectangle())
                             }
                             .buttonStyle(LumaBookCardButtonStyle())
+                            .onHover { inside in
+                                withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.12)) {
+                                    if inside { hoveredBookID = book.id } else if hoveredBookID == book.id { hoveredBookID = nil }
+                                }
+                            }
+                            .accessibilityLabel(Text(book.title+" "+book.author))
+                            .accessibilityValue(Text(L10n.text(book.isFinished ? "已读完":book.progress > 0 ? "已读 \(Int(book.progress*100))%":"未读")))
                             .contextMenu { classificationActions(for:book) }
                             .draggable("luma-book:"+book.id.uuidString)
                             .overlay(alignment:.topTrailing) {
                                 Menu { classificationActions(for:book) } label: { Image(systemName:"ellipsis.circle.fill").frame(width:36,height:36) }
                                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().padding(4).help(L10n.text("更多图书操作"))
+                                    .opacity(!coverOnlyShelf || hoveredBookID == book.id ? 1:0)
+                                    .allowsHitTesting(!coverOnlyShelf || hoveredBookID == book.id)
+                                    .accessibilityHidden(coverOnlyShelf && hoveredBookID != book.id)
                             }
                             .help(book.title)
                         }
@@ -685,6 +773,10 @@ struct ContentView: View {
         .overlay { if importDropTarget { RoundedRectangle(cornerRadius:12).strokeBorder(store.accent,lineWidth:2).allowsHitTesting(false) } }
         .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:libraryLayout)
         .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:librarySort)
+    }
+
+    private var coverOnlyShelf:Bool {
+        activeCloudFilter == nil && store.search.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && collection != "搜索"
     }
 
     private func openBook(_ book:Book) { store.open(book) }

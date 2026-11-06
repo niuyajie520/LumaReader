@@ -63,28 +63,39 @@ messageList.addEventListener('scroll',()=>{if(!restoringScroll)rememberScroll();
 const resizeObserver=new ResizeObserver(()=>{cancelAnimationFrame(scrollFrame);scrollFrame=requestAnimationFrame(restoreScroll);});resizeObserver.observe(messageList);
 const draft=$('draft');
 function sizeComposer(){
- const limit=Math.max(66,Math.min(360,innerHeight*.42));
+ const base=24,manualLimit=Math.max(base,Math.min(360,innerHeight*.42)),autoLimit=Math.max(base,Math.min(base*5,innerHeight*.3));
  rememberScroll();
- if(manualComposer){draft.style.height=Math.min(limit,Math.max(66,manualComposer))+'px';}
- else {draft.style.height='66px';draft.style.height=Math.min(limit,Math.max(66,draft.scrollHeight))+'px';}
+ if(manualComposer){draft.style.height=Math.min(manualLimit,Math.max(base,manualComposer))+'px';}
+ else {draft.style.height=base+'px';draft.style.height=Math.min(autoLimit,Math.max(base,draft.scrollHeight))+'px';}
  draft.style.overflowY='auto';restoreScroll();
 }
 const grip=document.createElement('div');grip.id='composer-resize';grip.setAttribute('role','separator');grip.setAttribute('aria-label','调整输入框高度');grip.tabIndex=0;grip.title='拖动调整高度，双击恢复自动高度';draft.before(grip);
 grip.addEventListener('pointerdown',event=>{event.preventDefault();composerDrag={y:event.clientY,height:draft.getBoundingClientRect().height};grip.setPointerCapture(event.pointerId);});
-grip.addEventListener('pointermove',event=>{if(!composerDrag)return;manualComposer=Math.max(66,Math.min(360,innerHeight*.42,composerDrag.height+composerDrag.y-event.clientY));sizeComposer();});
+grip.addEventListener('pointermove',event=>{if(!composerDrag)return;manualComposer=Math.max(24,Math.min(360,innerHeight*.42,composerDrag.height+composerDrag.y-event.clientY));sizeComposer();});
 function finishComposer(){if(!composerDrag)return;composerDrag=null;post('composerHeight',{value:manualComposer});}
 grip.addEventListener('pointerup',finishComposer);grip.addEventListener('pointercancel',finishComposer);
 grip.addEventListener('dblclick',()=>{manualComposer=0;post('composerHeight',{value:0});sizeComposer();});
-grip.addEventListener('keydown',event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();manualComposer=Math.min(360,Math.max(66,draft.clientHeight+(event.key==='ArrowUp'?10:-10)));sizeComposer();post('composerHeight',{value:manualComposer});}});
+grip.addEventListener('keydown',event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();manualComposer=Math.min(360,Math.max(24,draft.clientHeight+(event.key==='ArrowUp'?10:-10)));sizeComposer();post('composerHeight',{value:manualComposer});}});
 draft.addEventListener('compositionstart',()=>{composing=true;});draft.addEventListener('compositionend',()=>{composing=false;post('draft',{value:draft.value});sizeComposer();});
 window.addEventListener('resize',sizeComposer,{passive:true});
-window.LumaAI={receive(next){rememberScroll();const completed=state.isSending&&!next.isSending;state=next;localizeUI();if(!composerHydrated){manualComposer=Math.max(0,Math.min(360,Number(next.composerHeight)||0));composerHydrated=true;}$('pin').setAttribute('aria-pressed',String(!!next.pinned));$('pin').title=tr(next.pinned?'取消固定':'固定 AI 面板');$('expand').title=tr(next.expanded?'还原宽度':'放大宽度');document.documentElement.style.setProperty('--glass-opacity',String(Math.min(.85,Math.max(.05,Number(next.glassOpacity)||.32))));const root=document.documentElement;for(const [key,value]of Object.entries(next.colors||{})){if(root.style.getPropertyValue('--'+key)!==value)root.style.setProperty('--'+key,value)};root.style.colorScheme=next.dark?'dark':'light';root.dataset.reduceVisualEffects=next.reduceVisualEffects?'true':'false';root.dataset.glass=next.glassEnabled?'true':'false';
+function historyVisible(visible){$('history-panel').hidden=!visible;$('history').setAttribute('aria-expanded',String(visible));}
+function renderHistory(){
+ const list=$('history-list');list.replaceChildren();const entries=state.history||[];$('history-empty').hidden=entries.length>0;
+ for(const item of entries){const button=document.createElement('button');button.className='history-row';button.type='button';button.disabled=!!state.isSending||!!state.conversationLoading;button.setAttribute('aria-current',String(item.id===state.conversationID));
+ const title=document.createElement('span'),date=document.createElement('time');title.textContent=item.title;date.textContent=item.date;button.append(title,date);
+ button.onclick=()=>{if(composing)return;historyVisible(false);post('conversation',{id:item.id});};list.append(button);}
+}
+$('history').onclick=()=>{if(composing)return;const visible=$('history-panel').hidden;historyVisible(visible);if(visible){renderHistory();post('history');}};
+document.addEventListener('pointerdown',event=>{if(!$('history-panel').hidden&&!$('history-panel').contains(event.target)&&!$('history').contains(event.target))historyVisible(false);});
+window.LumaAI={receive(next){rememberScroll();const completed=state.isSending&&!next.isSending;const conversationChanged=!!next.conversationID&&state.conversationID!==next.conversationID;state=next;
+if(conversationChanged){scrollAnchor=null;messageSignature='';messageList.querySelectorAll('.message,.pending').forEach(node=>node.remove());}
+localizeUI();if(!composerHydrated){manualComposer=Math.max(0,Math.min(360,Number(next.composerHeight)||0));composerHydrated=true;}$('pin').setAttribute('aria-pressed',String(!!next.pinned));$('pin').title=tr(next.pinned?'取消固定':'固定 AI 面板');$('expand').title=tr(next.expanded?'还原宽度':'放大宽度');document.documentElement.style.setProperty('--glass-opacity',String(Math.min(.85,Math.max(.05,Number(next.glassOpacity)||.32))));const root=document.documentElement;for(const [key,value]of Object.entries(next.colors||{})){if(root.style.getPropertyValue('--'+key)!==value)root.style.setProperty('--'+key,value)};root.style.colorScheme=next.dark?'dark':'light';root.dataset.reduceVisualEffects=next.reduceVisualEffects?'true':'false';root.dataset.glass=next.glassEnabled?'true':'false';
 if(reduced()) { for(const details of [$('reading'),$('selection-detail')])settleDisclosure(details); document.getAnimations().forEach(animation=>animation.cancel()); }
 if(!$('provider').options.length)for(const p of next.providers){const option=document.createElement('option');option.value=p.id;option.textContent=p.title;$('provider').append(option)}
 for(const p of next.providers){const option=[...$('provider').options].find(o=>o.value===p.id);if(option)option.textContent=tr(p.title)}
-$('provider').value=next.provider;$('provider').disabled=next.isSending;$('model').textContent=next.model;
-if(!composing&&(document.activeElement!==draft||completed)&&draft.value!==next.draft)draft.value=next.draft;
-$('draft').disabled=next.isSending;$('include').checked=next.includeReading;$('include').disabled=next.isSending;
+$('provider').value=next.provider;$('provider').disabled=next.isSending||next.conversationLoading;$('model').textContent=next.model;
+if(!composing&&(document.activeElement!==draft||completed||conversationChanged)&&draft.value!==next.draft)draft.value=next.draft;
+$('draft').disabled=next.isSending||next.conversationLoading;$('include').checked=next.includeReading;$('include').disabled=next.isSending;
 $('reading').hidden=!next.includeReading||!next.context;$('book-title').textContent=next.context?.title||'';$('chapter').textContent=next.context?.chapter||'';$('quote').textContent=next.pendingQuote||'';$('quote').hidden=!next.pendingQuote;$('remove').hidden=!next.pendingQuote;$('remove').disabled=next.isSending;
 const quote=next.pendingQuote||'';
 $('selection-reference').hidden=!next.includeReading||!quote;
@@ -92,8 +103,8 @@ $('selection-preview').textContent=compactQuote(quote);$('selection-full').textC
 $('clear-selection').disabled=next.isSending;
 if(quote!==quoteSignature){settleDisclosure($('selection-detail'));settleDisclosure($('reading'));$('selection-detail').open=false;quoteSignature=quote}
 $('image-attachment').hidden=!next.pendingImageName;$('image-name').textContent=next.pendingImageName?tr('已附带图片')+' · '+next.pendingImageName:'';$('remove-image').disabled=next.isSending;
-$('new').disabled=next.isSending;$('settings').disabled=next.isSending;$('error').hidden=!next.error;$('error').textContent=tr(next.error||'');
-$('send').disabled=!next.isSending&&!next.draft.trim();$('send').classList.toggle('stop',next.isSending);$('send').setAttribute('aria-label',tr(next.isSending?'停止':'发送'));$('send').title=tr(next.isSending?'停止':'发送 · ⌘ Enter');sizeComposer();
+$('new').disabled=next.isSending||next.conversationLoading;if(!$('history-panel').hidden)renderHistory();$('settings').disabled=next.isSending;$('error').hidden=!next.error;$('error').textContent=tr(next.error||'');
+$('send').disabled=!!next.conversationLoading||(!next.isSending&&!next.draft.trim());$('send').classList.toggle('stop',next.isSending);$('send').setAttribute('aria-label',tr(next.isSending?'停止':'发送'));$('send').title=tr(next.isSending?'停止':'发送 · ⌘ Enter');sizeComposer();
 const signature=JSON.stringify([next.messages,next.isSending,next.isSending?next.draft:'',next.language]);
 if(signature!==messageSignature){
  messageSignature=signature;const main=$('messages');
@@ -123,9 +134,9 @@ for(const [event,kind] of [['error','script'],['unhandledrejection','promise'],[
 $('draft').addEventListener('input',()=>{state.draft=$('draft').value;$('send').disabled=!state.draft.trim();sizeComposer();if(!composing)post('draft',{value:state.draft})});
 $('draft').addEventListener('blur',()=>{if(!state.isSending)post('draft',{value:$('draft').value})});
 $('provider').addEventListener('change',()=>post('provider',{value:$('provider').value}));$('include').addEventListener('change',()=>post('include',{value:$('include').checked}));
-$('send').onclick=()=>post(state.isSending?'stop':'send',{value:$('draft').value});$('new').onclick=()=>post('new');$('collapse').onclick=()=>post('collapse');$('settings').onclick=()=>post('settings');$('remove').onclick=()=>post('removeQuote');$('remove-image').onclick=()=>post('removeImage');$('clear-selection').onclick=()=>post('removeQuote');
+$('send').onclick=()=>post(state.isSending?'stop':'send',{value:$('draft').value});$('new').onclick=()=>{historyVisible(false);post('new');};$('collapse').onclick=()=>post('collapse');$('settings').onclick=()=>post('settings');$('remove').onclick=()=>post('removeQuote');$('remove-image').onclick=()=>post('removeImage');$('clear-selection').onclick=()=>post('removeQuote');
 for(const [id,text]of [['explain','请解释这段话，并结合当前书籍说明。'],['example','请用一个生活中的例子解释当前阅读内容。']])$(id).onclick=()=>{draft.value=tr(text);state.draft=tr(text);sizeComposer();post('draft',{value:tr(text)});draft.focus()};
-document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&!e.isComposing&&!composing&&!state.isSending){e.preventDefault();post('send',{value:$('draft').value})} });
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing&&!composing&&!$('history-panel').hidden){historyVisible(false);$('history').focus();return;}if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&!e.isComposing&&!composing&&!state.isSending){e.preventDefault();post('send',{value:$('draft').value})} });
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',event=>{
  if(event.matches){for(const details of [$('reading'),$('selection-detail')])settleDisclosure(details);document.getAnimations().forEach(animation=>animation.cancel())}
 });sizeComposer();rememberScroll();post('ready');})();
