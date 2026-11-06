@@ -26,4 +26,4 @@ import AppKit
     RunLoop.main.run(until:Date().addingTimeInterval(15))
     report("FAIL",false,false)
 }
-observeLaunch()
+MainActor.assumeIsolated { observeLaunch() }
