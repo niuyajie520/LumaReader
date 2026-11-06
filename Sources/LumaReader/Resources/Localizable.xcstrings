@@ -9345,6 +9345,22 @@
           }
         }
       }
+    },
+    "未读": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未读"
+          }
+        }
+      }
     }
   }
 }

@@ -141,7 +141,7 @@ enum AIConversationDisk {
         restoringHistory = false
     }
     func incomingHistoryContext(_ incoming:AIReadingContext?) -> AIReadingContext? {
-        historyContextProtected && incoming?.bookID != context?.bookID ? nil:incoming
+        historyContextProtected && incoming?.bookID != context?.bookID ? context:incoming
     }
     func abortHistoryRestore() { historyRestoreToken = UUID(); isLoadingConversation = false }
 }

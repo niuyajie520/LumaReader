@@ -118,14 +118,13 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.didBecomeActiveNotification)) { _ in store.syncAllConnectedClouds() }
     }
 
-    private var lumaAppearance: some View {
+    private var lumaReaderChrome: some View {
         lumaNavigation
         .onReceive(NotificationCenter.default.publisher(for:.lumaFindInBook)) { _ in
             guard store.selectedBook != nil else { return }; activeReaderPanel = nil; showBookSearch = true
         }
         .onReceive(NotificationCenter.default.publisher(for:.lumaShowReaderChrome)) { _ in
-            guard store.selectedBook != nil else { return }
-            chromeKeyboardPinned = true; revealReaderChrome(); readerBackFocused = true
+            showReaderChromeFromKeyboard()
         }
         .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:2000) }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
@@ -133,6 +132,17 @@ struct ContentView: View {
         .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
         .onChange(of:showSettings) { _,_ in scheduleChromeHide() }
         .onChange(of:showCustomization) { _,_ in scheduleChromeHide() }
+    }
+
+    private func showReaderChromeFromKeyboard() {
+        guard store.selectedBook != nil else { return }
+        chromeKeyboardPinned = true
+        revealReaderChrome(delay:1250)
+        readerBackFocused = true
+    }
+
+    private var lumaAppearance: some View {
+        lumaReaderChrome
         .onReceive(NotificationCenter.default.publisher(for:.lumaAskAI)) { _ in store.aiPanelVisible = true }
         .onExitCommand {
             if showBookSearch { showBookSearch = false }

@@ -63,7 +63,7 @@ final class AIChatStore {
             }
         } catch {
             historyWritable = false
-            error = "无法读取本地聊天记录，原文件已保留。"
+            self.error = "无法读取本地聊天记录，原文件已保留。"
         }
         restoringHistory = false
         historyDirty = false
