@@ -12,7 +12,7 @@ struct LumaReaderApp: App {
                 .onAppear { DiagnosticManager.shared.applicationDidStart() }
         }
         .defaultSize(width: 1320, height: 860)
-        .windowStyle(.hiddenTitleBar)
+        .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button(L10n.text("导入图书…")) { store.pickBooks() }.keyboardShortcut("o")

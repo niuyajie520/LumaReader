@@ -207,7 +207,6 @@ struct ContentView: View {
         .coordinateSpace(name:"lumaWindow")
         .overlayPreferenceValue(SearchAnchorPreference.self) { anchor in searchOverlay(anchor) }
         .animation(LumaMotion.adjusted(SurfaceMotion.popover,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:showBookSearch)
-        .toolbar(.hidden,for:.windowToolbar)
         .ignoresSafeArea(.container,edges:.top)
     }
 
@@ -1088,6 +1087,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
         override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); apply() }
         func apply() {
             guard let window else { return }
+            NativeWindowControls.restore(window)
             // Do not reassign styleMask on every SwiftUI update; that rebuilds native window chrome.
             if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
             if window.titleVisibility != .hidden { window.titleVisibility = .hidden }
@@ -1097,6 +1097,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
             window.isMovableByWindowBackground = false
             if window.toolbarStyle != .unifiedCompact { window.toolbarStyle = .unifiedCompact }
             window.toolbar?.showsBaselineSeparator = false
+            WindowControlsProbe.startIfRequested(window)
         }
     }
 }
