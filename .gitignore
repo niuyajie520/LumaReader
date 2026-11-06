@@ -7,6 +7,7 @@
 /Patches/
 ci-raw/
 ci-safe/
+release-assets/
 .env
 .env.*
 !.env.example

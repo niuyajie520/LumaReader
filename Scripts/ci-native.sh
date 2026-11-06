@@ -23,7 +23,7 @@ if ! luma_developer_tools_work /usr/bin/xcrun >ci-raw/toolchain.log 2>&1; then e
 phase resolve /usr/bin/xcrun swift package resolve
 phase debug /usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug
 phase tests /usr/bin/xcrun swift test --sdk "$SDKROOT"
-phase release env LUMA_NO_OPEN=1 bash Scripts/build-macos.sh
+phase release env LUMA_NO_OPEN=1 LUMA_CI_AUDIT=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'
 phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader"; lipo -archs "dist/Luma Reader.app/Contents/MacOS/LumaReader" | grep -qw arm64'
 # LaunchServices is attempted only in an existing graphical user session.
@@ -33,5 +33,6 @@ if /bin/launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
 else
   printf '%s\n' '{"status":"BLOCKED","reason":"No graphical user session","mainWindowVerified":false}' >ci-raw/launch.log
   echo 'Application launch: BLOCKED (no graphical session)'
+  exit 1
 fi
 echo 'Native build phases completed; UI, fault injection and M4 performance require separate evidence.'

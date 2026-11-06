@@ -21,6 +21,15 @@ cp "$BIN_DIR/LumaReader" "$APP_PATH/Contents/MacOS/LumaReader"
 find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP_PATH/Contents/Resources/" \;
 cp Sources/LumaReader/Resources/Reader.js Sources/LumaReader/Resources/Reader.css Sources/LumaReader/Resources/AIChat.{html,css,js} Sources/LumaReader/Resources/AIHealth.js Sources/LumaReader/Resources/AppStrings.{js,json} "$APP_PATH/Contents/Resources/"
 bash Scripts/build-icon.sh "$APP_PATH/Contents/Resources"
+# SwiftPM release executables may still contain DWARF build paths. Strip debug
+# symbols before signing; never patch strings or relax the privacy gate.
+if [[ "${LUMA_CI_AUDIT:-0}" == 1 ]]; then
+  python3 Scripts/binary-path-audit.py "$APP_PATH/Contents/MacOS/LumaReader" >ci-raw/binary-path-before-strip.log
+fi
+/usr/bin/xcrun strip -S "$APP_PATH/Contents/MacOS/LumaReader"
+if [[ "${LUMA_CI_AUDIT:-0}" == 1 ]]; then
+  python3 Scripts/binary-path-audit.py "$APP_PATH/Contents/MacOS/LumaReader" >ci-raw/binary-path-after-strip.log
+fi
 cat > "$APP_PATH/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

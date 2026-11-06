@@ -1,7 +1,7 @@
 name: macOS 26 blocker verification
 on:
   push:
-    branches: [main, "verify/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -13,9 +13,14 @@ jobs:
   native:
     runs-on: macos-26
     timeout-minutes: 45
+    outputs:
+      source_sha: ${{ steps.package.outputs.source_sha }}
+      version: ${{ steps.package.outputs.version }}
+      tag: ${{ steps.package.outputs.tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Source and privacy preflight
@@ -23,6 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-raw ci-safe
+          python3 Tests/Shell/release-privacy.py
           python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
           python3 - <<'PY'
           from pathlib import Path
@@ -44,21 +50,17 @@ jobs:
           "$scanner_dir/gitleaks" version >>ci-raw/gitleaks.log 2>&1
           "$scanner_dir/gitleaks" git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >>ci-raw/gitleaks.log 2>&1
       - name: Native Debug tests Release signature architecture and launch
+        id: native
         shell: bash
         run: bash Scripts/ci-native.sh
       - name: Release privacy approval and packaging
+        id: package
         shell: bash
         run: |
           set -euo pipefail
           python3 Scripts/privacy-gate.py dist >ci-raw/release-privacy.log 2>&1
           gitleaks dir dist --redact --no-banner --report-format json --report-path ci-raw/release-gitleaks.json >ci-raw/release-gitleaks.log 2>&1
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent 'dist/Luma Reader.app' ci-raw/LumaReader-macOS26-arm64.zip >ci-raw/package.log 2>&1
-          python3 - <<'PYZIP'
-          import zipfile
-          with zipfile.ZipFile('ci-raw/LumaReader-macOS26-arm64.zip') as z:
-              assert z.testzip() is None
-              assert all(n.startswith('Luma Reader.app/') or n.startswith('__MACOSX/') for n in z.namelist())
-          PYZIP
+          python3 Scripts/prepare-release.py >ci-raw/package.log 2>&1
       - name: Prepare privacy-reviewed evidence
         id: evidence
         if: always()
@@ -76,6 +78,17 @@ jobs:
               Path('ci-safe/gitleaks-summary.json').write_text(json.dumps({'findingCount':len(items),'rules':sorted({x['RuleID'] for x in items})}))
           Path('ci-safe/gui-status.txt').write_text('Native GUI / XCUITest / M4 Air performance: NOT RUN. Build success alone is not launch success.\n')
           PY
+          python3 - <<'PROGRESS'
+          import json, os, subprocess
+          from pathlib import Path
+          Path('ci-safe/progress.json').write_text(json.dumps({
+              'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+              'runID':os.environ['GITHUB_RUN_ID'],
+              'native':'${{ steps.native.outcome }}',
+              'package':'${{ steps.package.outcome }}',
+              'GUI':'NOT RUN','M4AirPerformance':'NOT RUN',
+              'next':'Publish approved assets only after this job succeeds'}))
+          PROGRESS
           python3 Scripts/privacy-gate.py ci-safe > ci-raw/artifact-privacy.json
           cp ci-raw/artifact-privacy.json ci-safe/artifact-privacy.json
           echo "approved=true" >> "$GITHUB_OUTPUT"
@@ -91,9 +104,30 @@ jobs:
         if: success() && steps.evidence.outputs.approved == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: LumaReader-macOS26-arm64
-          path: ci-raw/LumaReader-macOS26-arm64.zip
+          name: LumaReader-release-approved
+          path: release-assets/
           if-no-files-found: error
           retention-days: 7
       # Raw logs, crash dumps, source workspaces and dSYM are never uploaded here.
 
+  publish:
+    needs: native
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'verify/macos26-blockers') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'verify/macos26-blockers')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.native.outputs.source_sha }}
+          persist-credentials: false
+      - name: Publish verified private-repository release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.native.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.native.outputs.tag }}
+        run: bash Scripts/publish-release.sh
