@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "filesScanned": 223,
+  "findings": [],
+  "scope": "Supplemental PII/path/signature scan; not a guarantee and not a replacement for Gitleaks"
+}

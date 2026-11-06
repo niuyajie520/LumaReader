@@ -1,0 +1,28 @@
+Historical handoff note. Repository privacy and permission status below are from a previous attempt; current verification uses the Private repository and Actions evidence.
+
+LumaReader 0.9.17 — 上传说明（2026-11-06）
+
+这份源码快照已检查：
+- 项目源码目录完整；Package.swift 清单可由当前 Linux Swift 工具解析，部署目标 macOS 26.0。
+- Scripts/privacy-gate.py 扫描 223 个原始文件：PASS（仅表示规则未匹配，不能保证没有任何秘密）。
+- Tests/Shell/developer-tools.sh 在 Linux 的便携测试：12/12 PASS。
+- Shell/Python 静态语法检查通过。
+- Gitleaks v8.30.1 尚未运行成功（本次执行环境无法访问 Go 模块下载服务器）。
+- npm 浏览器测试因缺少 Playwright 无法运行；macOS 原生编译与 UI 测试未运行。
+
+GitHub 写入结果：
+GitHub 仓库 https://github.com/niuyajie520/LumaReader 可读，然而 GitHub 工具创建独立分支时返回 403 Resource not accessible by integration。
+本次没有成功上传源代码，也没有触发 GitHub Actions。不能把配置文件存在或静态扫描通过当成 CI 已通过。
+
+请注意：目标仓库是 PUBLIC（公开）。上传即可能让任何人复制源码。
+不要把实际 API Key、密码、私人的电子书、真实聊天记录或诊断原始日志添加进这个文件夹。
+
+最省操作的上传方法（在 Mac 上）：
+1. 双击解压整个 ZIP，不要直接在 ZIP 中运行脚本。
+2. 进入 LumaReader 文件夹，双击 Upload-Source-to-GitHub.command。
+3. 按屏幕提示确认公开上传。若 Git 要求授权，只在本机通过 GitHub 认证，不要发送密码或令牌给 ChatGPT。
+4. 脚本成功后打开 https://github.com/niuyajie520/LumaReader/actions 检查实际 CI 结果。
+
+重要：上传脚本会在核对 main 提交后，创建 verify/macos26-blockers 分支，不覆盖 main。
+若 main 已变化，脚本会安全停止。不要自行添加 force push 参数。
+如果 CI 报错，请提供经过隐私检查的日志；不要把原始 Gitleaks findings、API Key 或原始诊断 ZIP 公开上传。

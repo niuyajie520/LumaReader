@@ -1,0 +1,74 @@
+name: macOS 26 blocker verification
+on:
+  push:
+    branches: [main, "verify/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Source and privacy preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-raw ci-safe
+          python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for name in ['Package.swift','Sources','Tests','Vendor','Scripts/build-macos.sh']:
+              assert Path(name).exists(), 'Missing source component'
+          manifest=Path('Package.swift').read_text()
+          assert re.search(r'\.macOS\((?:"26\.0"|\.v26)\)',manifest), 'macOS 26 deployment target required'
+          PY
+      - name: Gitleaks source and history scan
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >ci-raw/gitleaks.log 2>&1
+      - name: Native Debug tests Release signature and architecture
+        shell: bash
+        run: bash Scripts/ci-native.sh
+      - name: Prepare privacy-reviewed evidence
+        id: evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/privacy-gate.py redact ci-raw ci-safe
+          # Detailed Gitleaks reports may contain author/email/secret fields; export only rule IDs and counts.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ci-raw/gitleaks.json')
+          if p.exists():
+              items=json.loads(p.read_text()) or []
+              Path('ci-safe/gitleaks-summary.json').write_text(json.dumps({'findingCount':len(items),'rules':sorted({x['RuleID'] for x in items})}))
+          Path('ci-safe/gui-status.txt').write_text('Native GUI / XCUITest / M4 Air performance: NOT RUN. Build success alone is not launch success.\n')
+          PY
+          python3 Scripts/privacy-gate.py ci-safe > ci-raw/artifact-privacy.json
+          cp ci-raw/artifact-privacy.json ci-safe/artifact-privacy.json
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+      - name: Upload sanitized evidence only
+        if: always() && steps.evidence.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macOS26-sanitized-evidence
+          path: ci-safe/
+          if-no-files-found: error
+          retention-days: 7
+      # Raw logs, crash dumps, source workspaces, dSYM and unreviewed app binaries are never uploaded here.
+

@@ -1,0 +1,10 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(path.resolve(__dirname,'../../Sources/LumaReader/Resources/AIChat.js'),'utf8');
+const a=source.indexOf('// Error events carry only'),b=source.indexOf("$('draft').addEventListener",a);
+assert(a>=0&&b>a);const handlers={},sent=[],ctx={state:{diagnosticsEnabled:false},window:{addEventListener:(event,handler)=>handlers[event]=handler},post:(action,value)=>sent.push({action,...value})};
+vm.createContext(ctx);vm.runInContext(source.slice(a,b),ctx);
+const secret={message:'sk-PRIVATE_KEY',filename:'file:///fixture/book.epub',reason:'PRIVATE_AI_CONVERSATION',blockedURI:'https://private.example/token'};
+handlers.error(secret);assert.equal(sent.length,0,'Off means no bridge telemetry');ctx.state.diagnosticsEnabled=true;
+for(const key of ['error','unhandledrejection','securitypolicyviolation'])handlers[key](secret);
+assert.equal(JSON.stringify(sent),'[{"action":"diagnostic","kind":"script"},{"action":"diagnostic","kind":"promise"},{"action":"diagnostic","kind":"csp"}]');
+console.log('Diagnostic JS privacy: PASS (production handlers; secret sentinels excluded)');

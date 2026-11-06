@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
+const source=fs.readFileSync(path.resolve(__dirname,'../../Sources/LumaReader/Resources/Reader.js'),'utf8');
+const from=source.indexOf('  function pageState()'),to=source.indexOf('  function measurePages(',from);
+const offset=source.indexOf('  function nextSpreadOffset()'),offsetEnd=source.indexOf("  document.addEventListener('pointerdown'",offset);
+const sent=[];let span=100;const ctx={pageIndex:0,pageCount:4,pageColumns:1,pagePitch:500,pageGap:80,stableAnchor:null,visibleTextStart:null,visibleTextEnd:null,paged:true,numbers:null,searchQuery:'',root:{style:{}},document:{getElementById:()=>null},visibleAnchor:()=>({start:ctx.pageIndex*span}),activeHeading:()=>null,columnAt:n=>Math.floor(n/span),nodes:()=>[{end:400}],send:m=>sent.push(m)};
+vm.createContext(ctx);vm.runInContext(source.slice(from,to)+source.slice(offset,offsetEnd),ctx);
+ctx.paintPage();assert.equal(sent.at(-1).textStart,0);assert.equal(sent.at(-1).textEnd,100);
+ctx.pageIndex=1;ctx.paintPage();assert.equal(sent.at(-1).textStart,100);assert.equal(sent.at(-1).textEnd,200);
+ctx.pageIndex=0;ctx.pageColumns=2;ctx.paintPage();assert.equal(sent.at(-1).textEnd,200);
+span=50;ctx.pageIndex=2;ctx.paintPage(true);assert.equal(sent.at(-1).textStart,100);assert.equal(sent.at(-1).textEnd,200);assert.equal(ctx.stableAnchor.start,0,'Explicit semantic anchor is retained');
+console.log('Displayed bookmark range: PASS (production paint metadata; synthetic column geometry)');

@@ -1,0 +1,87 @@
+{
+  "kean/Pulse": {
+    "full_name": "kean/Pulse",
+    "archived": false,
+    "pushed_at": "2026-10-11T11:56:25Z",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "main",
+    "tag": "5.2.3",
+    "published_at": "2026-06-10T16:11:29Z",
+    "commit": "94b92731d370c129bb771e9c18f69b0a44ccca5c",
+    "ref": "5.2.3"
+  },
+  "kstenerud/KSCrash": {
+    "full_name": "kstenerud/KSCrash",
+    "archived": false,
+    "pushed_at": "2026-11-06T00:49:33Z",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "master",
+    "tag": "2.6.1",
+    "published_at": "2026-10-30T18:12:58Z",
+    "commit": "c3882b4db5e810a8ed4148b79cab29a173d4c5c5",
+    "ref": "2.6.1"
+  },
+  "exelban/stats": {
+    "full_name": "exelban/stats",
+    "archived": false,
+    "pushed_at": "2026-11-05T15:34:03Z",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "master",
+    "tag": "v3.0.25",
+    "published_at": "2026-11-04T09:57:29Z",
+    "commit": "27fa75a53d57072ec06adc730dcfe67633d639d2",
+    "ref": "v3.0.25"
+  },
+  "Zesty0wl/mac-performance-monitor": {
+    "full_name": "Zesty0wl/mac-performance-monitor",
+    "archived": false,
+    "pushed_at": "2026-11-05T16:45:06Z",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "main",
+    "tag": "v2.6.0.306",
+    "published_at": "2026-11-01T15:12:41Z",
+    "commit": "2a6fe67ff16e63b1a7e5d523727758772c5cfdb1",
+    "ref": "v2.6.0.306"
+  },
+  "alhanashi/Desktop-Overlay": {
+    "full_name": "alhanashi/Desktop-Overlay",
+    "archived": false,
+    "pushed_at": "2026-10-28T08:40:27Z",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "main",
+    "tag": "v2.0",
+    "published_at": "2026-10-28T08:40:28Z",
+    "commit": "cbcf539aee9e405c3f2aefb95a244ede5f9d9731",
+    "ref": "v2.0"
+  }
+}

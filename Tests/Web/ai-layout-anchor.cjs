@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const s=fs.readFileSync(path.resolve(__dirname,'../../Sources/LumaReader/Resources/AIChat.js'),'utf8');
+const a=s.indexOf('function rememberScroll()'),b=s.indexOf("messageList.addEventListener('scroll'",a);
+const text={nodeType:3,length:1000},p={contains:n=>n===text,firstChild:text};let rectTop=12,selected='';const frames=[];
+const msg={getBoundingClientRect:()=>({top:-80,bottom:400}),querySelector:()=>p};
+const list={scrollHeight:2000,scrollTop:500,clientHeight:400,getBoundingClientRect:()=>({top:0,left:0}),querySelectorAll:()=>[msg]};
+const range=()=>({setStart(){},setEnd(){},getBoundingClientRect:()=>({top:rectTop})});
+const ctx={messageList:list,scrollAnchor:null,restoringScroll:false,getSelection:()=>({toString:()=>selected}),requestAnimationFrame:f=>{frames.push(f);return 1},document:{caretRangeFromPoint:()=>({startContainer:text,startOffset:100,cloneRange:range}),createRange:range}};
+vm.createContext(ctx);vm.runInContext(s.slice(a,b),ctx);
+ctx.rememberScroll();rectTop=42;ctx.restoreScroll();assert.equal(list.scrollTop,530,'Same text offset stays at the same viewport height after reflow');frames.splice(0).forEach(f=>f());
+list.scrollTop=1600;ctx.rememberScroll();ctx.restoreScroll();assert.equal(list.scrollTop,2000,'At-bottom readers follow new content');frames.splice(0).forEach(f=>f());
+list.scrollTop=1600;ctx.rememberScroll();selected='selected text';rectTop=42;ctx.restoreScroll();assert.notEqual(list.scrollTop,2000,'Selection prevents forced bottom jump');
+const c=s.indexOf('function sizeComposer()'),d=s.indexOf('const grip=',c);const draft={style:{},scrollHeight:500};
+const input={draft,messageList:list,innerHeight:800,manualComposer:0,rememberScroll(){},restoreScroll(){}};vm.createContext(input);vm.runInContext(s.slice(c,d),input);input.sizeComposer();assert.equal(draft.style.height,'336px');input.manualComposer=180;input.sizeComposer();assert.equal(draft.style.height,'180px');input.manualComposer=900;input.sizeComposer();assert.equal(draft.style.height,'336px');
+console.log('AI text anchor and composer bounds: PASS (DOM geometry fixture)');
