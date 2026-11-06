@@ -240,37 +240,59 @@ struct LumaPanelEntrance:ViewModifier {
 
 struct LumaSidebarSection<Content:View>:View {
     @Environment(\.lumaMuted) private var muted
+    @Environment(\.lumaInk) private var ink
+    @Environment(\.lumaSurface) private var surface
+    @Environment(\.lumaGlass) private var glass
     let title:String
     let onAdd:(()->Void)?
+    let onSearch:(()->Void)?
+    let symbol:String?
+    let prominent:Bool
+    let headerFont:Font?
     let busy:Bool
     let content:Content
     @AppStorage private var expanded:Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
     @Environment(\.lumaSurfacePolish) private var polished
-    init(_ title:String,key:String,onAdd:(()->Void)? = nil,busy:Bool = false,@ViewBuilder content:()->Content) {
+    init(_ title:String,key:String,onAdd:(()->Void)? = nil,onSearch:(()->Void)? = nil,symbol:String? = nil,prominent:Bool = false,font:Font? = nil,busy:Bool = false,@ViewBuilder content:()->Content) {
         self.title = title; self.onAdd = onAdd; self.busy = busy; self.content = content()
+        self.onSearch = onSearch; self.symbol = symbol; self.prominent = prominent; self.headerFont = font
         _expanded = AppStorage(wrappedValue:true,key)
     }
     var body:some View {
         VStack(alignment:.leading,spacing:3) {
+            Group {
+                if prominent { sectionHeader.readerGlass(radius:12,enabled:glass,tint:surface).padding(.horizontal,12) }
+                else { sectionHeader }
+            }
+            if expanded { content.transition(.opacity) }
+        }.animation(reduceMotion || motionLevel == .off ? nil:.spring(duration:0.30,bounce:0.08),value:expanded)
+    }
+    private var sectionHeader:some View {
             HStack(spacing:0) {
                 Button { expanded.toggle() } label: {
                     HStack(spacing:7) {
+                        if !prominent {
                         Image(systemName:"chevron.right").font(.system(size:11,weight:.semibold))
                             .rotationEffect(.degrees(expanded ? 90:0)).frame(width:18)
-                        Text(L10n.text(title)).font(.system(size:12,weight:.medium))
+                        }
+                        if let symbol { Image(systemName:symbol).font(.system(size:21,weight:.regular)).frame(width:24) }
+                        Text(L10n.text(title)).font(headerFont ?? .system(size:prominent ? 17:12,weight:.medium))
                         Spacer(minLength:0)
-                    }.foregroundStyle(muted).padding(.leading,16).padding(.trailing,8).frame(maxWidth:.infinity,minHeight:44).contentShape(Rectangle())
+                        if prominent { Image(systemName:"chevron.right").font(.system(size:12,weight:.medium)).rotationEffect(.degrees(expanded ? 90:0)).frame(width:18) }
+                    }.foregroundStyle(prominent ? ink:muted).padding(.leading,prominent ? 12:16).padding(.trailing,prominent ? 12:8).frame(maxWidth:.infinity,minHeight:prominent ? 50:44).contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityLabel(L10n.text((expanded ? "折叠":"展开")+title))
                 if busy { ProgressView().controlSize(.mini).padding(.horizontal,6) }
+                if let onSearch {
+                    Button { expanded = true; onSearch() } label: { Image(systemName:"magnifyingglass").font(.system(size:12)).frame(width:32,height:44).contentShape(Rectangle()) }
+                        .buttonStyle(LumaHeaderButtonStyle()).help(L10n.text("搜索分类")).accessibilityLabel(L10n.text("搜索分类"))
+                }
                 if let onAdd {
                     Button { expanded = true; onAdd() } label: { Image(systemName:"plus").frame(width:40,height:44).contentShape(Rectangle()) }
                         .buttonStyle(LumaHeaderButtonStyle()).help(L10n.text("新建分类")).accessibilityLabel(L10n.text("新建分类"))
                 }
             }.padding(.trailing,onAdd == nil ? 0:8)
-            if expanded { content.transition(.opacity) }
-        }.animation(reduceMotion || motionLevel == .off ? nil:.spring(duration:0.30,bounce:0.08),value:expanded)
     }
 }
 

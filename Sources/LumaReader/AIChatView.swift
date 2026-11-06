@@ -31,7 +31,7 @@ struct AIChatView: View {
         let dark = colorScheme == .dark
         _ = ai.settingsRevision
         let providers = AIProvider.allCases.map { ["id":$0.rawValue,"title":$0.title] }
-        let messages = ai.messages.map { ["role":$0.role,"text":$0.text,"providerTitle":$0.providerTitle ?? "阅读助手","imageName":$0.image?.filename ?? ""] }
+        let messages = ai.messages.map { ["id":$0.id.uuidString,"role":$0.role,"text":$0.text,"providerTitle":$0.providerTitle ?? "阅读助手","imageName":$0.image?.filename ?? ""] }
         let colors = store.readingPalette(dark:dark).webColors
         var state:[String:Any] = [
             "provider":ai.provider.rawValue, "providers":providers, "model":ai.effectiveModel,
@@ -43,6 +43,12 @@ struct AIChatView: View {
             "glassEnabled":store.effectiveGlassEffectsEnabled,
             "diagnosticsEnabled":DiagnosticManager.shared.automaticDetection,"language":L10n.code,"composerHeight":UserDefaults.standard.double(forKey:"aiComposerHeight"),"glassOpacity":store.glassOpacity,"pinned":store.aiPanelPinned,"expanded":store.aiPanelExpanded
         ]
+        state["conversationID"] = ai.currentConversationID.uuidString
+        state["conversationLoading"] = ai.isLoadingConversation
+        state["history"] = ai.historyEntries.map { entry in
+            ["id":entry.id.uuidString,"title":entry.title.isEmpty ? L10n.text("新建对话"):entry.title,
+             "date":entry.updatedAt.formatted(date:.abbreviated,time:.omitted)]
+        }
         if let reading = ai.context { state["context"] = ["title":reading.title,"chapter":reading.chapter] }
         else { state["context"] = NSNull() }
         return state
@@ -180,7 +186,7 @@ private struct AIChatWebView: NSViewRepresentable {
             case "ready": break // didFinish validates DOM/CSS before marking ready
             case "collapse": onCollapse()
             case "composerHeight":
-                if let value = body["value"] as? Double,value.isFinite { UserDefaults.standard.set(value == 0 ? 0:min(360,max(66,value)),forKey:"aiComposerHeight") }
+                if let value = body["value"] as? Double,value.isFinite { UserDefaults.standard.set(value == 0 ? 0:min(360,max(24,value)),forKey:"aiComposerHeight") }
             case "pin": store.aiPanelPinned.toggle()
             case "expand": store.aiPanelExpanded.toggle()
             case "stop": ai.cancel()
@@ -188,6 +194,9 @@ private struct AIChatWebView: NSViewRepresentable {
             case "provider": if let provider = AIProvider(rawValue:body["value"] as? String ?? "") { ai.selectProvider(provider) }
             case "include": if !ai.isSending { ai.includeReading = body["value"] as? Bool ?? false }
             case "new": if !ai.isSending { ai.clearConversation() }
+            case "history": ai.flushHistory()
+            case "conversation":
+                if let raw = body["id"] as? String, let id = UUID(uuidString:raw) { ai.restoreConversation(id) }
             case "removeImage": if !ai.isSending { ai.clearImage() }
             case "removeQuote": if !ai.isSending { ai.clearQuote() }
             case "settings": if !ai.isSending { openSettings() }

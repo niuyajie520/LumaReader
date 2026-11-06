@@ -566,5 +566,22 @@
   "正在检查 AI 界面": "Checking AI interface",
   "AI 界面结构与样式检查通过": "AI structure and style checks passed",
   "AI 界面结构或样式异常": "AI structure or styles are abnormal",
-  "书签、高亮与笔记": "Bookmarks, highlights and notes"
+  "书签、高亮与笔记": "Bookmarks, highlights and notes",
+  "新建对话": "New conversation",
+  "暂无聊天记录": "No conversations yet",
+  "搜索分类": "Search collections",
+  "清空分类搜索": "Clear collection search",
+  "暂无分类": "No collections yet",
+  "没有匹配的分类": "No matching collections",
+  "搜索时暂停分类排序": "Reordering is paused while searching",
+  "无法保存本地聊天记录，请检查磁盘空间。": "Could not save local conversations. Check available disk space.",
+  "无法读取这条聊天记录，原记录已保留。": "Could not read this conversation. The original record was preserved.",
+  "无法读取本地聊天记录，原文件已保留。": "Could not read local conversations. The original files were preserved.",
+  "展开书架": "Expand Bookshelf",
+  "折叠书架": "Collapse Bookshelf",
+  "展开云盘": "Expand Cloud Storage",
+  "折叠云盘": "Collapse Cloud Storage",
+  "展开分类": "Expand Collections",
+  "折叠分类": "Collapse Collections",
+  "未读": "Unread"
 }

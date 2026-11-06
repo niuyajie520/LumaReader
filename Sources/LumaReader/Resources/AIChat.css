@@ -58,7 +58,7 @@ header{gap:8px}header .identity{flex:1;min-width:0}header .actions{flex:none}#co
 @media(prefers-reduced-transparency:reduce){:root[data-glass="true"] :is(header,footer,.composer,#reading,.message){background:var(--paper)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
 
 :root{--glass-opacity:.32}
-:root[data-glass="true"] :is(header,footer,.composer,#reading,.message.user,.message.assistant){background:linear-gradient(135deg,color-mix(in srgb,var(--accent) calc(var(--glass-opacity)*100%),transparent),color-mix(in srgb,var(--paper) calc(var(--glass-opacity)*100%),transparent));border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
+:root[data-glass="true"] :where(header,footer,.composer),:root[data-glass="true"] :is(#reading,.message.user,.message.assistant){background:linear-gradient(135deg,color-mix(in srgb,var(--accent) calc(var(--glass-opacity)*100%),transparent),color-mix(in srgb,var(--paper) calc(var(--glass-opacity)*100%),transparent));border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
 #pin[aria-pressed="true"]{background:var(--accent);color:var(--paper)}
 @media(max-width:340px){header{padding-inline:10px;gap:4px}.identity{gap:4px;font-size:14px}.actions{gap:0}.icon{width:28px}}
 
@@ -70,3 +70,25 @@ header{gap:8px}header .identity{flex:1;min-width:0}header .actions{flex:none}#co
 #composer-resize:focus-visible{outline:2px solid var(--accent)}
 /* Constrain the restored interface to its panel; retain the existing internal layout. */
 html,body{overflow-x:hidden;min-width:0}header,.provider-row,main,footer{min-width:0}.identity{white-space:nowrap}.actions{flex-shrink:0}
+
+/* The reading palette owns the canvas; accent is reserved for small controls. */
+:root[data-glass="true"] :is(header,footer){background:var(--paper);border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+:root[data-glass="true"] .composer{background:color-mix(in srgb,var(--surface) calc(var(--glass-opacity)*30%),var(--paper));border-color:var(--line);box-shadow:none}
+.composer{position:relative;padding:12px 56px 12px 12px}
+#draft{height:24px;min-height:24px;line-height:24px;padding:0;max-height:none}
+.composer-bottom{position:absolute;right:3px;bottom:2px;height:42px;margin:0}
+footer>.context-toggle{margin-top:4px;min-height:32px;width:fit-content}
+#composer-resize{position:absolute;top:-4px;left:8px;right:8px;height:8px;margin:0}
+.history-panel{position:absolute;top:74px;right:12px;z-index:20;width:min(290px,calc(100% - 24px));max-height:65vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 24px #0002;padding:8px}
+:root[data-glass="true"] .history-panel{background:color-mix(in srgb,var(--paper) calc(100% - var(--glass-opacity)*8%),var(--accent))}
+.history-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 8px;font-size:13px}
+.history-heading .quiet{padding:0 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.history-row{display:flex;width:100%;align-items:center;gap:10px;min-height:40px;padding:8px;border-radius:8px;text-align:start;font-size:12px}
+.history-row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-row time{flex:none;font-size:10px;color:var(--muted)}
+.history-row:hover,.history-row[aria-current="true"]{background:var(--surface)}
+#history-empty{font-size:12px;text-align:center;color:var(--muted);padding:12px}
+@media(prefers-contrast:more){.history-panel{border-color:var(--ink)}}
+
+:root[data-glass="true"] .composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 8%,transparent)}
+@media(prefers-contrast:more){:root[data-glass="true"] .composer{border-color:var(--ink)}}

@@ -30,6 +30,7 @@ phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader
 # A live launched process does not prove a visible window or correct UI behavior.
 if /bin/launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
   phase launch /usr/bin/xcrun swift -sdk "$SDKROOT" Scripts/launch-smoke.swift "$PWD/dist/Luma Reader.app"
+  phase window-ui python3 Scripts/window-ui-smoke.py "$PWD/dist/Luma Reader.app"
 else
   printf '%s\n' '{"status":"BLOCKED","reason":"No graphical user session","mainWindowVerified":false}' >ci-raw/launch.log
   echo 'Application launch: BLOCKED (no graphical session)'
