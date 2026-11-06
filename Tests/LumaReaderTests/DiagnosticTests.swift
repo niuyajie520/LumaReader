@@ -44,10 +44,21 @@ struct DiagnosticTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".zip")
         let extracted = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString,isDirectory:true)
         defer { try? FileManager.default.removeItem(at:url); try? FileManager.default.removeItem(at:extracted) }
-        let report = DiagnosticReport(appVersion:"test",osVersion:"26.0",samples:[],events:[DiagnosticEvent(code:.aiScriptFailed)],crashReportsStored:nil,crashCaptureActive:false)
+        var sample = DiagnosticSample()
+        sample.time = Date(timeIntervalSince1970:1234)
+        sample.processCPUPercent = 12.5
+        let report = DiagnosticReport(appVersion:"test",osVersion:"26.0",samples:[sample],events:[DiagnosticEvent(code:.aiScriptFailed)],crashReportsStored:nil,crashCaptureActive:false)
         try await DiagnosticArchive().write(report,to:url)
         try FileManager.default.unzipItem(at:url,to:extracted)
         #expect(Set(try FileManager.default.contentsOfDirectory(atPath:extracted.path)) == ["BugReport.md","diagnostics.json","Performance.csv"])
         #expect(try String(contentsOf:extracted.appendingPathComponent("BugReport.md"),encoding:.utf8).contains("aiScriptFailed"))
+        let csv = try String(contentsOf:extracted.appendingPathComponent("Performance.csv"),encoding:.utf8)
+        let records = csv.split(separator:"\n")
+        try #require(records.count == 2)
+        let columns = records[1].split(separator:",",omittingEmptySubsequences:false)
+        try #require(columns.count == 10)
+        #expect(columns[1] == "12.5")
+        #expect(columns[2].isEmpty && columns[3].isEmpty)
+
     }
 }

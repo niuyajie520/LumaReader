@@ -29,6 +29,8 @@ def redact(source,destination):
  out=Path(destination);out.mkdir(parents=True,exist_ok=True)
  for p in sorted(Path(source).glob('*.log')):
   data=p.read_bytes()
+  # Preserve compiler source basenames/line numbers, never the user's directory.
+  data=re.sub(rb'/(?:Users|home|workspace|Applications|Library|private|var|tmp|opt)/[^\s\"\']*/([^/\s:]+\.(?:swiftinterface|swift|mm|cpp|cc|c|h))(?=:\d)',rb'\1',data)
   data=re.sub(rb'(?im)\b(?:authorization|proxy-authorization|cookie|set-cookie)\s*:[^\r\n]+',b'[REDACTED-HEADER]',data)
   data=re.sub(rb'(?i)([?&](?:token|api_key|access_token|refresh_token|password|client_secret)=)[^\s&\"\']+',rb'\1[REDACTED]',data)
   for kind,pattern in rules.items():data=pattern.sub(('[REDACTED-'+kind+']').encode(),data)
