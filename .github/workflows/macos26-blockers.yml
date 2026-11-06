@@ -34,11 +34,14 @@ jobs:
           PY
       - name: Gitleaks source and history scan
         shell: bash
-        env:
-          GOTOOLCHAIN: local
         run: |
           set -euo pipefail
-          go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >ci-raw/gitleaks.log 2>&1
+          scanner_dir="$(mktemp -d "$RUNNER_TEMP/luma-gitleaks.XXXXXX")"
+          curl --fail --location --silent --show-error --max-time 120 https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz -o "$scanner_dir/archive.tar.gz" >ci-raw/gitleaks.log 2>&1
+          printf '%s  %s\n' b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5 "$scanner_dir/archive.tar.gz" | shasum -a 256 -c - >>ci-raw/gitleaks.log 2>&1
+          tar -xzf "$scanner_dir/archive.tar.gz" -C "$scanner_dir" gitleaks
+          "$scanner_dir/gitleaks" version >>ci-raw/gitleaks.log 2>&1
+          "$scanner_dir/gitleaks" git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >>ci-raw/gitleaks.log 2>&1
       - name: Native Debug tests Release signature and architecture
         shell: bash
         run: bash Scripts/ci-native.sh
