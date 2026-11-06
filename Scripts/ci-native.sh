@@ -16,7 +16,10 @@ phase() {
 [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 26 ]] || { echo 'Required macOS 26+ runner unavailable';exit 1; }
 phase environment bash -c 'sw_vers; uname -m; xcodebuild -version; xcrun swift --version'
 source Scripts/select-developer-tools.sh
-if ! luma_select_developer_tools >ci-raw/toolchain.log 2>&1; then echo 'Toolchain/SDK probe: FAIL';exit 1; fi
+export LUMA_TOOLCHAIN_LOG="$PWD/ci-raw/toolchain-probe.log"
+# The hosted image already has full Xcode selected. Preserve its actual failure,
+# rather than retrying every installed toolchain before a useful diagnostic exists.
+if ! luma_developer_tools_work /usr/bin/xcrun >ci-raw/toolchain.log 2>&1; then echo 'Toolchain/SDK probe: FAIL';exit 1; fi
 phase resolve /usr/bin/xcrun swift package resolve
 phase debug /usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug
 phase tests /usr/bin/xcrun swift test --sdk "$SDKROOT"
