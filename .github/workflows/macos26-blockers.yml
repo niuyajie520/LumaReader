@@ -40,6 +40,7 @@ jobs:
           curl --fail --location --silent --show-error --max-time 120 https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz -o "$scanner_dir/archive.tar.gz" >ci-raw/gitleaks.log 2>&1
           printf '%s  %s\n' b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5 "$scanner_dir/archive.tar.gz" | shasum -a 256 -c - >>ci-raw/gitleaks.log 2>&1
           tar -xzf "$scanner_dir/archive.tar.gz" -C "$scanner_dir" gitleaks
+          echo "$scanner_dir" >> "$GITHUB_PATH"
           "$scanner_dir/gitleaks" version >>ci-raw/gitleaks.log 2>&1
           "$scanner_dir/gitleaks" git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >>ci-raw/gitleaks.log 2>&1
       - name: Native Debug tests Release signature and architecture
@@ -73,5 +74,13 @@ jobs:
           path: ci-safe/
           if-no-files-found: error
           retention-days: 7
-      # Raw logs, crash dumps, source workspaces, dSYM and unreviewed app binaries are never uploaded here.
+      - name: Upload privacy-approved Release app
+        if: success() && steps.evidence.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LumaReader-macOS26-arm64
+          path: ci-raw/LumaReader-macOS26-arm64.zip
+          if-no-files-found: error
+          retention-days: 7
+      # Raw logs, crash dumps, source workspaces and dSYM are never uploaded here.
 
