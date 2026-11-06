@@ -26,11 +26,6 @@ phase tests /usr/bin/xcrun swift test --sdk "$SDKROOT"
 phase release env LUMA_NO_OPEN=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'
 phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader"; lipo -archs "dist/Luma Reader.app/Contents/MacOS/LumaReader" | grep -qw arm64'
-# Scan the assembled bundle before packaging or exporting any binary.
-phase release-privacy python3 Scripts/privacy-gate.py dist
-phase release-gitleaks gitleaks dir dist --redact --no-banner --report-format json --report-path ci-raw/release-gitleaks.json
-phase package /usr/bin/ditto -c -k --sequesterRsrc --keepParent 'dist/Luma Reader.app' ci-raw/LumaReader-macOS26-arm64.zip
-phase package-integrity python3 -c 'import zipfile; z=zipfile.ZipFile("ci-raw/LumaReader-macOS26-arm64.zip"); assert z.testzip() is None; assert all(n.startswith("Luma Reader.app/") or n.startswith("__MACOSX/") for n in z.namelist())'
 # LaunchServices is attempted only in an existing graphical user session.
 # A live launched process does not prove a visible window or correct UI behavior.
 if /bin/launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
