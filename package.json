@@ -1,0 +1,12 @@
+{
+  "name": "luma-reader-engine-tests",
+  "private": true,
+  "scripts": {
+    "test:web": "node Tests/Web/reader-engine.cjs && node Tests/Web/book-pages.cjs && node Tests/Web/ai-chat.cjs && node Tests/Web/theme-outline.cjs && node Tests/Web/reading-experience.cjs",
+    "test:pagination-performance": "node Tests/Web/pagination-performance.cjs",
+    "test:font-settings": "node Tests/Web/custom-font-settings.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

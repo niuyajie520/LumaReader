@@ -1,0 +1,31 @@
+{
+  "checks": "PASS",
+  "errors": [],
+  "fixture": {
+    "paragraphs": 1200,
+    "annotations": 600
+  },
+  "javascriptRenderMs": {
+    "before": [
+      19.699999999254942,
+      15.200000002980232,
+      17.600000001490116,
+      15.699999999254942
+    ],
+    "after": [
+      3,
+      3.2000000029802322,
+      3.800000000745058,
+      3
+    ],
+    "medianBefore": 16.65000000037253,
+    "medianAfter": 3.100000001490116
+  },
+  "idle": {
+    "durationMs": 400,
+    "scheduledFrames": 0,
+    "scheduledTimers": 0,
+    "contentMutations": 0
+  },
+  "limits": "Synthetic Chromium JavaScript timing, not macOS energy, PDFKit, WebKit or full paint measurements."
+}

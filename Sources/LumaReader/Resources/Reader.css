@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light;
+  --paper: #faf9f6;
+  --text: #34342f;
+  --reader-size: 19px;
+  --reader-width: 680px;
+  --reader-font: 'New York','Iowan Old Style','Songti SC',serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+:root.reader-dark { color-scheme: dark; --paper: #20211f; --text: #d9d8d1; }
+html, body {
+  margin: 0 !important;
+  background: var(--paper) !important;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+body { padding: 48px 44px 100px !important; }
+#luma-content {
+  max-width: var(--reader-width);
+  margin: 0 auto;
+  font-size: var(--reader-size) !important;
+  line-height: var(--reader-leading,1.75) !important;
+  font-family: var(--reader-font) !important;
+  overflow-wrap: anywhere;
+}
+#luma-content p { font-size: inherit !important; line-height: inherit !important; font-family: inherit !important; margin: 0 0 var(--reader-paragraph,1.35em); text-indent:var(--reader-indent,0); }
+#luma-content h1, #luma-content h2 { font-size: 1.65em; line-height: 1.35; letter-spacing: -0.02em; font-weight: 500; margin: 1.4em 0; }
+#luma-content img, #luma-content svg { max-width: 100%; height: auto; }
+#luma-content a { color: inherit; text-underline-offset: 4px; }
+#luma-content mark {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+  border-radius: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  #luma-content mark:hover { filter: brightness(0.95); }
+}
+#luma-content mark:active { filter: brightness(0.88); }
+::selection { background: #a2b8c366; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.luma-note-actions {
+  position:fixed; z-index:2147483647; display:flex; gap:4px; padding:4px;
+  border:1px solid color-mix(in srgb,var(--text) 18%,transparent); border-radius:12px;
+  background:var(--paper); color:var(--text); box-shadow:0 3px 12px #0002;
+}
+.luma-note-actions[hidden] { display:none !important; }
+.luma-note-actions button {
+  appearance:none; display:grid; place-items:center; position:static; min-width:44px; min-height:44px;
+  border:0; border-radius:8px; background:transparent; color:inherit; cursor:pointer;
+}
+.luma-note-actions button:hover { background:color-mix(in srgb,var(--text) 8%,transparent); }
+.luma-note-actions button:focus-visible { outline:2px solid currentColor; outline-offset:1px; }
+.luma-note-actions svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+#luma-content img { cursor:zoom-in; }
+
+html[data-paged], html[data-paged] body { height:100%; overflow:hidden; }
+html[data-paged] body { padding:0 !important; }
+#luma-viewport { position:fixed; top:32px; bottom:48px; left:50%; width:min(var(--reader-width),calc(100vw - 112px)); transform:translateX(-50%); overflow:hidden; }
+html[data-paged] #luma-content {
+  height:100%; width:100%; max-width:none;
+  margin:0; column-count:1; column-gap:80px; column-fill:auto;
+  line-height:var(--reader-leading,1.75) !important; will-change:auto;
+}
+html[data-paged] #luma-content p { line-height:inherit !important; orphans:2; widows:2; }
+html[data-paged] #luma-content h1, html[data-paged] #luma-content h2 { break-after:avoid; }
+html[data-paged] #luma-content img { max-height:calc(100vh - 90px); object-fit:contain; break-inside:avoid; }
+#luma-page-numbers { position:fixed; left:0; right:0; bottom:16px; height:20px; color:var(--text); opacity:.5; font:12px -apple-system,sans-serif; font-variant-numeric:tabular-nums; pointer-events:none; }
+#luma-page-numbers span { position:absolute; transform:translateX(-50%); }
+.luma-page-edge { position:fixed; top:60px; bottom:48px; width:30px; z-index:9; border:0; background:transparent; color:var(--text); opacity:0; font:30px -apple-system,sans-serif; cursor:pointer; }
+.luma-page-edge.previous { left:0; } .luma-page-edge.next { right:0; }
+.luma-page-edge:hover, .luma-page-edge:focus-visible { opacity:.5; }
+@media (min-width:1000px) { #luma-viewport { width:min(calc(var(--reader-width) * 2 + 80px),calc(100vw - 112px)); } html[data-paged] #luma-content { column-count:2; } }
+
+.luma-search-overlay { position:fixed; inset:0; pointer-events:none; z-index:5; }
+
+:root[data-reduce-visual-effects="true"] *,
+:root[data-reduce-visual-effects="true"] *::before,
+:root[data-reduce-visual-effects="true"] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+}
+
+/* Focus keeps progress quiet. Moving to the bottom edge reveals it without reflow. */
+html[data-focus="true"] #luma-page-numbers { opacity:0; }
+html[data-focus="true"] #luma-page-numbers:hover { opacity:.5; }
+html[data-focus="true"] #luma-page-numbers { pointer-events:auto; }
+
+#luma-note-focus{position:fixed;inset:0;z-index:7;pointer-events:none}
+#luma-note-focus i{position:absolute;border-radius:3px;outline:2px solid color-mix(in srgb,var(--text) 45%,transparent);outline-offset:2px;background:transparent}
+
+/* Override publisher text faces when the reader explicitly chooses an imported font. */
+html[data-custom-font="true"] #luma-content :is(p,span,div,h1,h2,h3,h4,h5,h6,li,blockquote,em,strong,a,td,th) { font-family:var(--reader-font)!important; }
+html[data-custom-font="true"] #luma-content :is(pre,code,kbd,samp),html[data-custom-font="true"] #luma-content :is(pre,code,kbd,samp) * { font-family:ui-monospace,monospace!important; }

@@ -1,0 +1,25 @@
+check,originalStatus,evidence,scope,thisPass
+ai-health.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+ai-layout-anchor.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+bookmark-page-range.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+curl-math.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+custom-font-settings.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+diagnostic-privacy.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+drag-selection.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+reader-blank-click.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+viewport-freeze.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+wheel-gesture.cjs,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,production-handler/math/controlled DOM unit test; NOT native GUI,Skipped: prior portable evidence retained; not native GUI
+JS syntax Reader.js,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+JS syntax AppStrings.js,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+JS syntax AIChat.js,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+JS syntax AIHealth.js,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax Install-LumaReader.command,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax Verify-LumaReader.command,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax build-icon.sh,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax verify-macos.sh,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax select-developer-tools.sh,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Shell syntax build-macos.sh,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+SDK selection incl. old SDK rejection,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,12 mock toolchain selection scenarios; NOT real Xcode,Skipped: prior portable evidence retained; not native GUI
+AI resource packaging guard,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Diagnostic privacy/integration guard,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,portable,Skipped: prior portable evidence retained; not native GUI
+Localization catalog consistency,PASS,0.9.17 Audit/TEST-RESULTS.json; source ZIP SHA recorded in report,static; no visual language QA,Skipped: prior portable evidence retained; not native GUI

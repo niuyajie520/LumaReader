@@ -1,0 +1,133 @@
+name: macOS 26 blocker verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 45
+    outputs:
+      source_sha: ${{ steps.package.outputs.source_sha }}
+      version: ${{ steps.package.outputs.version }}
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Source and privacy preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-raw ci-safe
+          python3 Tests/Shell/release-privacy.py
+          python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for name in ['Package.swift','Sources','Tests','Vendor','Scripts/build-macos.sh']:
+              assert Path(name).exists(), 'Missing source component'
+          manifest=Path('Package.swift').read_text()
+          assert re.search(r'\.macOS\((?:"26\.0"|\.v26)\)',manifest), 'macOS 26 deployment target required'
+          PY
+      - name: Gitleaks source and history scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner_dir="$(mktemp -d "$RUNNER_TEMP/luma-gitleaks.XXXXXX")"
+          curl --fail --location --silent --show-error --max-time 120 https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz -o "$scanner_dir/archive.tar.gz" >ci-raw/gitleaks.log 2>&1
+          printf '%s  %s\n' b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5 "$scanner_dir/archive.tar.gz" | shasum -a 256 -c - >>ci-raw/gitleaks.log 2>&1
+          tar -xzf "$scanner_dir/archive.tar.gz" -C "$scanner_dir" gitleaks
+          echo "$scanner_dir" >> "$GITHUB_PATH"
+          "$scanner_dir/gitleaks" version >>ci-raw/gitleaks.log 2>&1
+          "$scanner_dir/gitleaks" git --redact --no-banner --report-format json --report-path ci-raw/gitleaks.json . >>ci-raw/gitleaks.log 2>&1
+      - name: Native Debug tests Release signature architecture and launch
+        id: native
+        shell: bash
+        run: bash Scripts/ci-native.sh
+      - name: Release privacy approval and packaging
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/privacy-gate.py dist >ci-raw/release-privacy.log 2>&1
+          gitleaks dir dist --redact --no-banner --report-format json --report-path ci-raw/release-gitleaks.json >ci-raw/release-gitleaks.log 2>&1
+          python3 Scripts/prepare-release.py >ci-raw/package.log 2>&1
+      - name: Prepare privacy-reviewed evidence
+        id: evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/privacy-gate.py redact ci-raw ci-safe
+          # Detailed Gitleaks reports may contain author/email/secret fields; export only rule IDs and counts.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ci-raw/gitleaks.json')
+          if p.exists():
+              items=json.loads(p.read_text()) or []
+              Path('ci-safe/gitleaks-summary.json').write_text(json.dumps({'findingCount':len(items),'rules':sorted({x['RuleID'] for x in items})}))
+          Path('ci-safe/gui-status.txt').write_text('Native GUI / XCUITest / M4 Air performance: NOT RUN. Build success alone is not launch success.\n')
+          PY
+          python3 - <<'PROGRESS'
+          import json, os, subprocess
+          from pathlib import Path
+          Path('ci-safe/progress.json').write_text(json.dumps({
+              'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+              'runID':os.environ['GITHUB_RUN_ID'],
+              'native':'${{ steps.native.outcome }}',
+              'package':'${{ steps.package.outcome }}',
+              'GUI':'NOT RUN','M4AirPerformance':'NOT RUN',
+              'next':'Publish approved assets only after this job succeeds'}))
+          PROGRESS
+          python3 Scripts/privacy-gate.py ci-safe > ci-raw/artifact-privacy.json
+          cp ci-raw/artifact-privacy.json ci-safe/artifact-privacy.json
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+      - name: Upload sanitized evidence only
+        if: always() && steps.evidence.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macOS26-sanitized-evidence
+          path: ci-safe/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload privacy-approved Release app
+        if: success() && steps.evidence.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: LumaReader-release-approved
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+      # Raw logs, crash dumps, source workspaces and dSYM are never uploaded here.
+
+  publish:
+    needs: native
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'verify/macos26-blockers') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'verify/macos26-blockers')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.native.outputs.source_sha }}
+          persist-credentials: false
+      - name: Publish verified private-repository release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.native.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.native.outputs.tag }}
+        run: bash Scripts/publish-release.sh
