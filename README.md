@@ -10,6 +10,6 @@ CI targets `macos-26` ARM64. It verifies the toolchain, Debug build, Swift tests
 
 A successful CI build does not certify app startup, all buttons, native WebKit graphics, animations, Instruments or M4 Air 16GB performance. Those require separate evidence. Old handoff reports in this snapshot describe earlier attempts and are not current CI results.
 
-The application Sources are byte-identical to the previously delivered 0.9.17 baseline. Tests use fictitious text and credentials; book files, personal conversations and real library data are not included. Existing licenses remain in LICENSE and THIRD_PARTY_NOTICES.md.
+The imported application Sources matched the delivered 0.9.17 baseline. Native compilation subsequently exposed a Swift type-checker limit in DiagnosticArchive.swift: its CSV row expression was split into individual appends, preserving the column order and values. A CSV integration regression check was added. No reader, AI layout, pagination, theme or animation code was changed in this verification pass. Tests use fictitious text and credentials; book files, personal conversations and real library data are not included. Existing licenses remain in LICENSE and THIRD_PARTY_NOTICES.md.
 
 Run Verify-LumaReader.command on a Mac to verify locally; run Install-LumaReader.command only after verification. Source import uses the verification branch, without forcing or merging main.
