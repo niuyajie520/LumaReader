@@ -12,6 +12,7 @@ if [[ "$*" == '--find swift' ]]; then echo /mock/swift; exit 0; fi
 if [[ "$*" == '--sdk macosx --show-sdk-path' ]]; then echo "$MOCK_SDK"; exit 0; fi
 if [[ "$*" == *'--show-sdk-version' ]]; then echo "${MOCK_SDK_VERSION:-26.0}"; exit 0; fi
 if [[ "$1" == swiftc ]]; then
+  if [[ "${MOCK_NO_DIRECT_TESTING:-0}" == 1 ]] && grep -q '^import Testing$' "${!#}"; then echo "no such module Testing" >&2; exit 1; fi
   if [[ "${MOCK_FORCE_MACRO_FAILURE:-0}" == 1 ]]; then echo 'SwiftUIMacros missing' >&2; exit 1; fi
   if [[ -n "${MOCK_ONLY_SWIFTUI_DIR:-}" && "${DEVELOPER_DIR:-system}" != "$MOCK_ONLY_SWIFTUI_DIR" ]]; then exit 1; fi
   if [[ -n "${MOCK_ONLY_SWIFTUI_SDK:-}" && "$4" != "$MOCK_ONLY_SWIFTUI_SDK" ]]; then exit 1; fi
@@ -39,4 +40,6 @@ mkdir -p "$fixture/broken-clt/SDKs/MacOSX26.2.sdk"
 (export MOCK_WORKING_DIR=system MOCK_ACCEPT_ALL=1 MOCK_SDK_VERSION=15.5; unset DEVELOPER_DIR; if luma_select_developer_tools "$fixture/xcrun" "$fixture/apps" "$fixture/broken-clt"; then exit 1; fi)
 (export MOCK_WORKING_DIR=system MOCK_SDK_VERSION=unknown; unset DEVELOPER_DIR; if luma_select_developer_tools "$fixture/xcrun" "$fixture/apps" "$fixture/broken-clt"; then exit 1; fi)
 (export MOCK_WORKING_DIR=system MOCK_SDK_VERSION=27.2; unset DEVELOPER_DIR; luma_select_developer_tools "$fixture/xcrun" "$fixture/apps" "$fixture/broken-clt")
-echo 'Developer tools selection: 12 checks PASS' 
+# Standalone SwiftUI probing must not require SwiftPM-only Testing search paths.
+(export MOCK_WORKING_DIR=system MOCK_NO_DIRECT_TESTING=1; unset DEVELOPER_DIR; luma_select_developer_tools "$fixture/xcrun" "$fixture/apps" "$fixture/broken-clt")
+echo 'Developer tools selection: 13 checks PASS'  

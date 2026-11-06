@@ -27,5 +27,12 @@ phase release env LUMA_NO_OPEN=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'
 phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader"; lipo -archs "dist/Luma Reader.app/Contents/MacOS/LumaReader" | grep -qw arm64'
 phase package /usr/bin/ditto -c -k --sequesterRsrc --keepParent 'dist/Luma Reader.app' ci-raw/LumaReader-macOS26-arm64.zip
-# GUI and target-hardware testing are separate; no fake launch or FPS claims here.
-echo 'Native build phases completed; GUI, fault injection and M4 performance require a Mac graphical session.'
+# LaunchServices is attempted only in an existing graphical user session.
+# A live launched process does not prove a visible window or correct UI behavior.
+if /bin/launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
+  phase launch /usr/bin/xcrun swift -sdk "$SDKROOT" Scripts/launch-smoke.swift "$PWD/dist/Luma Reader.app"
+else
+  printf '%s\n' '{"status":"BLOCKED","reason":"No graphical user session","mainWindowVerified":false}' >ci-raw/launch.log
+  echo 'Application launch: BLOCKED (no graphical session)'
+fi
+echo 'Native build phases completed; UI, fault injection and M4 performance require separate evidence.'

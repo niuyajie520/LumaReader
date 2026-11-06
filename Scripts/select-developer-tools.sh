@@ -7,7 +7,7 @@ luma_probe_swiftui() {
   cat > "$probe_dir/SwiftUIProbe.swift" <<'SWIFT'
 import SwiftUI
 import Observation
-import Testing
+// Swift Testing is verified by SwiftPM test, with its proper framework search paths.
 @Observable final class LumaProbeModel { var count = 0 }
 @MainActor struct LumaSwiftUIProbe: View {
     @State private var count = 0
