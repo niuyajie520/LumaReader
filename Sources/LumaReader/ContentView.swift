@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var groupBookID: UUID?
     @State private var focusHeaderShown = false
     @State private var chromeTopHovered = false
+    @State private var chromeBottomHovered = false
     @State private var chromeHeaderHovered = false
     @State private var chromeKeyboardPinned = false
     @State private var chromeHideTask: Task<Void,Never>?
@@ -85,7 +86,7 @@ struct ContentView: View {
         .onChange(of:store.selectedID) { _,id in
             activeReaderPanel = nil; showBookSearch = false; bookSearchText = ""
             chromeHideTask?.cancel(); focusHeaderShown = false; chromeKeyboardPinned = false
-            chromeTopHovered = false; chromeHeaderHovered = false
+            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
             store.showInspector = false
             let keyboard = NSApp.currentEvent?.type == .keyDown
             withAnimation(keyboard || reduceMotion || store.effectiveMotionLevel == .off ? nil:.smooth(duration:0.24,extraBounce:0)) {
@@ -126,7 +127,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:.lumaShowReaderChrome)) { _ in
             showReaderChromeFromKeyboard()
         }
-        .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:2000) }
+        .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:1000) }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
         .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
@@ -224,6 +225,9 @@ struct ContentView: View {
             .background(ReaderChromeMonitor(enabled:store.selectedBook != nil,trailingInset:store.aiPanelVisible ? aiWidth+16:0,onTopHover:{ inside in
                 chromeTopHovered = inside
                 if inside { revealReaderChrome() } else { scheduleChromeHide() }
+            },onBottomHover:{ inside in
+                chromeBottomHovered = inside
+                if inside { revealReaderChrome() } else { scheduleChromeHide() }
             }).frame(width:0,height:0))
             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
                 guard width > 0 else { return }; controller.beginViewportChange(); settleAILayout(delay:140)
@@ -254,7 +258,7 @@ struct ContentView: View {
         guard store.selectedBook != nil else { return }
         chromeHideTask = Task { @MainActor in
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
-            guard !Task.isCancelled, !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned,
+            guard !Task.isCancelled, !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
