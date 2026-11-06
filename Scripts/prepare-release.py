@@ -29,6 +29,7 @@ sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 assert re.fullmatch(r'[0-9a-f]{40}', sha)
 run('git', 'diff', '--exit-code', 'HEAD', '--')
 assert json.loads(Path('ci-raw/launch.log').read_text())['status'] == 'PASS'
+run('/usr/bin/codesign', '--verify', '--deep', '--strict', str(app))
 out = root / 'release-assets'
 out.mkdir(exist_ok=False)
 prefix = f'LumaReader-{version}/'

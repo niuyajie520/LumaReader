@@ -8,7 +8,11 @@ fi
 source "$PWD/Scripts/select-developer-tools.sh"
 luma_select_developer_tools || { echo "没有找到可用的 Apple Swift/macOS SDK。" >&2; exit 1; }
 if command -v python3 >/dev/null; then python3 Scripts/check-ui-resources.py; fi
-/usr/bin/xcrun swift build --sdk "$SDKROOT" -c release
+# Remap only this checkout's compiler-generated source paths. Literal user data
+# and all other private paths remain subject to the unchanged privacy gate.
+/usr/bin/xcrun swift build --sdk "$SDKROOT" -c release \
+  -Xswiftc -file-prefix-map -Xswiftc "$PWD=/LumaReaderBuild" \
+  -Xcc "-ffile-prefix-map=$PWD=/LumaReaderBuild"
 BIN_DIR="$(/usr/bin/xcrun swift build --sdk "$SDKROOT" -c release --show-bin-path)"
 # Assemble a fresh bundle: cp -R into an existing bundle can leave removed assets behind.
 mkdir -p "$PWD/dist"
