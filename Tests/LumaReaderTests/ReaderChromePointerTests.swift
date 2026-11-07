@@ -43,4 +43,23 @@ struct ReaderChromePointerTests {
             #expect(transitions == (window === second ? []:[true]))
         }
     }
+    @Test func authoritativeQuietStateSurvivesInterruptedNativeFades() async throws {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect:NSRect(x:0,y:0,width:940,height:620),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.makeKeyAndOrderFront(nil)
+        for _ in 0..<20 {
+            NativeWindowControls.restore(window,controlsVisible:true,animated:true)
+            NativeWindowControls.restore(window,controlsVisible:false,animated:true)
+        }
+        NativeWindowControls.restore(window,controlsVisible:false,animated:false)
+        try await Task.sleep(for:.milliseconds(500))
+        for type in [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton] {
+            let button = try #require(window.standardWindowButton(type))
+            #expect(button.isHidden)
+            #expect(button.alphaValue == 0)
+        }
+    }
+
 }

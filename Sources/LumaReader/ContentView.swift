@@ -363,6 +363,12 @@ struct ContentView: View {
             }
             guard !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
+            // SwiftUI may coalesce rapid true/false changes back to its previous
+            // value, so the representable is not guaranteed another update. Apply
+            // the authoritative quiet state directly to the actual native window.
+            if let window = controller.readingWindow {
+                NativeWindowControls.restore(window,controlsVisible:false,animated:false)
+            }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
     }
