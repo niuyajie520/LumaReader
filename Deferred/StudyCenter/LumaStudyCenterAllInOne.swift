@@ -87,9 +87,8 @@ public nonisolated struct ExamEnglishInputPolicy: Sendable {
     /// Permitted ASCII punctuation in IELTS computer-based writing/reading answers:
     /// `. , ; : ? ! ' " - ( ) [ ] / % & $ # @ + = * _ ~`
     private static let allowedPunctuationScalars: Set<Unicode.Scalar> = Set(
-        ".,;:?!'\"-()[]/%&$#@+=*_~`<>\\|{}".unicodeScalars
+    #".,;:?!'"-()[]/%&$#@+=*_~\|{}<>"#.unicodeScalars
     )
-
     /// Evaluates a single candidate replacement string (from typing, IME commit, paste, drag-drop, dictation, or undo/redo).
     /// - Important: Never strips Chinese characters silently to concatenate English, and never alters misspelled English.
     public func validateReplacement(_ replacement: String) -> ExamInputValidationDecision {
@@ -111,11 +110,8 @@ public nonisolated struct ExamEnglishInputPolicy: Sendable {
             if Self.isFullWidthOrCJKPunctuation(scalar) {
                 return .rejectEntirely(
                     reason: .containsFullWidthPunctuation,
-                    userBannerMessage: "请使用英文半角标点（如 , . ; : ? ! ' \" -），全角标点未写入草稿。"
-                )
-            }
-
-            // 3. Check Emoji or pictographic scalars
+                   userBannerMessage: #"请使用英文半角标点 (如 . , ; : ? ! ' " -), 全角标点未写入草稿。"#
+            )// 3. Check Emoji or pictographic scalars
             if Self.isEmojiScalar(scalar) {
                 return .rejectEntirely(
                     reason: .containsEmojiOrSymbol,
@@ -2720,8 +2716,9 @@ public struct LumaStudyCenterHostView: View {
                     }
 
                     if let word = vm.dictationMachine.currentWord {
-                        Text("词性提示：\(word.partOfSpeech) \(word.definitionZH) · 音标：\(vm.selectedAccent == .british ? word.phoneticUK : word.phoneticUS) · 本轮累计错误：\(vm.dictationMachine.sessionErrorCounts[word.id, default: 0])/5 次")
-                            .font(.system(size: 13))
+                        let phonetic = vm.selectedAccent == .british ? word.phoneticUK : word.phoneticUS
+                        let errorCount = vm.dictationMachine.sessionErrorCounts[word.id, default: 0]
+                        Text("词性提示：\(word.partOfSpeech) \(word.definitionZH) · 音标：\(phonetic) · 本轮累计错误：\(errorCount)/5 次").font(.system(size: 13))
                             .foregroundStyle(.white.opacity(0.85))
 
                         HStack(spacing: 12) {
