@@ -63,8 +63,17 @@ import Testing
             if FileManager.default.isExecutableFile(atPath:candidate.path) { executable = candidate; break }
             directory.deleteLastPathComponent()
         }
-        process.executableURL = try #require(executable)
-        process.arguments = ["--luma-reader-acceptance="+token.uuidString]
+        let product = try #require(executable)
+        let app = product.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        var arguments = ["--luma-reader-acceptance="+token.uuidString]
+        if let folder = ProcessInfo.processInfo.environment["LUMA_SYNTHETIC_UI_EVIDENCE"] { arguments.append("--luma-reader-evidence="+folder) }
+        if app.pathExtension == "app" {
+            process.executableURL = URL(fileURLWithPath:"/usr/bin/open")
+            process.arguments = ["-n","-W","-a",app.path,"--args"]+arguments
+        } else {
+            process.executableURL = product
+            process.arguments = arguments
+        }
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         let logURL = root.appendingPathComponent("process.log")
         FileManager.default.createFile(atPath:logURL.path,contents:nil)

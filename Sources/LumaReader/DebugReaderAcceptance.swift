@@ -14,6 +14,11 @@ import ZIPFoundation
     private static var started = false
     private static var phase = "startup"
     private static var failedLine:UInt = 0
+    private static var evidenceFolder:String? {
+        let prefix = "--luma-reader-evidence="
+        if let argument = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) { return String(argument.dropFirst(prefix.count)) }
+        return ProcessInfo.processInfo.environment["LUMA_SYNTHETIC_UI_EVIDENCE"]
+    }
     private enum Failure:Error { case check, timeout }
     private static func root(_ token:UUID) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("LumaReader-ReaderProbe-"+token.uuidString)
@@ -80,7 +85,7 @@ import ZIPFoundation
         NSApp.sendEvent(event)
     }
     private static func screenshot(_ view:NSView,name:String) throws {
-        guard let folder = ProcessInfo.processInfo.environment["LUMA_SYNTHETIC_UI_EVIDENCE"] else { return }
+        guard let folder = evidenceFolder else { return }
         let root = URL(fileURLWithPath:folder,isDirectory:true)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         view.layoutSubtreeIfNeeded()
@@ -104,7 +109,7 @@ import ZIPFoundation
         }
     }
     private static func readerSnapshot(_ web:WKWebView,name:String) async throws {
-        guard let folder = ProcessInfo.processInfo.environment["LUMA_SYNTHETIC_UI_EVIDENCE"] else { return }
+        guard let folder = evidenceFolder else { return }
         let image:NSImage = try await withCheckedThrowingContinuation { continuation in
             web.takeSnapshot(with:nil) { image,error in
                 if let error { continuation.resume(throwing:error) }
@@ -117,9 +122,14 @@ import ZIPFoundation
         let png = try require(bitmap.representation(using:.png,properties:[:]))
         try png.write(to:URL(fileURLWithPath:folder).appendingPathComponent(name+".png"),options:.atomic)
     }
-    private static func readerJavaScript(_ web:WKWebView,_ script:String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            web.evaluateJavaScript(script,in:nil,in:WKContentWorld.world(name:"LumaReader")) { result in
+    private static func webViews(in view:NSView) -> [WKWebView] {
+        if let web = view as? WKWebView { return [web] }
+        return view.subviews.flatMap { webViews(in:$0) }
+    }
+    private static func readerJavaScript(_ web:WKWebView,_ script:String,world:WKContentWorld? = nil) async throws -> String {
+        let contentWorld = world ?? WKContentWorld.world(name:"LumaReader")
+        return try await withCheckedThrowingContinuation { continuation in
+            web.evaluateJavaScript(script,in:nil,in:contentWorld) { result in
                 switch result {
                 case .success(let value): continuation.resume(returning:value as? String ?? "")
                 case .failure(let error): continuation.resume(throwing:error)
@@ -209,6 +219,13 @@ import ZIPFoundation
         try check(controller.illustrationWebView === web)
         try check(store.error == nil)
         try await readerSnapshot(web,name:"epub-narrow-ai-content-synthetic")
+        phase = "embedded-AI"
+        try screenshot(hosting,name:"reader-narrow-ai-synthetic")
+        let aiWeb = try require(webViews(in:hosting).first { $0 !== web })
+        try check(try await readerJavaScript(aiWeb,"String(!!window.LumaAI&&!!document.getElementById('draft'))",world:.page) == "true")
+        let readerPaper = try await readerJavaScript(web,"getComputedStyle(document.body).backgroundColor")
+        let aiPaper = try await readerJavaScript(aiWeb,"getComputedStyle(document.body).backgroundColor",world:.page)
+        try check(readerPaper == aiPaper)
         store.aiPanelVisible = false
         try await pause(1600)
         phase = "selection-and-persistence"
@@ -274,8 +291,9 @@ import ZIPFoundation
         }
         store.monetEnabled = monetEnabled
         controller.updateSettings()
-        phase = "loaded-fullscreen"
+        phase = "fullscreen-entry"
         window.level = .normal
+        NSApp.activate(ignoringOtherApps:true)
         window.makeKeyAndOrderFront(nil)
         window.toggleFullScreen(nil)
         try await until { window.styleMask.contains(.fullScreen) }
@@ -284,6 +302,7 @@ import ZIPFoundation
         try check(store.error == nil)
         try check(try await readerJavaScript(web,"String(window.Luma.readingContext().visibleText.length > 0)") == "true")
         try await readerSnapshot(web,name:"epub-fullscreen-content-synthetic")
+        phase = "fullscreen-exit"
         window.toggleFullScreen(nil)
         try await until { !window.styleMask.contains(.fullScreen) }
         try await pause(1200)
