@@ -47,6 +47,10 @@ struct NativeStudyInteractionTests {
         #expect(!typed.isEmpty)
         editor.insertText("中文",replacementRange:NSRange(location:NSNotFound,length:0))
         #expect(editor.string==typed)
+        editor.setMarkedText("中文",selectedRange:NSRange(location:2,length:0),replacementRange:NSRange(location:NSNotFound,length:0))
+        editor.unmarkText()
+        #expect(editor.string==typed)
+        #expect(!editor.hasMarkedText())
         let before=split.subviews.first!.frame.width
         split.setPosition(before>450 ? 300:600,ofDividerAt:0);split.layoutSubtreeIfNeeded()
         #expect(abs(split.subviews.first!.frame.width-before)>20)

@@ -16,7 +16,8 @@ public struct SpeechServiceSettings:Codable,Equatable,Sendable {
     public var profile:SpeechResourceProfile = .balanced
     public init() {}
     var endpoint:URL? {
-        guard let url = URL(string:baseURL), url.user == nil, url.password == nil,
+        guard baseURL.count<=2048,model.count<=256,voice.count<=256,
+              let url = URL(string:baseURL), url.user == nil, url.password == nil,
               url.query == nil, url.fragment == nil,
               url.scheme == "https" || (url.scheme == "http" && ["127.0.0.1","localhost","::1"].contains(url.host ?? "")) else { return nil }
         return url
