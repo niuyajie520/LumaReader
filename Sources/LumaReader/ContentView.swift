@@ -293,7 +293,24 @@ struct ContentView: View {
         guard store.selectedBook != nil else { return }
         chromeHideTask = Task { @MainActor in
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
-            guard !Task.isCancelled, !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
+            guard !Task.isCancelled else { return }
+            // Hover notifications can remain stuck after SwiftUI replaces an
+            // interactive header during its fade. The live AppKit pointer
+            // position is authoritative when the idle timer expires.
+            if let window = NSApp.keyWindow, let content = window.contentView {
+                let point = content.convert(window.mouseLocationOutsideOfEventStream, from:nil)
+                if content.bounds.contains(point) {
+                    let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
+                    if fromTop > 72 && fromTop < content.bounds.height - 56 {
+                        chromeTopHovered = false
+                        chromeBottomHovered = false
+                        chromeHeaderHovered = false
+                        chromeKeyboardPinned = false
+                        readerBackFocused = false
+                    }
+                }
+            }
+            guard !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
