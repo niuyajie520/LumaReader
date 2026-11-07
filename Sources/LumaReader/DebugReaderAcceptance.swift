@@ -278,6 +278,13 @@ import ZIPFoundation
         NotificationCenter.default.post(name:.lumaShowReaderChrome,object:nil)
         try await pause(300)
         try check(window.standardWindowButton(.closeButton)?.isHidden == false)
+        // Regression: keyboard-revealed chrome must expire while the mouse is
+        // idle over book text, without requiring an extra click to unpin it.
+        try await pause(1700)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        NotificationCenter.default.post(name:.lumaShowReaderChrome,object:nil)
+        try await pause(250)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         _ = try await readerJavaScript(web,"var p=document.querySelector('#luma-content p');p.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,clientX:100,clientY:100}));p.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,clientX:100,clientY:100}));'ok'")
         try await pause(1600)
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
