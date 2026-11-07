@@ -212,7 +212,26 @@ import ZIPFoundation
         store.aiPanelVisible = false
         try await pause(1600)
         phase = "selection-and-persistence"
-        let selected = try await readerJavaScript(web,"var r=document.caretRangeFromPoint(innerWidth/2,100);if(r&&r.startContainer.nodeType===3){r.setEnd(r.startContainer,Math.min(r.startContainer.length,r.startOffset+5));getSelection().removeAllRanges();getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));}String(getSelection())")
+        let selected = try await readerJavaScript(web,"""
+        (()=>{
+          const root=document.getElementById('luma-content');
+          const viewport=document.getElementById('luma-viewport').getBoundingClientRect();
+          for(let y=viewport.top+12;y<viewport.bottom-12;y+=18){
+            for(let x=viewport.left+6;x<viewport.right-6;x+=24){
+              const r=document.caretRangeFromPoint(x,y),node=r?.startContainer;
+              if(!node||node.nodeType!==3||node.length<5||!root.contains(node))continue;
+              const at=Math.max(0,Math.min(r.startOffset,node.length-5));
+              r.setStart(node,at);r.setEnd(node,at+5);
+              const rects=[...r.getClientRects()];
+              if(!r.toString().trim()||!rects.length||!rects.every(b=>b.width>0&&b.left>=viewport.left&&b.right<=viewport.right&&b.top>=viewport.top&&b.bottom<=viewport.bottom))continue;
+              getSelection().removeAllRanges();getSelection().addRange(r);
+              document.dispatchEvent(new Event('selectionchange'));
+              return String(getSelection());
+            }
+          }
+          return '';
+        })()
+        """)
         try require(!selected.isEmpty)
         try await until { controller.hasSelection }
         try check(controller.selectedQuote == selected)
