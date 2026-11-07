@@ -925,6 +925,7 @@ public struct IELTSFourCriteriaEstimate: Codable, Equatable, Sendable {
         public let correctedSentence: String
         public let explanationZH: String
         public let upgradedExpression: String
+        public var kind:String? = nil
     }
 }
 
@@ -961,6 +962,8 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var stubbornWords: [StubbornWordRecord]
     public var activeWritingDrafts: [String: WritingExamDraftState] // Keyed by questionID
     public var legacyDraftBackups: [String: String] // Preserves unmodified legacy drafts with Chinese/special chars
+    public var reviewSchedule:[String:WordReviewProgress]? = nil
+    public var writingRevisions:[WritingRevision]? = nil
     public var writingSubmissions: [WritingSubmissionRecord]
 
     public init(
@@ -1158,16 +1161,10 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
     }
 }
 
-// MARK: - 2. Dictation 5-Strike State Machine (Section 四.5 & 四.6)
-
-/// Manages a single dictation session (`sessionID` + `mode`).
-/// Rules:
-/// - Wrong words on strike 1..4 are re-inserted into `pendingQueue` at a spaced interval (`min(3, pendingQueue.count)`),
-///   so the user practices intervening words before retrying.
-/// - Answering a wrong word correctly on a retry removes it from the current round's wrong-word cycle.
-/// - On the 5th error within the same day/session (`errorCount == 5`), the word is promoted to `stubbornWords`
-///   and removed from today's active queue so it no longer repeats automatically today.
-/// - At the end of the session/day, stubborn words are sorted by `errorCount` descending.
+// MARK: - Dictation correction and delayed retrieval
+// Incorrect answers retain the current word until corrected. Correction schedules
+// randomized delayed retrieval. The sixth daily error promotes a stubborn word;
+// after correcting it, no additional automatic retrieval is queued. See DictationEngine.
 //
 //  QuestionBankGatekeeper.swift
 //  LumaReaderStudyKit

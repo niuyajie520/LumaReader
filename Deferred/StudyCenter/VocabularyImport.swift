@@ -18,6 +18,12 @@ public nonisolated enum VocabularyImport {
                 return Item(word:columns[0],meaning:columns[1...].joined(separator:"\t"))
             }
         }
+        return try build(entries,filename:filename)
+    }
+    static func parseJSONEntries(_ data:Data,filename:String)throws->[VocabularyWord] {
+        try build(JSONDecoder().decode([Item].self,from:data),filename:filename)
+    }
+    private static func build(_ entries:[Item],filename:String)throws->[VocabularyWord] {
         guard !entries.isEmpty,entries.count<=20000 else {throw CocoaError(.fileReadCorruptFile)}
         let deck="import."+hex(Data(filename.utf8))
         var seen=Set<String>()

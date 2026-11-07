@@ -39,16 +39,16 @@ public struct LumaStudyCenterHostView: View {
             storeSnapshot.activeWritingDrafts[draft.id.uuidString]=draft
             save()
         }
-        func save() {
-            guard let persistence else { return }
+        @discardableResult func save()->Bool {
+            guard let persistence else { return false }
             storeSnapshot.dictationSession = dictationMachine
             if storeSnapshot.dictationSessions==nil {storeSnapshot.dictationSessions=[:]}
             let deck=dictationMachine.currentWord?.deckID ?? dictationMachine.attemptLogs.last?.deckID ?? selectedDeck
             storeSnapshot.dictationSessions?[Self.sessionKey(mode:dictationMachine.mode,date:dictationMachine.dateString,deck:deck)]=dictationMachine
             storeSnapshot.preferredAccent = selectedAccent.rawValue
             storeSnapshot.preferredSpeechRate = speechRateMultiplier
-            do { try persistence.save(storeSnapshot) }
-            catch { storageError = "学习记录保存失败：\(error.localizedDescription)" }
+            do { try persistence.save(storeSnapshot); return true }
+            catch { storageError = "学习记录保存失败：\(error.localizedDescription)";return false }
         }
         @Published var storeSnapshot: StudyStoreSnapshot = StudyStoreSnapshot()
         @Published var selectedExamQuestion: Task1QuestionItem = LumaStudyCenterHostView.builtInPracticeQuestions[2]
@@ -72,7 +72,7 @@ public struct LumaStudyCenterHostView: View {
             initialWords: LumaStudyCenterHostView.builtInVocabularyWords
         )
         @Published var dictationInput: String = ""
-        @Published var dictationFeedback: String = "点击「播放女声发音」听音默写；1–4次错词自动穿插进后续未填队列，当天第5次答错进入「顽固单词」且当日不再自动出现。"
+        @Published var dictationFeedback: String = "答错后必须拼对才能继续。订正后随机插入后续复习，第 6 次答错进入顽固单词，订正后不再循环。"
         @Published var selectedAccent: TTSVoiceAccent = .british
         @Published var speechRateMultiplier: Float = 1.0
         @Published var showMeaning = false
@@ -85,6 +85,9 @@ public struct LumaStudyCenterHostView: View {
     }
     @StateObject private var vm:HostStateModel
     @StateObject private var audio = SpeechAudioPipeline()
+    @State private var revealedWordID:String?
+    @State private var importDraft:VocabularyImportDraft?
+    @State private var reviewSession:WritingReviewSession?
     @State private var importShown=false
     @State private var deckSearch=""
     @FocusState private var answerFocused:Bool
@@ -181,11 +184,14 @@ public struct LumaStudyCenterHostView: View {
             do {
                 let url=try result.get();let access=url.startAccessingSecurityScopedResource();defer{if access{url.stopAccessingSecurityScopedResource()}}
                 let data=try Data(contentsOf:url)
-                let words=try VocabularyImport.parse(data,filename:url.lastPathComponent)
-                var existing=vm.storeSnapshot.importedWords ?? []
-                let ids=Set(existing.map(\.id));existing.append(contentsOf:words.filter{!ids.contains($0.id)})
-                vm.storeSnapshot.importedWords=existing;vm.save()
+                importDraft=try VocabularyImportDraft(data:data,filename:url.lastPathComponent)
             } catch {vm.storageError="导入失败，现有词库和记录未更改：\(error.localizedDescription)"}
+        }
+        .sheet(item:$importDraft){draft in
+            VocabularyImportReview(draft:draft,existing:allWords,onConfirm:saveImportedWords)
+        }
+        .sheet(item:$reviewSession){session in
+            WritingReviewPanel(session:session,onSave:saveWritingRevision)
         }
         .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:mode)
         .onDisappear { vm.save(); ttsEngine.stop(); audio.stop() }
@@ -308,7 +314,11 @@ public struct LumaStudyCenterHostView: View {
                         let errorCount = vm.dictationMachine.sessionErrorCounts[word.id, default: 0]
                         Button("不熟悉 · 显示中文") { vm.showMeaning = true }
                         if vm.showMeaning { Text(word.definitionZH) }
-                        Text("本轮累计错误：\(errorCount)/5 次").font(.system(size: 13))
+                        if vm.dictationMachine.requiresCorrection {
+                            Button("查看拼写后订正") {revealedWordID=word.id}
+                            if revealedWordID==word.id {Text(word.word).font(.headline).textSelection(.enabled)}
+                        }
+                        Text("今日累计错误：\(errorCount) 次 · 第 6 次进入顽固单词").font(.system(size: 13))
                             .foregroundStyle(appearance.ink.opacity(0.85))
 
                         HStack(spacing: 12) {
@@ -323,15 +333,12 @@ public struct LumaStudyCenterHostView: View {
                                 submitCurrentDictation()
                             }
                             .buttonStyle(.borderedProminent)
-                            Button("跳过并记为错词") {vm.dictationInput="";submitCurrentDictation()}
-                                .keyboardShortcut(.rightArrow,modifiers:[.command])
+
                         }
                         ProgressView(value:Double(vm.dictationMachine.completedWordIDs.count),total:Double(max(1,vm.dictationMachine.completedWordIDs.count+vm.dictationMachine.pendingQueue.count)))
                         Text("剩余 \(vm.dictationMachine.pendingQueue.count) 个 · 已完成 \(vm.dictationMachine.completedWordIDs.count) 个").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Text("🎉 当前听写队列已全部完成！")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(appearance.accent)
+                        DictationReportView(session:vm.dictationMachine)
                     }
 
                     Text(vm.dictationFeedback)
@@ -355,7 +362,7 @@ public struct LumaStudyCenterHostView: View {
             Text("顽固单词")
                 .font(.system(size: 30, weight: .bold, design: .serif))
                 .foregroundStyle(appearance.ink)
-            Text("当日累计答错满 5 次自动转入顽固单词，当日不再自动出现；按错误次数从高到低排序，独立记录复习会话。")
+            Text("当日累计第 6 次答错进入顽固单词，当前词订正后不再自动循环；按错误次数从高到低排序，独立记录复习会话。")
                 .font(.system(size: 13))
                 .foregroundStyle(appearance.ink.opacity(0.7))
 
@@ -504,12 +511,23 @@ public struct LumaStudyCenterHostView: View {
                                         .font(.system(size: 17, weight: .bold, design: .serif))
                                         .foregroundStyle(appearance.ink)
                                     Spacer()
-                                    if sub.aiEvaluation == nil { Text("待评分 · 尚未配置 AI 评分") }
+                                    if sub.aiEvaluation == nil { Text("待评分") }
                                     if let eval = sub.aiEvaluation {
                                         Text(String(format: "AI 估计总分：Band %.1f", eval.overallEstimatedBand))
                                             .font(.system(size: 13, weight: .bold))
                                             .foregroundStyle(appearance.accent)
                                     }
+                                }
+                                HStack {
+                                    Button("修改对照与重写") {
+                                        let saved=vm.storeSnapshot.writingRevisions?.filter{$0.submissionID==sub.id}.max{$0.updatedAt<$1.updatedAt}
+                                        reviewSession=WritingReviewSession(original:sub,revision:saved ?? WritingRevision(submissionID:sub.id))
+                                    }
+                                    Button("新建重写版本") {reviewSession=WritingReviewSession(original:sub,revision:WritingRevision(submissionID:sub.id))}
+                                    Text("\((vm.storeSnapshot.writingRevisions ?? []).filter{$0.submissionID==sub.id}.count) 个重写版本").font(.caption)
+                                }
+                                ForEach((vm.storeSnapshot.writingRevisions ?? []).filter{$0.submissionID==sub.id}.sorted{$0.updatedAt>$1.updatedAt}){revision in
+                                    Button("打开重写 · \(revision.updatedAt.formatted(date:.abbreviated,time:.shortened))") {reviewSession=WritingReviewSession(original:sub,revision:revision)}
                                 }
                                 Text(sub.part1EssayText + "\n\n" + sub.part2EssayText).textSelection(.enabled)
                                 if let evaluateWriting,let question=Self.builtInPracticeQuestions.first(where:{$0.id==sub.questionID}) {
@@ -577,6 +595,7 @@ public struct LumaStudyCenterHostView: View {
                     VStack(alignment:.leading,spacing:6) {Text("听力").font(.largeTitle);Text("选择词库，听音默写").foregroundStyle(.secondary)}
                     Spacer()
                     TextField("搜索词库",text:$deckSearch).textFieldStyle(.roundedBorder).frame(maxWidth:240)
+                    Button("到期复习") {startDictation(mode:.wrongWordReview,dueOnly:true);mode="学习_听力_错词复习"}
                     Button("导入词库",systemImage:"square.and.arrow.down") {importShown=true}
                 }
                 Text("支持 UTF-8 TSV（英文、中文两列）或 JSON 数组（word、meaning）。").font(.caption).foregroundStyle(.secondary)
@@ -605,7 +624,7 @@ public struct LumaStudyCenterHostView: View {
         }.background(appearance.paper)
     }
 
-    private func startDictation(mode:DictationSessionMode,resume:Bool=false) {
+    private func startDictation(mode:DictationSessionMode,resume:Bool=false,dueOnly:Bool=false) {
         vm.save()
         let key=HostStateModel.sessionKey(mode:mode,date:Self.todayDateString(),deck:vm.selectedDeck)
         if resume,let saved=vm.storeSnapshot.dictationSessions?[key],!saved.isSessionFinished {
@@ -613,7 +632,7 @@ public struct LumaStudyCenterHostView: View {
         }
         let stubbornIDs=Set(vm.storeSnapshot.stubbornWords.map(\.wordID))
         let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect }.map(\.wordID))
-        let words = allWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || (mode == .stubbornWordReview ? stubbornIDs.contains($0.id):wrongIDs.contains($0.id))) }
+        let words = allWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || (mode == .stubbornWordReview ? stubbornIDs.contains($0.id):wrongIDs.contains($0.id))) && (!dueOnly || (vm.storeSnapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast)<=Date()) }
         vm.dictationMachine = DictationSessionStateMachine(mode:mode,dateString:Self.todayDateString(),initialWords:words,existingStubbornWordsForToday:vm.storeSnapshot.stubbornWords,previousLogs:vm.storeSnapshot.dictationLogs)
         vm.showMeaning = false; vm.dictationInput = ""; vm.save(); speakCurrentWord()
     }
@@ -642,25 +661,46 @@ public struct LumaStudyCenterHostView: View {
     }
 
     private func submitCurrentDictation() {
-        guard let outcome = vm.dictationMachine.submitAnswer(vm.dictationInput) else { return }
-        if let log = vm.dictationMachine.attemptLogs.last { vm.storeSnapshot.dictationLogs.append(log) }
+        guard !vm.dictationInput.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else{vm.dictationFeedback="请输入听到的单词后提交。";return}
+        guard let word=vm.dictationMachine.currentWord,let outcome=vm.dictationMachine.submitAnswer(vm.dictationInput) else{return}
+        if let log=vm.dictationMachine.attemptLogs.last {
+            vm.storeSnapshot.dictationLogs.append(log)
+            if !log.isCorrect || vm.dictationMachine.completedWordIDs.contains(word.id) {
+                var progress=vm.storeSnapshot.reviewSchedule?[word.id] ?? WordReviewProgress(dueAt:Date())
+                progress.record(cleanRecall:log.isCorrect,at:Date())
+                if vm.storeSnapshot.reviewSchedule==nil{vm.storeSnapshot.reviewSchedule=[:]}
+                vm.storeSnapshot.reviewSchedule?[word.id]=progress
+            }
+        }
         for record in vm.dictationMachine.sortedStubbornWords {
-            vm.storeSnapshot.stubbornWords.removeAll { $0.wordID == record.wordID && $0.dateString == record.dateString }
+            vm.storeSnapshot.stubbornWords.removeAll{$0.wordID==record.wordID && $0.dateString==record.dateString}
             vm.storeSnapshot.stubbornWords.append(record)
         }
-        vm.save(); vm.showMeaning = false
-        vm.dictationInput = ""
-        speakCurrentWord()
+        vm.save();vm.showMeaning=false;revealedWordID=nil;vm.dictationInput="";answerFocused=true
         switch outcome {
-        case .correct(let exitedWrongCycle):
-            vm.dictationFeedback = exitedWrongCycle
-                ? "✓ 拼写正确！该词已成功退出本轮错词复习循环。"
-                : "✓ 拼写正确！"
-        case .requeuedForRetry(let errCount, let offset):
-            vm.dictationFeedback = "✗ 拼写有误（今日第 \(errCount)/5 次错误），已穿插排入后续第 \(offset + 1) 位等待复习。"
-        case .promotedToStubbornWords(let rec):
-            vm.dictationFeedback = "⚠️ 「\(rec.word)」今日累计答错满 5 次，已移入「顽固单词」且今日不再自动出现。"
+        case .needsCorrection(let count):
+            vm.dictationFeedback="拼写有误，今日第 \(count) 次。请订正当前词，拼对后才能继续。"
+        case .correct(let exited):
+            vm.dictationFeedback=exited ? "✓ 独立拼对，已通过本轮复习。":"✓ 拼写正确。"
+            speakCurrentWord()
+        case .requeuedForRetry(_,let offset):
+            vm.dictationFeedback="✓ 已订正；随机安排在后续第 \(offset+1) 个任务，再次独立拼对才能通过。"
+            speakCurrentWord()
+        case .promotedToStubbornWords:
+            vm.dictationFeedback="今日已超过 5 次错误，已进入顽固单词。拼对当前词后继续，不再自动循环。"
         }
+    }
+    private func saveImportedWords(_ words:[VocabularyWord])->String? {
+        var existing=vm.storeSnapshot.importedWords ?? []
+        let ids=Set(existing.map(\.id));existing.append(contentsOf:words.filter{!ids.contains($0.id)})
+        vm.storeSnapshot.importedWords=existing
+        return vm.save() ? nil:(vm.storageError ?? "保存失败，请重试。")
+    }
+    private func saveWritingRevision(_ revision:WritingRevision)->String? {
+        var revisions=vm.storeSnapshot.writingRevisions ?? []
+        revisions.removeAll{$0.id==revision.id};revisions.append(revision)
+        vm.storeSnapshot.writingRevisions=revisions
+        return vm.save() ? nil:(vm.storageError ?? "重写稿保存失败，请重试。")
     }
 
     // MARK: - 3. Study Statistics View (全部｜听力｜写作 + 今天｜7天｜30天｜全部时间)

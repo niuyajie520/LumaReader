@@ -24,10 +24,12 @@ struct StudyIntegrationTests {
     @MainActor @Test func dailyErrorsSurviveNewSessionAndReviewStaysIndependent() {
         let words = [LumaStudyCenterHostView.builtInVocabularyWords[0]]
         var first = DictationSessionStateMachine(dateString:"2026-11-07",initialWords:words)
-        for _ in 0..<4 { first.submitAnswer("wrong") }
+        for _ in 0..<5 { first.submitAnswer("wrong") }
         var resumed = DictationSessionStateMachine(dateString:"2026-11-07",initialWords:words,previousLogs:first.attemptLogs)
         resumed.submitAnswer("wrong")
-        #expect(resumed.sortedStubbornWords.first?.errorCount == 5)
+        #expect(resumed.sortedStubbornWords.first?.errorCount == 6)
+        #expect(!resumed.isSessionFinished)
+        resumed.submitAnswer(words[0].word)
         #expect(resumed.isSessionFinished)
         let review = DictationSessionStateMachine(mode:.wrongWordReview,dateString:"2026-11-07",initialWords:words,previousLogs:first.attemptLogs)
         #expect(review.sessionErrorCounts.isEmpty)
