@@ -111,6 +111,35 @@ actor SpeechAudioCache {
     static func ms(_ duration:Duration)->Double {Double(duration.components.seconds)*1000+Double(duration.components.attoseconds)/1e15}
 }
 
+/// Owns all AVAudioPlayer instances off the UI executor. Prepared players are
+/// bounded separately from compressed/PCM bytes and are never sent across actors.
+private actor SpeechPlaybackDevice {
+    private var players:[SpeechAudioCache.Key:AVAudioPlayer]=[:]
+    private var order:[SpeechAudioCache.Key]=[]
+    private var activeID:UUID?
+    private var activeKey:SpeechAudioCache.Key?
+    func begin(_ id:UUID) {if let key=activeKey{players[key]?.stop()};activeID=id;activeKey=nil}
+    func prepare(_ key:SpeechAudioCache.Key,data:Data,limit:Int)throws {
+        if players[key]==nil {
+            let player=try AVAudioPlayer(data:data)
+            guard player.duration<=60,player.prepareToPlay() else{throw SpeechServiceError.emptyAudio}
+            players[key]=player
+        }
+        order.removeAll{$0==key};order.append(key)
+        while players.count>max(1,min(5,limit)),let obsolete=order.first(where:{$0 != activeKey}) {
+            order.removeAll{$0==obsolete};players[obsolete]?.stop();players[obsolete]=nil
+        }
+    }
+    func play(_ key:SpeechAudioCache.Key,id:UUID)throws {
+        guard activeID==id else{throw CancellationError()}
+        guard let player=players[key] else{throw SpeechServiceError.emptyAudio}
+        activeKey=key;player.currentTime=0
+        guard player.play() else{throw SpeechServiceError.emptyAudio}
+    }
+    func isPlaying(_ id:UUID)->Bool {activeID==id && activeKey.flatMap{players[$0]?.isPlaying} == true}
+    func stop(_ id:UUID) {guard activeID==id else{return};if let key=activeKey{players[key]?.stop()};activeID=nil;activeKey=nil}
+}
+
 @MainActor final class SpeechAudioPipeline:ObservableObject {
     @Published var models:[String]=[]
     @Published var isConnected=false
@@ -121,7 +150,8 @@ actor SpeechAudioCache {
     init(session:URLSession=URLSession(configuration:.ephemeral)) {self.session=session;self.cache=SpeechAudioCache(session:session)}
     @Published private(set) var lastCacheHit=false
     @Published private(set) var lastPlayerSubmissionMS:Double=0
-    private var player:AVAudioPlayer?
+    private let device=SpeechPlaybackDevice()
+    private var activePlaybackID:UUID?
     private var playback:Task<Void,Never>?, prefetch:Task<Void,Never>?
     private var verifiedEndpoint=""
     func connect(_ settings:SpeechServiceSettings)async {
@@ -142,8 +172,7 @@ actor SpeechAudioCache {
         let validationKey=key("hello",settings,1)
         do {
             let result=try await cache.fetch(validationKey)
-            let sample=try AVAudioPlayer(data:result.data)
-            guard sample.prepareToPlay() else {throw SpeechServiceError.emptyAudio}
+            try await device.prepare(validationKey,data:result.data,limit:settings.profile.lookAhead+1)
             errorMessage=nil;return true
         } catch {await cache.discard(validationKey);errorMessage=error.localizedDescription;return false}
     }
@@ -154,32 +183,41 @@ actor SpeechAudioCache {
         stop();errorMessage=nil
         guard isConnected,verifiedEndpoint==settings.baseURL,models.contains(settings.model),settings.endpoint != nil else {errorMessage=SpeechServiceError.modelUnavailable.localizedDescription;return}
         let key=key(text,settings,min(1.8,max(0.7,speed)))
+        let playbackID=UUID();activePlaybackID=playbackID
         playback=Task { [weak self] in
             guard let self else{return}
             do {
+                await device.begin(playbackID)
                 await cache.configure(settings.profile.cacheBytes)
                 let result=try await cache.fetch(key);try Task.checkCancellation()
                 let started=ContinuousClock.now
-                let player=try AVAudioPlayer(data:result.data)
-                guard player.prepareToPlay() else {throw SpeechServiceError.emptyAudio}
-                self.player=player
+                try await device.prepare(key,data:result.data,limit:settings.profile.lookAhead+1)
+                try Task.checkCancellation()
                 for index in 0..<min(5,max(1,repeats)) {
-                    try Task.checkCancellation();player.currentTime=0
-                    guard player.play() else {throw SpeechServiceError.emptyAudio}
+                    try Task.checkCancellation()
+                    try await device.play(key,id:playbackID)
                     if index==0 {
                         lastCacheHit=result.cacheHit
                         lastPlayerSubmissionMS=SpeechAudioCache.ms(started.duration(to:.now))
                         playbackEvidence=String(format:"%@ · 音频获取 %.1f ms · 播放器准备/提交 %.1f ms",result.cacheHit ? "缓存命中":"新生成",result.milliseconds,SpeechAudioCache.ms(started.duration(to:.now)))
                         let keys=next.prefix(settings.profile.lookAhead).map{self.key($0,settings,key.speed)}
-                        prefetch=Task(priority:.utility) { [cache] in
-                            for key in keys {if Task.isCancelled{return};_ = try? await cache.fetch(key)}
+                        prefetch=Task(priority:.utility) { [cache,device] in
+                            for key in keys {
+                                if Task.isCancelled{return}
+                                if let generated=try? await cache.fetch(key),!Task.isCancelled {
+                                    try? await device.prepare(key,data:generated.data,limit:settings.profile.lookAhead+1)
+                                }
+                            }
                         }
                     }
-                    while player.isPlaying {try await Task.sleep(for:.milliseconds(30))}
+                    while await device.isPlaying(playbackID) {try await Task.sleep(for:.milliseconds(30))}
                     if index<repeats-1 {try await Task.sleep(for:.seconds(min(5,max(0,interval))))}
                 }
             } catch is CancellationError {} catch {await cache.discard(key);errorMessage=error.localizedDescription}
         }
     }
-    func stop() {playback?.cancel();prefetch?.cancel();player?.stop();player=nil}
+    func stop() {
+        playback?.cancel();prefetch?.cancel()
+        if let id=activePlaybackID {activePlaybackID=nil;Task{await device.stop(id)}}
+    }
 }
