@@ -88,6 +88,7 @@ struct StudyLearningRulesTests {
         #expect(preview.rows[1].issue != nil)
         #expect(throws:(any Error).self){try preview.confirmedWords(existing:[])}
         preview.rows[1].word="world"
+        preview.confirmRow(id:preview.rows[1].id)
         let imported=try preview.confirmedWords(existing:[])
         #expect(imported.count==2)
         #expect(imported[0].definitionZH=="你好")
@@ -141,3 +142,4 @@ struct StudyLearningRulesTests {
         #expect(try JSONDecoder().decode(StudyStoreSnapshot.self,from:JSONSerialization.data(withJSONObject:state)).writingRevisions==nil)
     }
 }
+

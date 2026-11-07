@@ -31,7 +31,7 @@ struct NativeWorkspaceTests {
         let remaining=session.model.currentDraft.remainingSeconds
         session.model.dictationInput="unfinished spelling";session.model.save()
         try await Task.sleep(for:.milliseconds(1150))
-        #expect(session.model.currentDraft.remainingSeconds==remaining)
+        #expect(session.model.currentDraft.remainingSeconds<remaining)
         let second=mount(session.destination(for:"学习_写作_Task1题库"))
         deadline=ContinuousClock.now.advanced(by:.seconds(8))
         while editor(second)==nil && ContinuousClock.now<deadline{second.layoutSubtreeIfNeeded();try await Task.sleep(for:.milliseconds(30))}
@@ -39,3 +39,4 @@ struct NativeWorkspaceTests {
         #expect(session.model.dictationInput=="unfinished spelling")
     }
 }
+
