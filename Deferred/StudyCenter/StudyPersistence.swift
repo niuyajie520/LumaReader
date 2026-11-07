@@ -41,6 +41,17 @@ public final class StudyPersistenceManager: @unchecked Sendable {
             try data.write(to:fileURL,options:.atomic)
         }
 
+        let upgradeBackup = backupDirectoryURL.appendingPathComponent("before-study-editor-upgrade.json")
+        if (try? JSONSerialization.jsonObject(with:rawData)) is [String:Any], !FileManager.default.fileExists(atPath:upgradeBackup.path) {
+            try rawData.write(to:upgradeBackup,options:.atomic)
+        }
+
+        // Keep the exact legacy bytes before future autosaves add new fields.
+        if let object = (try? JSONSerialization.jsonObject(with:rawData)) as? [String:Any],
+           (object["schemaVersion"] == nil || (object["workspace"] as? [String:Any]).map({ $0["dictationInput"] == nil || $0["showMeaning"] == nil }) == true) {
+            try rawData.write(to:backupDirectoryURL.appendingPathComponent("legacy-"+UUID().uuidString+".json"),options:.atomic)
+        }
+
         if snapshot.schemaVersion < StudySchemaVersion.current {
             // 1. Create a timestamped backup before migrating
             let backupName = "luma_study_store_v\(snapshot.schemaVersion.rawValue)_backup_\(Int(Date().timeIntervalSince1970)).json"

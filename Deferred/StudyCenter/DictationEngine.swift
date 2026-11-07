@@ -45,6 +45,20 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         }
     }
 
+    private enum CodingKeys:String,CodingKey { case sessionID,mode,dateString,spacingInterval,pendingQueue,completedWordIDs,activeWrongCycleWordIDs,sessionErrorCounts,stubbornWordsMap,attemptLogs,correctionPendingIDs,seenWordIDsInSession }
+    public init(from decoder:Decoder) throws {
+        let c = try decoder.container(keyedBy:CodingKeys.self)
+        let logs = try c.decodeIfPresent([DictationAttemptLog].self,forKey:.attemptLogs) ?? []
+        self.init(sessionID:try c.decode(UUID.self,forKey:.sessionID),mode:try c.decodeIfPresent(DictationSessionMode.self,forKey:.mode) ?? .newTask,dateString:try c.decode(String.self,forKey:.dateString),initialWords:try c.decode([VocabularyWord].self,forKey:.pendingQueue),spacingInterval:try c.decodeIfPresent(Int.self,forKey:.spacingInterval) ?? 3,previousLogs:logs)
+        completedWordIDs = try c.decodeIfPresent(Set<String>.self,forKey:.completedWordIDs) ?? []
+        activeWrongCycleWordIDs = try c.decodeIfPresent(Set<String>.self,forKey:.activeWrongCycleWordIDs) ?? []
+        sessionErrorCounts = try c.decodeIfPresent([String:Int].self,forKey:.sessionErrorCounts) ?? sessionErrorCounts
+        stubbornWordsMap = try c.decodeIfPresent([String:StubbornWordRecord].self,forKey:.stubbornWordsMap) ?? [:]
+        attemptLogs = logs
+        correctionPendingIDs = try c.decodeIfPresent(Set<String>.self,forKey:.correctionPendingIDs)
+        seenWordIDsInSession = try c.decodeIfPresent(Set<String>.self,forKey:.seenWordIDsInSession) ?? Set(logs.map(\.wordID))
+    }
+
     public var currentWord: VocabularyWord? {
         pendingQueue.first
     }

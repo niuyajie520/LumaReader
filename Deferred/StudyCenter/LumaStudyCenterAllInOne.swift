@@ -1009,6 +1009,32 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
         self.dictationSession = dictationSession
         self.dictationSessions = dictationSessions
     }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, sidebarState, selectedVoiceIdentifier, preferredAccent, preferredSpeechRate, speechRepeatCount, speechInterval, dictationLogs, stubbornWords, activeWritingDrafts, legacyDraftBackups, writingSubmissions, importedWords, reviewSchedule, writingRevisions, speechService, workspace, dictationSession, dictationSessions }
+    public init(from decoder:Decoder) throws {
+        let c = try decoder.container(keyedBy:CodingKeys.self)
+        self.init(
+            schemaVersion: try c.decodeIfPresent(StudySchemaVersion.self, forKey:.schemaVersion) ?? .v1_initial,
+            sidebarState: try c.decodeIfPresent(SidebarExpansionState.self, forKey:.sidebarState) ?? SidebarExpansionState(),
+            selectedVoiceIdentifier: try c.decodeIfPresent(String.self, forKey:.selectedVoiceIdentifier),
+            preferredAccent: try c.decodeIfPresent(String.self, forKey:.preferredAccent) ?? "en-GB",
+            preferredSpeechRate: try c.decodeIfPresent(Float.self, forKey:.preferredSpeechRate) ?? 1.0,
+            speechRepeatCount: try c.decodeIfPresent(Int.self, forKey:.speechRepeatCount),
+            speechInterval: try c.decodeIfPresent(Double.self, forKey:.speechInterval),
+            dictationLogs: try c.decodeIfPresent([DictationAttemptLog].self, forKey:.dictationLogs) ?? [],
+            stubbornWords: try c.decodeIfPresent([StubbornWordRecord].self, forKey:.stubbornWords) ?? [],
+            activeWritingDrafts: try c.decodeIfPresent([String:WritingExamDraftState].self, forKey:.activeWritingDrafts) ?? [:],
+            legacyDraftBackups: try c.decodeIfPresent([String:String].self, forKey:.legacyDraftBackups) ?? [:],
+            writingSubmissions: try c.decodeIfPresent([WritingSubmissionRecord].self, forKey:.writingSubmissions) ?? [],
+            importedWords: try c.decodeIfPresent([VocabularyWord].self, forKey:.importedWords),
+            reviewSchedule: try c.decodeIfPresent([String:WordReviewProgress].self, forKey:.reviewSchedule),
+            writingRevisions: try c.decodeIfPresent([WritingRevision].self, forKey:.writingRevisions),
+            speechService: try c.decodeIfPresent(SpeechServiceSettings.self, forKey:.speechService),
+            workspace: try c.decodeIfPresent(StudyWorkspaceState.self, forKey:.workspace),
+            dictationSession: try c.decodeIfPresent(DictationSessionStateMachine.self, forKey:.dictationSession),
+            dictationSessions: try c.decodeIfPresent([String:DictationSessionStateMachine].self, forKey:.dictationSessions)
+        )
+    }
+
 }
 
 //
@@ -1974,16 +2000,7 @@ public struct IELTSWritingExamSplitPaneView: View {
         return String(format: "%02d:%02d", mins, secs)
     }
 
-    private func handleBackTap() {
-        draft.lastSavedAt = Date()
-        onAutoSave(draft)
-        // Provide exit confirmation during an active formal 60-minute mock exam to prevent accidental exits
-        if !draft.isSingleTaskMode && !draft.isPaused && draft.remainingSeconds > 0 {
-            vm.showExitExamConfirmation = true
-        } else {
-            onNavigateBack?()
-        }
-    }
+    private func handleBackTap() { onNavigateBack?() }
 
     public var body: some View {
         VStack(spacing: 12) {
@@ -2001,7 +2018,7 @@ public struct IELTSWritingExamSplitPaneView: View {
                         }
                     }
                     .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 34))
-                    .help("自动保存未完成作文并返回学习中心（不会误触发交卷）")
+                    .help("选择保存、放弃本次更改或继续编辑")
                 }
 
                 Text(draft.examTitle)
@@ -2169,16 +2186,7 @@ public struct IELTSWritingExamSplitPaneView: View {
         }
         .padding(20)
         .background(appearance.paper)
-        .alert("确认暂时离开正式模考？", isPresented: $vm.showExitExamConfirmation) {
-            Button("保存草稿并返回学习中心") {
-                draft.lastSavedAt = Date()
-                onAutoSave(draft)
-                onNavigateBack?()
-            }
-            Button("继续作答", role: .cancel) {}
-        } message: {
-            Text("当前未完成的作文内容已自动保存，不会误触发交卷。按照正式考试规则，60 分钟倒计时将继续按真实时间运行，您可随时从学习中心返回继续作答。")
-        }
+
     }
 
     private func partSwitchButton(_ part: ExamPart, title: String) -> some View {

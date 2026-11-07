@@ -16,6 +16,27 @@ public struct StudyWorkspaceState: Codable, Equatable, Sendable {
     public var deckShowMeaning: [String: Bool]? = nil
     public var deckRevealedWordIDs: [String: String]? = nil
     public init() {}
+
+    private enum CodingKeys: String, CodingKey { case listeningMode, activePracticeListeningMode, selectedDeckID, writingMode, activePracticeWritingMode, writingDraftID, dictationInput, inputWordID, showMeaning, revealedWordID, deckInputs, deckInputWordIDs, deckShowMeaning, deckRevealedWordIDs }
+    public init(from decoder:Decoder) throws {
+        self.init()
+        let c = try decoder.container(keyedBy:CodingKeys.self)
+        listeningMode = try c.decodeIfPresent(String.self, forKey:.listeningMode)
+        activePracticeListeningMode = try c.decodeIfPresent(String.self, forKey:.activePracticeListeningMode)
+        selectedDeckID = try c.decodeIfPresent(String.self, forKey:.selectedDeckID)
+        writingMode = try c.decodeIfPresent(String.self, forKey:.writingMode)
+        activePracticeWritingMode = try c.decodeIfPresent(String.self, forKey:.activePracticeWritingMode)
+        writingDraftID = try c.decodeIfPresent(UUID.self, forKey:.writingDraftID)
+        dictationInput = try c.decodeIfPresent(String.self, forKey:.dictationInput) ?? ""
+        inputWordID = try c.decodeIfPresent(String.self, forKey:.inputWordID)
+        showMeaning = try c.decodeIfPresent(Bool.self, forKey:.showMeaning) ?? false
+        revealedWordID = try c.decodeIfPresent(String.self, forKey:.revealedWordID)
+        deckInputs = try c.decodeIfPresent([String:String].self, forKey:.deckInputs)
+        deckInputWordIDs = try c.decodeIfPresent([String:String].self, forKey:.deckInputWordIDs)
+        deckShowMeaning = try c.decodeIfPresent([String:Bool].self, forKey:.deckShowMeaning)
+        deckRevealedWordIDs = try c.decodeIfPresent([String:String].self, forKey:.deckRevealedWordIDs)
+    }
+
 }
 
 /// Lifetime belongs to the application window, not a particular study page.

@@ -17,6 +17,77 @@ public struct LumaStudyCenterHostView: View {
         var clockOwner: UUID?
         var examClockTask: Task<Void, Never>?
         var isExamClockActive: Bool = false
+        var writingEntry: WritingExamDraftState?
+        var editingDraftID: UUID?
+        var suppressDraftAutosave = false
+        var allowWritingNavigation = false
+        func beginWritingEdit(isNew: Bool = false) {
+            guard editingDraftID != currentDraft.id else { return }
+            editingDraftID = currentDraft.id
+            writingEntry = isNew ? nil : storeSnapshot.activeWritingDrafts.values.first { $0.id == currentDraft.id }
+            suppressDraftAutosave = false
+        }
+        @discardableResult func finishWritingEdit(discard: Bool) -> Bool {
+            let original = storeSnapshot
+            let edited = currentDraft
+            let clockWasActive = isExamClockActive
+            suppressDraftAutosave = discard
+            if discard {
+                storeSnapshot.activeWritingDrafts = storeSnapshot.activeWritingDrafts.filter { $0.value.id != currentDraft.id }
+                if let writingEntry {
+                    currentDraft = writingEntry
+                    storeSnapshot.activeWritingDrafts[writingEntry.id.uuidString] = writingEntry
+                } else {
+                    currentDraft.part1EssayText = ""; currentDraft.part2EssayText = ""
+                    currentDraft.elapsedSeconds = 0; currentDraft.remainingSeconds = 3600
+                    currentDraft.promptHighlights = nil
+                    storeSnapshot.workspace?.writingDraftID = nil
+                }
+                isExamClockActive = false
+            } else {
+                storeSnapshot.activeWritingDrafts[currentDraft.id.uuidString] = currentDraft
+            }
+            guard save() else {
+                storeSnapshot = original; currentDraft = edited; suppressDraftAutosave = false; isExamClockActive = clockWasActive
+                return false
+            }
+            editingDraftID = nil; writingEntry = nil
+            return true
+        }
+        @discardableResult func deleteWritingDraft(_ id: UUID) -> Bool {
+            let original = storeSnapshot; let active = currentDraft
+            let wasSuppressed = suppressDraftAutosave
+            if currentDraft.id == id {
+                suppressDraftAutosave = true; isExamClockActive = false
+                currentDraft.part1EssayText = ""; currentDraft.part2EssayText = ""
+                currentDraft.elapsedSeconds = 0; currentDraft.remainingSeconds = 3600
+                currentDraft.promptHighlights = nil; editingDraftID = nil; writingEntry = nil
+            }
+            storeSnapshot.activeWritingDrafts = storeSnapshot.activeWritingDrafts.filter { $0.value.id != id }
+            if storeSnapshot.workspace?.writingDraftID == id { storeSnapshot.workspace?.writingDraftID = nil }
+            guard save() else { storeSnapshot = original; currentDraft = active; suppressDraftAutosave = wasSuppressed; return false }
+            return true
+        }
+        @discardableResult func deleteWritingSubmission(_ id:UUID) -> Bool {
+            guard let record = storeSnapshot.writingSubmissions.first(where: { $0.id == id }) else { return false }
+            let original = storeSnapshot; let active = currentDraft; let wasSuppressed = suppressDraftAutosave
+            if currentDraft.id == record.draftSessionID {
+                suppressDraftAutosave = true; isExamClockActive = false
+                currentDraft.part1EssayText = ""; currentDraft.part2EssayText = ""
+                currentDraft.elapsedSeconds = 0; currentDraft.remainingSeconds = 3600
+                currentDraft.promptHighlights = nil; storeSnapshot.workspace?.writingDraftID = nil
+            }
+            storeSnapshot.activeWritingDrafts = storeSnapshot.activeWritingDrafts.filter { $0.value.id != record.draftSessionID }
+            storeSnapshot.writingSubmissions.removeAll { $0.id == id }
+            storeSnapshot.writingRevisions?.removeAll { $0.submissionID == id }
+            guard save() else { storeSnapshot = original; currentDraft = active; suppressDraftAutosave = wasSuppressed; return false }
+            return true
+        }
+        func submitDictationInput() -> DictationSubmissionOutcome? {
+            guard let result = dictationMachine.submitAnswer(dictationInput) else { return nil }
+            showMeaning = dictationMachine.attemptLogs.last?.isCorrect == false
+            return result
+        }
         var persistence: StudyPersistenceManager?
         init(storageDirectory: URL? = nil) {
             do {
@@ -65,6 +136,8 @@ public struct LumaStudyCenterHostView: View {
                     }
                 }
                 if manager.recoveryPerformed { storageError = "检测到学习记录损坏，已恢复上次有效备份；损坏原文件保存在备份目录中。" }
+            } catch DecodingError.keyNotFound(let key, _) {
+                storageError = "旧学习记录缺少字段「\(key.stringValue)」，原文件已保留，请勿清空记录。"
             } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
         }
 
@@ -129,6 +202,7 @@ public struct LumaStudyCenterHostView: View {
         }
 
         func storeDraft(_ draft: WritingExamDraftState) {
+            guard !suppressDraftAutosave else { return }
             storeSnapshot.activeWritingDrafts = storeSnapshot.activeWritingDrafts.filter { $0.value.id != draft.id }
             storeSnapshot.activeWritingDrafts[draft.id.uuidString] = draft
             save()
@@ -180,7 +254,7 @@ public struct LumaStudyCenterHostView: View {
 
             let isCurrentSubmitted = storeSnapshot.writingSubmissions.contains { $0.draftSessionID == currentDraft.id }
             let hasDraftProgress = !currentDraft.part1EssayText.isEmpty || !currentDraft.part2EssayText.isEmpty || currentDraft.elapsedSeconds > 0
-            if !isCurrentSubmitted && (hasDraftProgress || storeSnapshot.activeWritingDrafts.values.contains(where: { $0.id == currentDraft.id })) {
+            if !suppressDraftAutosave && !isCurrentSubmitted && (hasDraftProgress || storeSnapshot.activeWritingDrafts.values.contains(where: { $0.id == currentDraft.id })) {
                 storeSnapshot.activeWritingDrafts = storeSnapshot.activeWritingDrafts.filter { $0.value.id != currentDraft.id }
                 storeSnapshot.activeWritingDrafts[currentDraft.id.uuidString] = currentDraft
                 workspace.writingDraftID = currentDraft.id
@@ -230,6 +304,11 @@ public struct LumaStudyCenterHostView: View {
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
 
+    @State private var showWritingExit = false
+    @State private var writingExitDestination = "学习_写作_Task1题库"
+    @State private var exitToReading = false
+    @State private var submissionToDelete: UUID?
+    @State private var draftToDelete: UUID?
     @State private var clockToken = UUID()
     @StateObject private var vm: HostStateModel
     @StateObject private var audio = SpeechAudioPipeline()
@@ -296,7 +375,7 @@ public struct LumaStudyCenterHostView: View {
                                 .buttonStyle(StudyGlassCapsuleButtonStyle(selected: mode == "学习_听力_学习记录", horizontalPadding: 12, height: 32))
                         } else if mode.contains("写作") || mode == "学习_草稿" {
                             if !mode.contains("模拟机考") && hasUnfinishedWritingDraft {
-                                Button("继续写作 · \(vm.currentDraft.examTitle)") {
+                                Button("继续写作") {
                                     mode = "学习_写作_模拟机考"
                                 }
                                 .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 32))
@@ -356,10 +435,14 @@ public struct LumaStudyCenterHostView: View {
                             .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
                         }
                         Button {
-                            vm.save()
-                            NotificationCenter.default.post(name: Notification.Name("LumaReader.ResumeReadingWorkspace"), object: nil)
+                            if mode.contains("模拟机考") {
+                                exitToReading = true; showWritingExit = true
+                            } else {
+                                vm.save()
+                                NotificationCenter.default.post(name: Notification.Name("LumaReader.ResumeReadingWorkspace"), object: nil)
+                            }
                         } label: {
-                            Label("继续看书", systemImage: "book.pages")
+                            Label("继续阅读", systemImage: "book.pages")
                         }
                         .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
                         .help("切换到看书工作区并保留当前练习进度 · ⌥⌘5")
@@ -384,12 +467,23 @@ public struct LumaStudyCenterHostView: View {
                 case "学习": studyHome
                 case "学习_听力", "学习_听力_我的词库": listeningHome
                 case "学习_草稿":
-                    List(Array(vm.storeSnapshot.activeWritingDrafts.values).sorted { $0.lastSavedAt > $1.lastSavedAt }, id: \.id) { draft in
-                        Button("\(draft.examTitle) · 剩余 \(draft.remainingSeconds / 60) 分钟") {
-                            if let question = Self.builtInPracticeQuestions.first(where: { $0.id == draft.questionID }) {
-                                vm.selectedExamQuestion = question; vm.currentDraft = draft; vm.save(); mode = "学习_写作_模拟机考"
+                    List(Array(vm.storeSnapshot.activeWritingDrafts.values).filter { draft in
+                        !vm.storeSnapshot.writingSubmissions.contains { $0.draftSessionID == draft.id }
+                    }.sorted { $0.lastSavedAt > $1.lastSavedAt }, id: \.id) { draft in
+                        HStack {
+                            VStack(alignment:.leading,spacing:6) {
+                                Text(draft.examTitle).font(.headline)
+                                Text(draft.part1EssayText.isEmpty ? draft.part2EssayText : draft.part1EssayText).lineLimit(2).foregroundStyle(.secondary)
                             }
-                        }
+                            Spacer()
+                            Button("编辑草稿") {
+                                if let question = Self.builtInPracticeQuestions.first(where: { $0.id == draft.questionID }) {
+                                    vm.selectedExamQuestion = question; vm.currentDraft = draft
+                                    vm.beginWritingEdit(); mode = "学习_写作_模拟机考"
+                                }
+                            }
+                            Button("删除",role:.destructive) { draftToDelete = draft.id }
+                        }.padding(.vertical,8)
                     }
                 case "学习_听力_今日计划":
                     listeningCenterView(submode: .newTask)
@@ -424,9 +518,8 @@ public struct LumaStudyCenterHostView: View {
                                 submitWritingExam(submittedDraft)
                             },
                             onNavigateBack: {
-                                vm.storeDraft(vm.currentDraft)
-                                // Remember that the user intentionally returned to Task 1 bank while keeping draft saved
-                                mode = "学习_写作_Task1题库"
+                                writingExitDestination = "学习_写作_Task1题库"
+                                exitToReading = false; showWritingExit = true
                             }
                         )
                     }
@@ -460,7 +553,23 @@ public struct LumaStudyCenterHostView: View {
             WritingReviewPanel(session: session, onSave: saveWritingRevision)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: mode)
+        .alert("离开本次写作？", isPresented:$showWritingExit) {
+            Button("保存并退出") { finishWritingExit(discard:false) }
+            Button("放弃本次更改",role:.destructive) { finishWritingExit(discard:true) }
+            Button("继续编辑",role:.cancel) { exitToReading = false }
+        } message: {
+            Text("保存可保留当前草稿；放弃会恢复进入本次编辑前的版本，新建草稿则不保留本次内容。")
+        }
+        .alert("删除这份草稿？",isPresented:Binding(get:{draftToDelete != nil},set:{if !$0 {draftToDelete = nil}})) {
+            Button("删除草稿",role:.destructive) { if let id = draftToDelete { _ = vm.deleteWritingDraft(id) }; draftToDelete = nil }
+            Button("保留草稿",role:.cancel) { draftToDelete = nil }
+        } message: { Text("已提交的历史作文不会被删除。") }
+        .alert("删除这篇作文？",isPresented:Binding(get:{submissionToDelete != nil},set:{if !$0 {submissionToDelete = nil}})) {
+            Button("删除作文",role:.destructive) { if let id = submissionToDelete { _ = vm.deleteWritingSubmission(id) }; submissionToDelete = nil }
+            Button("保留作文",role:.cancel) { submissionToDelete = nil }
+        } message: { Text("这篇作文及其重写版本将被删除。") }
         .onAppear {
+            if mode.contains("模拟机考") { vm.beginWritingEdit() }
             vm.remember(mode)
             if mode == "学习_模拟机考" || mode == "学习_写作_模拟机考" {
                 vm.startContinuousExamClockIfNeeded { expiredDraft in
@@ -485,7 +594,13 @@ public struct LumaStudyCenterHostView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in vm.save() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in vm.save() }
         .onDisappear { if vm.clockOwner == clockToken { vm.clockOwner = nil }; vm.save(); ttsEngine.stop(); audio.stop() }
-        .onChange(of: mode) { _, destination in
+        .onChange(of: mode) { previous, destination in
+            if previous.contains("模拟机考"), !destination.contains("模拟机考"), !vm.allowWritingNavigation {
+                writingExitDestination = destination; exitToReading = false
+                mode = previous; showWritingExit = true; return
+            }
+            vm.allowWritingNavigation = false
+            if destination.contains("模拟机考") { vm.beginWritingEdit() }
             vm.remember(destination)
             ttsEngine.stop()
             audio.stop()
@@ -506,6 +621,7 @@ public struct LumaStudyCenterHostView: View {
         vm.selectedExamQuestion = chosen
         if !forceNew, let existing = vm.existingUnsubmittedDraft(for: chosen.id) {
             vm.currentDraft = existing
+            vm.beginWritingEdit()
             vm.storeDraft(vm.currentDraft)
             mode = "学习_写作_模拟机考"
             return
@@ -524,11 +640,23 @@ public struct LumaStudyCenterHostView: View {
             lastSavedAt: Date(),
             containsLegacyNonEnglishNotice: false
         )
+        vm.beginWritingEdit(isNew:true)
         vm.storeDraft(vm.currentDraft)
         vm.startContinuousExamClockIfNeeded { expiredDraft in
             submitWritingExam(expiredDraft)
         }
         mode = "学习_写作_模拟机考"
+    }
+
+    private func finishWritingExit(discard:Bool) {
+        guard vm.finishWritingEdit(discard:discard) else { return }
+        if exitToReading {
+            vm.allowWritingNavigation = false
+            NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil)
+        } else {
+            vm.allowWritingNavigation = true; mode = writingExitDestination
+        }
+        exitToReading = false
     }
 
     private func submitWritingExam(_ submittedDraft: WritingExamDraftState) {
@@ -553,6 +681,7 @@ public struct LumaStudyCenterHostView: View {
         vm.storeDraft(submittedDraft)
         vm.storeSnapshot.writingSubmissions.insert(record, at: 0)
         vm.save()
+        vm.allowWritingNavigation = true
         mode = "学习_写作_评分反馈"
     }
 
@@ -568,7 +697,7 @@ public struct LumaStudyCenterHostView: View {
                             selectDeckAndStartDictation(deck: newDeck, mode: vm.dictationMachine.mode, resume: true)
                         }
                     )) {
-                        ForEach(Array(Set(allWords.map(\.deckID))).sorted(), id: \.self) { Text($0).tag($0) }
+                        ForEach(Array(Set(allWords.map(\.deckID))).sorted(), id: \.self) { id in Text(allWords.first(where: { $0.deckID == id })?.deckTitle ?? "我的词库").tag(id) }
                     }
                     Button(hasUnfinishedListeningSession ? "继续听写" : "开始听写") {
                         selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .newTask, resume: true)
@@ -622,7 +751,7 @@ public struct LumaStudyCenterHostView: View {
                     if let word = vm.dictationMachine.currentWord {
                         let errorCount = vm.dictationMachine.sessionErrorCounts[word.id, default: 0]
                         Button("不熟悉 · 显示中文") { vm.showMeaning = true; vm.save() }
-                        if vm.showMeaning { Text(word.definitionZH) }
+                        if vm.showMeaning { Text(word.definitionZH).font(.title3.weight(.medium)).foregroundStyle(appearance.accent).frame(maxWidth:.infinity).textSelection(.enabled) }
                         if vm.dictationMachine.requiresCorrection {
                             Button("查看拼写后订正") { vm.revealedWordID = word.id; vm.save() }
                             if vm.revealedWordID == word.id { Text(word.word).font(.headline).textSelection(.enabled) }
@@ -630,11 +759,18 @@ public struct LumaStudyCenterHostView: View {
                         Text("今日累计错误：\(errorCount) 次 · 第 6 次进入顽固单词").font(.system(size: 13))
                             .foregroundStyle(appearance.ink.opacity(0.85))
 
-                        HStack(spacing: 12) {
-                            TextField("听音后输入英文单词...", text: $vm.dictationInput)
+                        VStack(spacing: 22) {
+                            TextField("输入听到的英文词汇", text: $vm.dictationInput)
                                 .focused($answerFocused)
                                 .autocorrectionDisabled()
-                                .textFieldStyle(.roundedBorder)
+                                .textFieldStyle(.plain)
+                                .font(.system(size:42,weight:.medium,design:.rounded))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal,28).frame(maxWidth:.infinity,minHeight:220)
+                                .background(appearance.paper,in:RoundedRectangle(cornerRadius:22))
+                                .overlay(RoundedRectangle(cornerRadius:22).stroke(answerFocused ? appearance.accent : appearance.line,lineWidth:answerFocused ? 2:1))
+                                .accessibilityIdentifier("study.dictation.answer")
+                                .onTapGesture { answerFocused = true }
                                 .onSubmit {
                                     submitCurrentDictation()
                                 }
@@ -642,8 +778,8 @@ public struct LumaStudyCenterHostView: View {
                             Button("提交核对") {
                                 submitCurrentDictation()
                             }
-                            .buttonStyle(.borderedProminent)
-                        }
+                            .buttonStyle(StudyGlassCapsuleButtonStyle(prominent:true,horizontalPadding:32,height:44))
+                        }.padding(.vertical,28)
 
                         ProgressView(value: Double(vm.dictationMachine.completedWordIDs.count), total: Double(max(1, vm.dictationMachine.completedWordIDs.count + vm.dictationMachine.pendingQueue.count)))
                         Text("剩余 \(vm.dictationMachine.pendingQueue.count) 个 · 已完成 \(vm.dictationMachine.completedWordIDs.count) 个（切换看书或写作后返回将自动继续本进度）").font(.caption).foregroundStyle(.secondary)
@@ -829,6 +965,7 @@ public struct LumaStudyCenterHostView: View {
                         ForEach(vm.storeSnapshot.writingSubmissions) { sub in
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
+                                    Button("删除作文",role:.destructive) { submissionToDelete = sub.id }
                                     Text(sub.examTitle)
                                         .font(.system(size: 17, weight: .bold, design: .serif))
                                         .foregroundStyle(appearance.ink)
@@ -1073,7 +1210,7 @@ public struct LumaStudyCenterHostView: View {
 
     private func submitCurrentDictation() {
         guard !vm.dictationInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { vm.dictationFeedback = "请输入听到的单词后提交。"; return }
-        guard let word = vm.dictationMachine.currentWord, let outcome = vm.dictationMachine.submitAnswer(vm.dictationInput) else { return }
+        guard let word = vm.dictationMachine.currentWord, let outcome = vm.submitDictationInput() else { return }
         if let log = vm.dictationMachine.attemptLogs.last {
             vm.storeSnapshot.dictationLogs.append(log)
             if !log.isCorrect || vm.dictationMachine.completedWordIDs.contains(word.id) {
@@ -1087,7 +1224,6 @@ public struct LumaStudyCenterHostView: View {
             vm.storeSnapshot.stubbornWords.removeAll { $0.wordID == record.wordID && $0.dateString == record.dateString }
             vm.storeSnapshot.stubbornWords.append(record)
         }
-        vm.showMeaning = false
         vm.revealedWordID = nil
         vm.dictationInput = ""
         vm.save()
