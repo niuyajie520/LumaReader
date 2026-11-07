@@ -1,0 +1,958 @@
+import SwiftUI
+import AppKit
+import Combine
+
+@MainActor
+public struct LumaStudyCenterHostView: View {
+    @Binding public var mode: String
+
+    @MainActor
+    final class HostStateModel: ObservableObject {
+        @Published var storageError: String?
+        var persistence: StudyPersistenceManager?
+        init() {
+            do {
+                let directory = try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
+                    .appendingPathComponent("LumaReader/StudyCenter",isDirectory:true)
+                let manager = try StudyPersistenceManager(storageDirectory:directory)
+                let saved = try manager.loadAndMigrateIfNeeded()
+                persistence = manager; storeSnapshot = saved
+                selectedAccent = TTSVoiceAccent(rawValue:saved.preferredAccent) ?? .british
+                speechRateMultiplier = saved.preferredSpeechRate
+                if let session = saved.dictationSession { dictationMachine = session }
+            } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
+        }
+        func save() {
+            guard let persistence else { return }
+            storeSnapshot.dictationSession = dictationMachine
+            storeSnapshot.preferredAccent = selectedAccent.rawValue
+            storeSnapshot.preferredSpeechRate = speechRateMultiplier
+            do { try persistence.save(storeSnapshot) }
+            catch { storageError = "学习记录保存失败：\(error.localizedDescription)" }
+        }
+        @Published var storeSnapshot: StudyStoreSnapshot = StudyStoreSnapshot()
+        @Published var selectedExamQuestion: Task1QuestionItem = LumaStudyCenterHostView.builtInPracticeQuestions[2]
+        @Published var currentDraft: WritingExamDraftState = WritingExamDraftState(
+            id: UUID(),
+            questionID: "ORIG-003",
+            examTitle: "Cambridge IELTS 9 · Test 1 (Island redevelopment)",
+            activePart: .part1,
+            part1EssayText: "",
+            part2EssayText: "",
+            remainingSeconds: 3600,
+            elapsedSeconds: 0,
+            isPaused: false,
+            isSingleTaskMode: false,
+            lastSavedAt: Date(),
+            containsLegacyNonEnglishNotice: false
+        )
+        @Published var dictationMachine = DictationSessionStateMachine(
+            mode: .newTask,
+            dateString: LumaStudyCenterHostView.todayDateString(),
+            initialWords: LumaStudyCenterHostView.builtInVocabularyWords
+        )
+        @Published var dictationInput: String = ""
+        @Published var dictationFeedback: String = "点击「播放女声发音」听音默写；1–4次错词自动穿插进后续未填队列，当天第5次答错进入「顽固单词」且当日不再自动出现。"
+        @Published var selectedAccent: TTSVoiceAccent = .british
+        @Published var speechRateMultiplier: Float = 1.0
+        @Published var showMeaning = false
+        @Published var selectedDeck = "vocab_daily"
+        @Published var statsScope: StudyStatisticsScope = .all
+        @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
+    }
+    @StateObject private var vm = HostStateModel()
+
+    private let ttsEngine = MacOSSpeechSynthesisManager()
+
+    public init(mode: Binding<String>) {
+        self._mode = mode
+    }
+
+    public var body: some View {
+        ZStack {
+            LumaTheme.windowBackground.ignoresSafeArea()
+
+            VStack(spacing:12) {
+            HStack {
+                Button("学习主页") { mode = "学习" }
+                Button("Task 1") { mode = "学习_写作_Task1题库" }
+                Button("Task 2") { mode = "学习_写作_Task2题库" }
+                Button("草稿") { mode = "学习_草稿" }
+                Button("历史作文") { mode = "学习_写作_历史作文" }
+                Spacer()
+            }.padding(.horizontal,24).padding(.top,12)
+            if let error = vm.storageError { Text(error).foregroundStyle(.red).textSelection(.enabled).padding() }
+            switch mode {
+            case "学习": studyHome
+            case "学习_阅读":
+                Text("雅思阅读题库尚未接入").frame(maxWidth:.infinity,maxHeight:.infinity)
+            case "学习_草稿":
+                List(Array(vm.storeSnapshot.activeWritingDrafts.values),id:\.id) { draft in
+                    Button(draft.examTitle) {
+                        if let question = Self.builtInPracticeQuestions.first(where: { $0.id == draft.questionID }) {
+                            vm.selectedExamQuestion = question; vm.currentDraft = draft; mode = "学习_写作_模拟机考"
+                        }
+                    }
+                }
+
+            case "学习_听力", "学习_听力_今日计划", "学习_听力_我的词库":
+                listeningCenterView(submode: .newTask)
+            case "学习_听力_错词复习":
+                listeningCenterView(submode: .wrongWordReview)
+            case "学习_听力_顽固单词":
+                stubbornWordsDedicatedView
+            case "学习_听力_学习记录":
+                listeningRecordsDedicatedView
+            case "学习_模拟机考", "学习_写作_模拟机考":
+                IELTSWritingExamSplitPaneView(
+                    question: vm.selectedExamQuestion,
+                    draft: $vm.currentDraft,
+                    onAutoSave: { updated in
+                        vm.storeSnapshot.activeWritingDrafts[updated.questionID] = updated
+                        vm.save()
+                    },
+                    onSubmitExam: { submittedDraft in
+                        submitWritingExam(submittedDraft)
+                    }
+                )
+            case "学习_写作_Task2题库":
+                task2QuestionBankView
+            case "学习_写作_历史作文", "学习_写作_评分反馈":
+                writingHistoryAndFeedbackView
+            case "学习_统计":
+                studyStatisticsView
+            default:
+                // Default: "学习_Task1题库" / "学习_写作_Task1题库"
+                Task1QuestionBankHomeView(
+                    allCatalogItems: Self.builtInPracticeQuestions,
+                    onLaunchExam: { chosen in
+                        launchExam(for: chosen, singleTask: false)
+                    }
+                )
+            }
+        }
+        }
+        .onDisappear { vm.save(); ttsEngine.stop() }
+        .onChange(of:mode) { _,_ in ttsEngine.stop() }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            if (mode == "学习_模拟机考" || mode == "学习_写作_模拟机考"),
+               !vm.currentDraft.isPaused,
+               vm.currentDraft.remainingSeconds > 0 {
+                vm.currentDraft.remainingSeconds -= 1
+                vm.currentDraft.elapsedSeconds += 1
+                if vm.currentDraft.elapsedSeconds % 5 == 0 {
+                    vm.storeSnapshot.activeWritingDrafts[vm.currentDraft.questionID] = vm.currentDraft; vm.save()
+                }
+                if vm.currentDraft.remainingSeconds == 0 { submitWritingExam(vm.currentDraft) }
+            }
+        }
+    }
+
+    private func launchExam(for chosen: Task1QuestionItem, singleTask: Bool) {
+        vm.selectedExamQuestion = chosen
+        if let saved = vm.storeSnapshot.activeWritingDrafts[chosen.id] {
+            vm.currentDraft = saved
+        } else {
+            vm.currentDraft = WritingExamDraftState(
+                id: UUID(),
+                questionID: chosen.id,
+                examTitle: "\(chosen.id) · \(chosen.shortTitle)",
+                activePart: .part1,
+                part1EssayText: "",
+                part2EssayText: "",
+                remainingSeconds: 3600,
+                elapsedSeconds: 0,
+                isPaused: false,
+                isSingleTaskMode: singleTask,
+                lastSavedAt: Date(),
+                containsLegacyNonEnglishNotice: false
+            )
+        }
+        mode = "学习_写作_模拟机考"
+    }
+
+    private func submitWritingExam(_ submittedDraft: WritingExamDraftState) {
+        let policy = ExamEnglishInputPolicy()
+        let p1Words = policy.countIELTSWords(in: submittedDraft.part1EssayText)
+        let p2Words = policy.countIELTSWords(in: submittedDraft.part2EssayText)
+        let record = WritingSubmissionRecord(
+            id: UUID(),
+            draftSessionID: submittedDraft.id,
+            questionID: submittedDraft.questionID,
+            examTitle: submittedDraft.examTitle,
+            part1EssayText: submittedDraft.part1EssayText,
+            part2EssayText: submittedDraft.part2EssayText,
+            part1WordCount: p1Words,
+            part2WordCount: p2Words,
+            durationSeconds: max(60, 3600 - submittedDraft.remainingSeconds),
+            submittedAt: Date(),
+            dateString: Self.todayDateString(),
+            aiEvaluation: nil
+        )
+        vm.storeSnapshot.activeWritingDrafts[submittedDraft.questionID] = submittedDraft
+        vm.save() // Original answer is durable before submission/evaluation.
+        vm.storeSnapshot.writingSubmissions.insert(record, at: 0)
+        vm.save()
+        mode = "学习_写作_评分反馈"
+    }
+
+    // MARK: - 1. Listening Shelf & Dictation Pod
+
+    private func listeningCenterView(submode: DictationSessionMode) -> some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack {
+                    Picker("词库",selection:$vm.selectedDeck) {
+                        ForEach(Array(Set(Self.builtInVocabularyWords.map(\.deckID))).sorted(),id:\.self) { Text($0).tag($0) }
+                    }
+                    Button("开始听写") { startDictation(mode:.newTask) }
+                    Button("错词复习") { startDictation(mode:.wrongWordReview) }
+                    Button("停止播放") { ttsEngine.stop() }
+                }.padding(.horizontal,32)
+                ListeningShelfHomeView(
+                    todayDictatedWordCount: DictationSessionStateMachine.todayDictatedWordCount(
+                        from: vm.storeSnapshot.dictationLogs,
+                        on: Self.todayDateString()
+                    )
+                ) { _ in
+                    speakCurrentWord()
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 12) {
+                        Text(submode == .wrongWordReview ? "错词复习队列" : "词汇听写 · 自然女声优先")
+                            .font(.system(size: 18, weight: .bold, design: .serif))
+                            .foregroundStyle(Color.primary)
+                        Spacer()
+                        Picker("口音", selection: $vm.selectedAccent) {
+                            Text("英式女声 (en-GB)").tag(TTSVoiceAccent.british)
+                            Text("美式女声 (en-US)").tag(TTSVoiceAccent.american)
+                        }
+                        .frame(width: 175)
+
+                        Picker("语速", selection: $vm.speechRateMultiplier) {
+                            Text("0.85x 慢速").tag(Float(0.85))
+                            Text("1.0x 标准").tag(Float(1.0))
+                            Text("1.15x 进阶").tag(Float(1.15))
+                        }
+                        .frame(width: 125)
+
+                        Button("🔊 重播女声") {
+                            speakCurrentWord()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(LumaTheme.softPinkAccent)
+                    }
+
+                    if let word = vm.dictationMachine.currentWord {
+                        let errorCount = vm.dictationMachine.sessionErrorCounts[word.id, default: 0]
+                        Button("不熟悉 · 显示中文") { vm.showMeaning = true }
+                        if vm.showMeaning { Text(word.definitionZH) }
+                        Text("本轮累计错误：\(errorCount)/5 次").font(.system(size: 13))
+                            .foregroundStyle(Color.primary.opacity(0.85))
+
+                        HStack(spacing: 12) {
+                            TextField("听音后输入英文单词...", text: $vm.dictationInput)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit {
+                                    submitCurrentDictation()
+                                }
+                            Button("提交核对") {
+                                submitCurrentDictation()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    } else {
+                        Text("🎉 当前听写队列已全部完成！")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(LumaTheme.softPinkAccent)
+                    }
+
+                    Text(vm.dictationFeedback)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color.primary.opacity(0.78))
+                }
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(LumaTheme.sidebarPillFill)
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                )
+                .padding(.horizontal, 32)
+            }
+        }
+        .background(LumaTheme.windowBackground)
+    }
+
+    private var stubbornWordsDedicatedView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("顽固单词")
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(Color.primary)
+            Text("当日累计答错满 5 次自动转入顽固单词，当日不再自动出现；按错误次数从高到低排序，独立记录复习会话。")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary.opacity(0.7))
+
+            if vm.storeSnapshot.stubbornWords.isEmpty {
+                Text("暂无顽固单词记录。")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary.opacity(0.6))
+                    .padding(.top, 20)
+            } else {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(vm.storeSnapshot.stubbornWords.sorted { $0.errorCount > $1.errorCount }) { rec in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(rec.word)
+                                        .font(.system(size: 18, weight: .bold, design: .serif))
+                                        .foregroundStyle(Color.primary)
+                                    Text("所属原词库：\(rec.sourceDeckTitle) · 记录日期：\(rec.dateString)")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.primary.opacity(0.65))
+                                }
+                                Spacer()
+                                Text("错误 \(rec.errorCount) 次")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(LumaTheme.softPinkAccent)
+                            }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(LumaTheme.sidebarPillFill))
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(32)
+        .background(LumaTheme.windowBackground)
+    }
+
+    private var listeningRecordsDedicatedView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("听力学习记录")
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(Color.primary)
+            if vm.storeSnapshot.dictationLogs.isEmpty {
+                Text("今日尚无听写记录，前往「听力 → 今日计划」开始练习后将自动记录。")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary.opacity(0.65))
+            } else {
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(vm.storeSnapshot.dictationLogs) { log in
+                            HStack {
+                                Text(log.word)
+                                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                                    .foregroundStyle(Color.primary)
+                                Text("输入：\(log.userTyped)")
+                                    .font(.system(size: 12.5, design: .monospaced))
+                                    .foregroundStyle(Color.primary.opacity(0.75))
+                                Spacer()
+                                Text(log.isCorrect ? "✓ 正确" : "✗ 错误 (第\(log.sessionErrorCountForWord)次)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(log.isCorrect ? .green : .pink)
+                            }
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(LumaTheme.sidebarPillFill))
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(32)
+        .background(LumaTheme.windowBackground)
+    }
+
+    // MARK: - 2. Task 2 Bank & Writing History / AI Feedback Views
+
+    private var task2QuestionBankView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Task 2 议论文题库")
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(Color.primary)
+            Text("双击任意题目进入 40 分钟 / 250 词纯英文无纠错写作机考")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary.opacity(0.68))
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(Self.builtInPracticeQuestions) { item in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("\(item.companionTask2ID ?? "T2") · \(item.shortTitle)")
+                                    .font(.system(size: 16, weight: .bold, design: .serif))
+                                    .foregroundStyle(LumaTheme.softPinkAccent)
+                                Spacer()
+                                Text("建议 40 分钟 · 至少 250 词")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.primary.opacity(0.6))
+                            }
+                            Text(item.companionTask2Prompt ?? "")
+                                .font(.system(size: 14, design: .serif))
+                                .foregroundStyle(Color.primary.opacity(0.92))
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(LumaTheme.sidebarPillFill)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                        )
+                        .onTapGesture(count: 2) {
+                            launchExam(for: item, singleTask: false)
+                            vm.currentDraft.activePart = .part2
+                        }
+                    }
+                }
+            }
+        }
+        .padding(32)
+        .background(LumaTheme.windowBackground)
+    }
+
+    private var writingHistoryAndFeedbackView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("历史作文与 AI 评分反馈")
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(Color.primary)
+            Text("作文已保存在本机。尚未配置 AI 评分，当前状态为待评分。")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.yellow.opacity(0.9))
+
+            if vm.storeSnapshot.writingSubmissions.isEmpty {
+                Text("暂无已提交的历史作文。双击 Task 1 题卡完成练习并点击「交卷」后在此查看四项评分与逐句纠错。")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary.opacity(0.65))
+                    .padding(.top, 16)
+            } else {
+                ScrollView {
+                    VStack(spacing: 14) {
+                        ForEach(vm.storeSnapshot.writingSubmissions) { sub in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(sub.examTitle)
+                                        .font(.system(size: 17, weight: .bold, design: .serif))
+                                        .foregroundStyle(Color.primary)
+                                    Spacer()
+                                    if sub.aiEvaluation == nil { Text("待评分 · 尚未配置 AI 评分") }
+                                    if let eval = sub.aiEvaluation {
+                                        Text(String(format: "AI 估计总分：Band %.1f", eval.overallEstimatedBand))
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundStyle(LumaTheme.softPinkAccent)
+                                    }
+                                }
+                                Text(sub.part1EssayText + "\n\n" + sub.part2EssayText).textSelection(.enabled)
+                                Text("提交日期：\(sub.dateString) · Part 1 字数：\(sub.part1WordCount) · Part 2 字数：\(sub.part2WordCount) · 用时：\(sub.durationSeconds / 60) 分钟")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.primary.opacity(0.7))
+                            }
+                            .padding(16)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(LumaTheme.sidebarPillFill))
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(32)
+        .background(LumaTheme.windowBackground)
+    }
+
+    private var studyHome: some View {
+        VStack(alignment:.leading,spacing:24) {
+            Text("学习").font(.largeTitle)
+            LazyVGrid(columns:[GridItem(.adaptive(minimum:190))],spacing:20) {
+                homeCard("词汇听写",symbol:"headphones",destination:"学习_听力")
+                homeCard("雅思阅读",symbol:"doc.text.magnifyingglass",destination:"学习_阅读")
+                homeCard("雅思写作",symbol:"pencil",destination:"学习_写作_Task1题库")
+            }
+            Spacer()
+        }.padding(32)
+    }
+    private func homeCard(_ title:String,symbol:String,destination:String)->some View {
+        Button { mode = destination } label: {
+            VStack(spacing:20) { Image(systemName:symbol).font(.largeTitle); Text(title).font(.headline) }
+                .frame(maxWidth:.infinity,minHeight:180).background(LumaTheme.sidebarPillFill,in:RoundedRectangle(cornerRadius:16))
+        }.buttonStyle(.plain)
+    }
+    private func startDictation(mode:DictationSessionMode) {
+        let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect }.map(\.wordID))
+        let words = Self.builtInVocabularyWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || wrongIDs.contains($0.id)) }
+        vm.dictationMachine = DictationSessionStateMachine(mode:mode,dateString:Self.todayDateString(),initialWords:words,existingStubbornWordsForToday:vm.storeSnapshot.stubbornWords,previousLogs:vm.storeSnapshot.dictationLogs)
+        vm.showMeaning = false; vm.dictationInput = ""; vm.save(); speakCurrentWord()
+    }
+
+    private func speakCurrentWord() {
+        guard let word = vm.dictationMachine.currentWord else { return }
+        let voice = ttsEngine.selectBestFemaleVoice(
+            preferredVoiceID: vm.storeSnapshot.selectedVoiceIdentifier,
+            accent: vm.selectedAccent
+        )
+        guard ttsEngine.availableVoices(for:vm.selectedAccent).contains(where: { $0.id == voice.id }) else {
+            vm.dictationFeedback = "没有已安装的英语女声，请在 macOS 辅助功能的朗读声音中安装英语女声。"; return
+        }
+        vm.storeSnapshot.selectedVoiceIdentifier = voice.id
+        ttsEngine.speak(text: word.word, voice: voice, requestedRate: vm.speechRateMultiplier)
+    }
+
+    private func submitCurrentDictation() {
+        guard let outcome = vm.dictationMachine.submitAnswer(vm.dictationInput) else { return }
+        if let log = vm.dictationMachine.attemptLogs.last { vm.storeSnapshot.dictationLogs.append(log) }
+        for record in vm.dictationMachine.sortedStubbornWords {
+            vm.storeSnapshot.stubbornWords.removeAll { $0.wordID == record.wordID && $0.dateString == record.dateString }
+            vm.storeSnapshot.stubbornWords.append(record)
+        }
+        vm.save(); vm.showMeaning = false
+        vm.dictationInput = ""
+        speakCurrentWord()
+        switch outcome {
+        case .correct(let exitedWrongCycle):
+            vm.dictationFeedback = exitedWrongCycle
+                ? "✓ 拼写正确！该词已成功退出本轮错词复习循环。"
+                : "✓ 拼写正确！"
+        case .requeuedForRetry(let errCount, let offset):
+            vm.dictationFeedback = "✗ 拼写有误（今日第 \(errCount)/5 次错误），已穿插排入后续第 \(offset + 1) 位等待复习。"
+        case .promotedToStubbornWords(let rec):
+            vm.dictationFeedback = "⚠️ 「\(rec.word)」今日累计答错满 5 次，已移入「顽固单词」且今日不再自动出现。"
+        }
+    }
+
+    // MARK: - 3. Study Statistics View (全部｜听力｜写作 + 今天｜7天｜30天｜全部时间)
+
+    private var studyStatisticsView: some View {
+        let overview = StudyStatisticsCalculator.computeOverview(
+            dictationLogs: vm.storeSnapshot.dictationLogs,
+            writingSubmissions: vm.storeSnapshot.writingSubmissions
+        )
+        let listeningStats = StudyStatisticsCalculator.computeListening(
+            dictationLogs: vm.storeSnapshot.dictationLogs,
+            stubbornWords: vm.storeSnapshot.stubbornWords.sorted { $0.errorCount > $1.errorCount }
+        )
+        let writingStats = StudyStatisticsCalculator.computeWriting(
+            submissions: vm.storeSnapshot.writingSubmissions
+        )
+
+        return VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("学习统计")
+                    .font(.system(size: 30, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.primary)
+                Spacer()
+                Picker("模块", selection: $vm.statsScope) {
+                    ForEach(StudyStatisticsScope.allCases, id: \.self) { s in
+                        Text(s.rawValue).tag(s)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 210)
+
+                Picker("时间范围", selection: $vm.statsTimeWindow) {
+                    ForEach(StudyStatsTimeWindow.allCases, id: \.self) { w in
+                        Text(w.rawValue).tag(w)
+                    }
+                }
+                .frame(width: 150)
+            }
+
+            if vm.statsScope == .all {
+                HStack(spacing: 16) {
+                    statCard(title: "真实总学习时长", value: "\(overview.totalStudySeconds / 60) 分钟", subtitle: "听力 \(overview.listeningStudySeconds / 60) 分钟 + 写作 \(overview.writingStudySeconds / 60) 分钟（绝不把单词数加作文数）")
+                    statCard(title: "连续学习天数", value: "\(overview.streakDays) 天", subtitle: overview.isEmpty ? "暂无学习会话记录" : "基于本地持久化会话计算")
+                }
+            } else if vm.statsScope == .listening {
+                HStack(spacing: 16) {
+                    statCard(title: "听写完成单词数", value: "\(listeningStats.completedUniqueWordsCount) 词", subtitle: "总错误次数：\(listeningStats.totalErrorCount)")
+                    statCard(title: "首次正确率", value: String(format: "%.1f%%", listeningStats.firstAttemptAccuracyPercent), subtitle: "顽固单词数：\(listeningStats.stubbornWordsCount)")
+                }
+            } else {
+                HStack(spacing: 16) {
+                    statCard(title: "完成作文篇数", value: "\(writingStats.totalSubmissionsCount) 篇", subtitle: "Task 1: \(writingStats.task1Count) 篇 · Task 2: \(writingStats.task2Count) 篇")
+                    statCard(title: "平均字数与 AI 估计均分", value: "\(writingStats.averageWordCount) 词", subtitle: "AI 估计均分：\(writingStats.averageEstimatedBand.map { String(format: "Band %.1f", $0) } ?? "暂无数据")")
+                }
+            }
+
+            Spacer()
+        }
+        .padding(32)
+        .background(LumaTheme.windowBackground)
+    }
+
+    private func statCard(title: String, value: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.primary.opacity(0.7))
+            Text(value)
+                .font(.system(size: 24, weight: .bold, design: .serif))
+                .foregroundStyle(Color.primary)
+            Text(subtitle)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Color.primary.opacity(0.55))
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LumaTheme.sidebarPillFill)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
+        )
+    }
+
+    static func todayDateString() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+
+    // MARK: - Built-In Vocabulary & 12 Original Task 1 Questions
+
+    public static let builtInVocabularyWords: [VocabularyWord] = [
+        VocabularyWord(id: "w1", word: "accommodation", phoneticUK: "/əˌkɒm.əˈdeɪ.ʃən/", phoneticUS: "/əˌkɑː.məˈdeɪ.ʃən/", partOfSpeech: "n.", definitionZH: "住宿；膳宿设施", exampleSentence: "New tourist accommodation was constructed.", deckID: "vocab_daily", deckTitle: "词汇练习"),
+        VocabularyWord(id: "w2", word: "infrastructure", phoneticUK: "/ˈɪn.frəˌstrʌk.tʃər/", phoneticUS: "/ˈɪn.frəˌstrʌk.tʃɚ/", partOfSpeech: "n.", definitionZH: "基础设施", exampleSentence: "Public transport infrastructure expanded.", deckID: "vocab_daily", deckTitle: "词汇练习"),
+        VocabularyWord(id: "w3", word: "fluctuate", phoneticUK: "/ˈflʌk.tʃu.eɪt/", phoneticUS: "/ˈflʌk.tʃu.eɪt/", partOfSpeech: "v.", definitionZH: "波动；涨落", exampleSentence: "Attendance figures fluctuated wildly.", deckID: "vocab_daily", deckTitle: "词汇练习"),
+        VocabularyWord(id: "w4", word: "sustainable", phoneticUK: "/səˈsteɪ.nə.bəl/", phoneticUS: "/səˈsteɪ.nə.bəl/", partOfSpeech: "adj.", definitionZH: "可持续的", exampleSentence: "Sustainable energy production increased.", deckID: "vocab_daily", deckTitle: "词汇练习")
+    ]
+
+    public static let builtInPracticeQuestions: [Task1QuestionItem] = [
+        Task1QuestionItem(
+            id: "ORIG-001",
+            shortTitle: "Car ownership",
+            category: .lineGraph,
+            difficultyBand: "Band 6.5–7.5",
+            promptText: "The line graph below shows the percentage of households owning zero, one, or two or more cars in a European country between 1980 and 2020. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ielts-simon.study/ielts-writing-task-1-academic/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["1980", "1990", "2000", "2010", "2020"],
+                series: [
+                    ChartSeries(name: "No car", unit: "%", values: [48, 38, 30, 25, 22]),
+                    ChartSeries(name: "One car", unit: "%", values: [42, 46, 48, 47, 46]),
+                    ChartSeries(name: "Two or more cars", unit: "%", values: [10, 16, 22, 28, 32])
+                ],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-001",
+            companionTask2Prompt: "Some people believe that governments should invest heavily in public transport rather than building new roads for private cars. To what extent do you agree or disagree?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-002",
+            shortTitle: "Household spending",
+            category: .pieChart,
+            difficultyBand: "Band 6.0–7.0",
+            promptText: "The pie chart below illustrates the average proportion of monthly household expenditure across six categories in a coastal city in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["Housing", "Food", "Transport", "Healthcare", "Leisure", "Savings"],
+                series: [],
+                pieSlicePercentages: ["Housing": 34, "Food": 22, "Transport": 15, "Healthcare": 11, "Leisure": 10, "Savings": 8],
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-002",
+            companionTask2Prompt: "In many countries, the cost of living is rising rapidly. What are the primary causes of this trend, and what measures can individuals and governments take to address it?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-003",
+            shortTitle: "Island redevelopment",
+            category: .map,
+            difficultyBand: "Band 7.0–8.0",
+            promptText: "The two maps below show an island before and after the construction of tourist facilities. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ieltsliz.com/ielts-map-comparison/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["Before", "After"],
+                series: [],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: MapComparisonPayload(
+                    beforeYearLabel: "Before Development",
+                    afterYearLabel: "After Eco-Resort Development",
+                    beforeFeatures: [
+                        MapStageFeature(label: "Natural sandy beach", region: "West", status: "unmodified"),
+                        MapStageFeature(label: "Scattered palm groves", region: "East & North", status: "natural"),
+                        MapStageFeature(label: "Undeveloped interior", region: "Center", status: "vacant")
+                    ],
+                    afterFeatures: [
+                        MapStageFeature(label: "Swimming area at beach", region: "West", status: "added"),
+                        MapStageFeature(label: "Reception & restaurant block", region: "Center", status: "constructed"),
+                        MapStageFeature(label: "Guest accommodation huts", region: "West & Center", status: "constructed"),
+                        MapStageFeature(label: "Southern boat pier", region: "South", status: "constructed")
+                    ]
+                ),
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-003",
+            companionTask2Prompt: "Developing remote natural areas for international tourism brings economic benefits, but it often damages the local environment. Discuss both views and give your own opinion.",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-004",
+            shortTitle: "Coffee production",
+            category: .processDiagram,
+            difficultyBand: "Band 6.5–7.5",
+            promptText: "The diagram below shows the stages involved in the dry-method production of roasted coffee beans from harvesting to commercial packaging. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["1", "2", "3", "4"],
+                series: [],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: [
+                    ProcessStepPayload(stepNumber: 1, title: "Hand Picking & Sun Drying", detail: "Ripe cherries are harvested and sun-dried for 2–3 weeks.", nextStepNumber: 2),
+                    ProcessStepPayload(stepNumber: 2, title: "Mechanical Hulling", detail: "Dried outer husks are removed in a mill.", nextStepNumber: 3),
+                    ProcessStepPayload(stepNumber: 3, title: "Grading & Roasting", detail: "Beans are sorted and roasted at 200°C–220°C.", nextStepNumber: 4),
+                    ProcessStepPayload(stepNumber: 4, title: "Cooling & Vacuum Packing", detail: "Roasted beans are cooled and sealed into commercial bags.", nextStepNumber: nil)
+                ]
+            ),
+            companionTask2ID: "T2-004",
+            companionTask2Prompt: "Modern automated manufacturing has reduced the price of everyday consumer goods, yet many traditional skills are disappearing. Do the advantages of automation outweigh the disadvantages?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-005",
+            shortTitle: "Museum attendance",
+            category: .barChart,
+            difficultyBand: "Band 6.5–7.5",
+            promptText: "The bar chart below compares annual visitor numbers (in thousands) across four public museums in a capital city in 2015, 2020, and 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["National Gallery", "Science Museum", "Maritime Museum", "Modern Art Hub"],
+                series: [
+                    ChartSeries(name: "2015", unit: "k", values: [820, 640, 310, 490]),
+                    ChartSeries(name: "2020", unit: "k", values: [410, 380, 180, 290]),
+                    ChartSeries(name: "2025", unit: "k", values: [950, 890, 340, 760])
+                ],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-005",
+            companionTask2Prompt: "Some people think that all public museums and art galleries should be free of charge, while others believe visitors should pay an admission fee. Discuss both views and give your opinion.",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-006",
+            shortTitle: "Population trends",
+            category: .table,
+            difficultyBand: "Band 7.0–8.0",
+            promptText: "The table below gives data on the population distribution (in millions) across three age brackets in four regions in 2025, along with total regional populations. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["North Metro", "Central Valley", "Coastal District", "Highland Province"],
+                series: [
+                    ChartSeries(name: "Aged 0–14", unit: "M", values: [2.4, 1.8, 3.1, 0.9]),
+                    ChartSeries(name: "Aged 15–64", unit: "M", values: [9.6, 6.5, 11.4, 3.2]),
+                    ChartSeries(name: "Aged 65+", unit: "M", values: [3.0, 2.2, 2.5, 1.4])
+                ],
+                pieSlicePercentages: nil,
+                tableRowTotals: [15.0, 10.5, 17.0, 5.5],
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-006",
+            companionTask2Prompt: "In many countries, the proportion of older people is steadily increasing. Does this demographic shift bring more positive or negative effects to society?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-007",
+            shortTitle: "House prices",
+            category: .barChart,
+            difficultyBand: "Band 6.5–7.5",
+            promptText: "The bar chart below shows the average residential property price (in thousand USD) for apartments, townhouses, and detached homes in three cities in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://takeielts.britishcouncil.org/prepare/ielts-free-practice-mock-tests/academic/writing",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["Harborview", "Oakridge", "Riverdale"],
+                series: [
+                    ChartSeries(name: "Apartments", unit: "k USD", values: [420, 310, 260]),
+                    ChartSeries(name: "Townhouses", unit: "k USD", values: [680, 490, 390]),
+                    ChartSeries(name: "Detached", unit: "k USD", values: [950, 670, 520])
+                ],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-007",
+            companionTask2Prompt: "In many major cities, young adults find it increasingly difficult to purchase their first home. What are the reasons for this, and how can governments help?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-008",
+            shortTitle: "Water usage",
+            category: .pieChart,
+            difficultyBand: "Band 6.0–7.0",
+            promptText: "The pie chart below shows the breakdown of municipal freshwater consumption across five sectors in an Australian metropolitan region in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["Houses", "Apartments", "Industrial", "Commercial", "Parks"],
+                series: [],
+                pieSlicePercentages: ["Houses": 46, "Apartments": 18, "Industrial": 16, "Commercial": 12, "Parks": 8],
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-008",
+            companionTask2Prompt: "Fresh water is becoming a scarce resource in many parts of the world. What are the causes of water scarcity, and what steps should be taken to conserve water?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-009",
+            shortTitle: "City populations",
+            category: .lineGraph,
+            difficultyBand: "Band 6.5–7.5",
+            promptText: "The line graph below illustrates the urban population growth (in millions) of three Asian metropolitan areas from 1990 to 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["1990", "2000", "2010", "2020", "2025"],
+                series: [
+                    ChartSeries(name: "Metro Alpha", unit: "M", values: [3.2, 4.8, 6.9, 8.7, 9.4]),
+                    ChartSeries(name: "Metro Beta", unit: "M", values: [5.1, 5.6, 6.2, 6.8, 7.0]),
+                    ChartSeries(name: "Metro Gamma", unit: "M", values: [1.8, 2.9, 5.4, 7.9, 9.1])
+                ],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-009",
+            companionTask2Prompt: "Rapid urbanization creates severe housing and traffic pressures in large cities. What problems does overpopulation in cities cause, and how can they be solved?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-010",
+            shortTitle: "Park plans",
+            category: .map,
+            difficultyBand: "Band 7.0–8.0",
+            promptText: "The two plans below show a municipal community park in 1995 and its redesigned layout in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://ieltsliz.com/ielts-map-comparison/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["1995", "2025"],
+                series: [],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: MapComparisonPayload(
+                    beforeYearLabel: "1995 Layout",
+                    afterYearLabel: "2025 Redesigned Layout",
+                    beforeFeatures: [
+                        MapStageFeature(label: "Central duck pond", region: "Center", status: "original"),
+                        MapStageFeature(label: "Gravel path & benches", region: "North", status: "original"),
+                        MapStageFeature(label: "Open grass meadow", region: "East", status: "undeveloped")
+                    ],
+                    afterFeatures: [
+                        MapStageFeature(label: "Expanded wetland pond & deck", region: "Center", status: "expanded"),
+                        MapStageFeature(label: "Playground & fitness zone", region: "East", status: "added"),
+                        MapStageFeature(label: "Community cafe & cycle racks", region: "North", status: "added")
+                    ]
+                ),
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-010",
+            companionTask2Prompt: "Public parks and green spaces are essential for urban residents' physical and mental wellbeing. How can city planners balance green spaces with the need for commercial and residential buildings?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-011",
+            shortTitle: "Solar panel recycling",
+            category: .processDiagram,
+            difficultyBand: "Band 7.0–8.0",
+            promptText: "The diagram below illustrates the closed-loop industrial process for recycling end-of-life photovoltaic solar panels into purified raw materials. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["1", "2", "3", "4", "5"],
+                series: [],
+                pieSlicePercentages: nil,
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: [
+                    ProcessStepPayload(stepNumber: 1, title: "Frame Dismantling", detail: "Aluminum frames and junction boxes are detached.", nextStepNumber: 2),
+                    ProcessStepPayload(stepNumber: 2, title: "Thermal Delamination", detail: "500°C furnace evaporates encapsulating polymer.", nextStepNumber: 3),
+                    ProcessStepPayload(stepNumber: 3, title: "Optical Glass Separation", detail: "95% glass cullet separated on vibrating conveyors.", nextStepNumber: 4),
+                    ProcessStepPayload(stepNumber: 4, title: "Chemical Metal Leaching", detail: "Acid leaching extracts silver and copper.", nextStepNumber: 5),
+                    ProcessStepPayload(stepNumber: 5, title: "Wafer Ingot Recasting", detail: "Purified silicon melted into new solar ingots.", nextStepNumber: nil)
+                ]
+            ),
+            companionTask2ID: "T2-011",
+            companionTask2Prompt: "While renewable energy technologies reduce carbon emissions, their manufacturing and disposal also create environmental challenges. To what extent should manufacturers be legally responsible for recycling their products?",
+            notes: nil
+        ),
+        Task1QuestionItem(
+            id: "ORIG-012",
+            shortTitle: "Renewable energy & storage",
+            category: .mixedChart,
+            difficultyBand: "Band 7.5–8.5",
+            promptText: "The line graph below shows renewable electricity generation (in TWh) from wind, solar, and hydro in a Nordic country from 2010 to 2025, while the pie chart shows the share of grid battery storage capacity by sector in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+            minimumWords: 150,
+            recommendedMinutes: 20,
+            sourceName: "LumaReader Original Academic Bank",
+            sourceURL: "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
+            licenseStatus: .originalSelfAuthored,
+            chartDataset: Task1ChartDataset(
+                xAxisLabels: ["2010", "2015", "2020", "2025"],
+                series: [
+                    ChartSeries(name: "Hydropower", unit: "TWh", values: [62, 65, 68, 70]),
+                    ChartSeries(name: "Wind Power", unit: "TWh", values: [6, 16, 29, 44]),
+                    ChartSeries(name: "Solar PV", unit: "TWh", values: [0.5, 2.0, 6.5, 15.0])
+                ],
+                pieSlicePercentages: ["Utility Grid": 52, "Industrial": 28, "Residential": 20],
+                tableRowTotals: nil,
+                mapComparison: nil,
+                processSteps: nil
+            ),
+            companionTask2ID: "T2-012",
+            companionTask2Prompt: "Some people argue that transitioning completely to renewable energy is too expensive for developing economies. Discuss both views and give your own opinion.",
+            notes: nil
+        )
+    ]
+}
+#endif

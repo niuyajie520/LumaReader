@@ -1,4 +1,5 @@
 import SwiftUI
+import LumaReaderStudyKit
 import UniformTypeIdentifiers
 import PDFKit
 
@@ -7,6 +8,8 @@ struct ContentView: View {
         self.store = store
         _controller = State(initialValue:controller ?? ReaderController())
     }
+    @State private var studyVisible = false
+    @State private var studyMode = "学习"
     @Bindable var store: LibraryStore
     @Environment(\.undoManager) private var undo
     @Environment(\.openWindow) private var openWindow
@@ -346,6 +349,7 @@ struct ContentView: View {
     private var primaryContent:some View {
         Group {
             if let book = store.selectedBook { reading(book).transition(.opacity) }
+            else if studyVisible { LumaStudyCenterHostView(mode:$studyMode) }
             else if store.showStatistics { StatisticsView(activity:store.activity,theme:store.theme,store:store).transition(.opacity) }
             else { library.transition(.opacity) }
         }
@@ -571,7 +575,7 @@ struct ContentView: View {
                     .tracking(LumaFontFamily.opticalTracking(for: 22))
             }.padding(.horizontal,18).padding(.top,48).padding(.bottom,22)
 
-            LumaSidebarSection("书架",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
+            LumaSidebarSection("图书",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
                     sideRow("正在阅读",symbol:"book",count:store.shelfBooks.filter{$0.progress>0 && !$0.isFinished}.count)
@@ -601,6 +605,17 @@ struct ContentView: View {
                     }
                 }.padding(.leading,14).padding(.top,8)
             }
+            LumaSidebarSection("学习",key:"studySectionExpanded",symbol:"graduationcap",prominent:true,font:store.homeFont(17,weight:.medium)) {
+                VStack(spacing:3) {
+                    studyRow("学习主页", mode:"学习", symbol:"square.grid.2x2")
+                    studyRow("词汇听写", mode:"学习_听力", symbol:"headphones")
+                    studyRow("错词复习", mode:"学习_听力_错词复习", symbol:"arrow.clockwise")
+                    studyRow("顽固单词", mode:"学习_听力_顽固单词", symbol:"flag")
+                    studyRow("雅思写作", mode:"学习_写作_Task1题库", symbol:"pencil")
+                    studyRow("历史作文", mode:"学习_写作_历史作文", symbol:"doc.text")
+                    studyRow("学习统计", mode:"学习_统计", symbol:"chart.bar")
+                }.padding(.horizontal,10)
+            }.padding(.top,12)
             LumaSidebarSection("云盘",key:"cloudSectionExpanded",symbol:"cloud",prominent:true,font:store.homeFont(17,weight:.medium),busy:store.isSyncingCloud) {
                 VStack(spacing:3) {
                     ForEach(CloudProvider.allCases) { provider in cloudSideRow(provider) }
@@ -620,6 +635,7 @@ struct ContentView: View {
     }
     @ViewBuilder private func categoryRow(_ group:LibraryGroup)->some View {
         let row = Button {
+            studyVisible = false
             activeGroupID = group.id; activeCloudFilter = nil; collection = group.name
             store.returnToLibrary()
         } label: {
@@ -650,9 +666,19 @@ struct ContentView: View {
         .padding(.horizontal,10)
     }
 
+    private func studyRow(_ title:String, mode:String, symbol:String)->some View {
+        Button {
+            store.returnToLibrary(); studyVisible = true; studyMode = mode
+        } label: {
+            Label(title,systemImage:symbol).font(store.homeFont(13))
+                .frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)
+        }.buttonStyle(LumaSidebarButtonStyle(isSelected:studyVisible && studyMode == mode,accent:store.accent))
+    }
+
     private func sideRow(_ title: String, symbol: String, count: Int?) -> some View {
         let isSelected = activeGroupID == nil && activeCloudFilter == nil && ((title == "阅读统计" && store.showStatistics) || (title != "阅读统计" && !store.showStatistics && collection == title))
         return Button {
+            studyVisible = false
             activeCloudFilter = nil; activeGroupID = nil
             collection = title
             store.returnToLibrary(statistics: title == "阅读统计")
@@ -682,6 +708,7 @@ struct ContentView: View {
         let count = state.syncedBookCount
         return Button {
             if state.isConnected {
+                studyVisible = false
                 activeCloudFilter = provider; activeGroupID = nil
                 collection = provider.title
                 store.returnToLibrary(statistics: false)
