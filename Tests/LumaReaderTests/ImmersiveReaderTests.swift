@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import WebKit
 import Testing
 import ZIPFoundation
 @testable import LumaReader
@@ -44,6 +45,18 @@ import ZIPFoundation
         let data = try #require(bitmap.representation(using:.png,properties:[:]))
         try data.write(to:root.appendingPathComponent(name+".png"),options:.atomic)
     }
+    private func webState(_ web:WKWebView) async {
+        let script = "JSON.stringify({ready:document.readyState,hidden:document.hidden,engine:!!window.Luma,width:innerWidth,height:innerHeight,content:!!document.getElementById('luma-content')})"
+        await withCheckedContinuation { (continuation:CheckedContinuation<Void,Never>) in
+            web.evaluateJavaScript(script,in:nil,in:WKContentWorld.world(name:"LumaReader")) { result in
+                switch result {
+                case .success(let value): print("ReaderFixture webState=\(value)")
+                case .failure(let error): print("ReaderFixture javascriptErrorCode=\((error as NSError).code)")
+                }
+                continuation.resume()
+            }
+        }
+    }
     @Test func syntheticEPUBChromeRevealsHidesAndKeepsWebView() async throws {
         _ = NSApplication.shared
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticUI-"+UUID().uuidString)
@@ -58,10 +71,12 @@ import ZIPFoundation
         window.isReleasedWhenClosed = false; window.contentView = hosting
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps:true)
         hosting.layoutSubtreeIfNeeded()
         store.open(book)
         try await pause(500)
         try screenshot(hosting,name:"reader-mount-synthetic")
+        if let web = controller.illustrationWebView { await webState(web) }
         var waits = 0
         try await until {
             hosting.layoutSubtreeIfNeeded(); waits += 1
@@ -113,3 +128,4 @@ import ZIPFoundation
         #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
     }
 }
+
