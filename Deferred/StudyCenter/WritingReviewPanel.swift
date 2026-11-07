@@ -25,6 +25,7 @@ struct WritingReviewPanel:View {
     var body:some View {
         VStack(alignment:.leading,spacing:16) {
             HStack {Text("作文对照与重写").font(.title2);Spacer();Button("完成"){dismiss()}}
+            Text("原稿和重写稿独立保存；AI 建议仅供复盘参考。").font(.caption).foregroundStyle(.secondary)
             Picker("任务",selection:$part){Text("Task 1").tag(1);Text("Task 2").tag(2)}.pickerStyle(.segmented).frame(maxWidth:260)
             HSplitView {
                 ScrollView {

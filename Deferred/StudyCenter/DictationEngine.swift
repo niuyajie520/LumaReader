@@ -71,8 +71,12 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
             if correctionPendingIDs==nil{correctionPendingIDs=[]}
             correctionPendingIDs?.insert(wordItem.id)
             activeWrongCycleWordIDs.insert(wordItem.id);completedWordIDs.remove(wordItem.id)
+            if var existing=stubbornWordsMap[wordItem.id] {
+                existing.errorCount=max(existing.errorCount+1,errors)
+                stubbornWordsMap[wordItem.id]=existing
+            }
             if errors>5 {
-                let record=StubbornWordRecord(wordID:wordItem.id,word:wordItem.word,sourceDeckID:wordItem.deckID,sourceDeckTitle:wordItem.deckTitle,dateString:dateString,errorCount:errors,triggeringSessionID:sessionID)
+                let record=StubbornWordRecord(wordID:wordItem.id,word:wordItem.word,sourceDeckID:wordItem.deckID,sourceDeckTitle:wordItem.deckTitle,dateString:dateString,errorCount:max(errors,stubbornWordsMap[wordItem.id]?.errorCount ?? 0),triggeringSessionID:sessionID)
                 stubbornWordsMap[wordItem.id]=record
                 return .promotedToStubbornWords(record:record)
             }
@@ -81,7 +85,7 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         pendingQueue.removeFirst()
         if correctionPendingIDs?.remove(wordItem.id) != nil {
             // Quarantine only AFTER the current word is corrected, never skip it.
-            if errors>5 {
+            if stubbornWordsMap[wordItem.id] != nil {
                 activeWrongCycleWordIDs.remove(wordItem.id)
                 return .correct(exitedWrongCycle:false)
             }

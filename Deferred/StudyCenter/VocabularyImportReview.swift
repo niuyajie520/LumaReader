@@ -26,7 +26,7 @@ struct VocabularyImportDraft:Identifiable {
             rows=text.replacingOccurrences(of:"\u{FEFF}",with:"").components(separatedBy:.newlines).compactMap{line in
                 guard !line.trimmingCharacters(in:.whitespaces).isEmpty else{return nil}
                 let columns=line.components(separatedBy:"\t")
-                if columns.first?.lowercased()=="word"{return nil}
+                if columns.first?.lowercased()=="word",columns.count>1,["meaning","definition","中文","释义"].contains(columns[1].lowercased()){return nil}
                 return VocabularyImportRow(word:columns[0],meaning:columns.dropFirst().joined(separator:"\t"))
             }
         }
@@ -51,7 +51,7 @@ struct VocabularyImportReview:View {
     @Environment(\.studyAppearance) private var appearance
     private var warnings:[UUID:String] {
         var result:[UUID:String]=[:],seen=Set<String>()
-        let deckWords=Set(existing.filter{$0.deckTitle==(draft.filename as NSString).deletingPathExtension}.map{$0.word.trimmingCharacters(in:.whitespacesAndNewlines).lowercased()})
+        let deckWords=Set(existing.filter{$0.deckID==VocabularyImport.deckIdentifier(for:draft.filename)}.map{$0.word.trimmingCharacters(in:.whitespacesAndNewlines).lowercased()})
         for row in draft.rows where row.included {
             let key=row.word.trimmingCharacters(in:.whitespacesAndNewlines).lowercased()
             if let issue=row.issue{result[row.id]=issue}
@@ -77,7 +77,7 @@ struct VocabularyImportReview:View {
             if !error.isEmpty{Text(error).foregroundStyle(.red)}
             HStack {Spacer();Button("确认导入新词") {
                 do {let words=try draft.confirmedWords(existing:existing);if let issue=onConfirm(words){error=issue}else{dismiss()}}
-                catch {error="请修正或取消勾选有问题的行。现有词库未更改。"}
+                catch {self.error="请修正或取消勾选有问题的行。现有词库未更改。"}
             }.buttonStyle(.borderedProminent).disabled(!draft.rows.contains(where:{$0.included}) || draft.rows.contains(where:{$0.included && $0.issue != nil}))}
         }.padding(24).frame(minWidth:720,minHeight:500).background(appearance.paper).foregroundStyle(appearance.ink)
     }

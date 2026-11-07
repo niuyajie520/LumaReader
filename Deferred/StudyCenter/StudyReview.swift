@@ -8,7 +8,7 @@ public struct WordReviewProgress:Codable,Equatable,Sendable {
     public init(dueAt:Date){self.dueAt=dueAt}
     public mutating func record(cleanRecall:Bool,at date:Date,calendar:Calendar = .current) {
         let intervals=[1,3,7,14,30]
-        stage=cleanRecall ? min(stage+1,intervals.count):0
+        stage=cleanRecall ? min(max(0,stage),intervals.count-1)+1:0
         let days=cleanRecall ? intervals[max(0,stage-1)]:1
         lastReviewedAt=date
         dueAt=calendar.date(byAdding:.day,value:days,to:date) ?? date.addingTimeInterval(Double(days)*86400)

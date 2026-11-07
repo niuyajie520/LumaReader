@@ -48,6 +48,16 @@ struct StudyLearningRulesTests {
         #expect(report.csv.hasPrefix("\u{FEFF}"))
         #expect(report.csv.contains("\"accommodation\",\"6\""))
     }
+    @Test func existingStubbornErrorsNeverDecreaseOrAutomaticallyCycle() {
+        let target=word("a","hello")
+        let record=StubbornWordRecord(wordID:"a",word:"hello",sourceDeckID:"fixture",sourceDeckTitle:"Fixture",dateString:"2026-11-07",errorCount:9,triggeringSessionID:UUID())
+        var session=DictationSessionStateMachine(mode:.stubbornWordReview,dateString:"2026-11-07",initialWords:[target],existingStubbornWordsForToday:[record])
+        session.submitAnswer("wrong")
+        #expect(session.stubbornWordsMap["a"]?.errorCount==10)
+        session.submitAnswer("hello")
+        #expect(session.isSessionFinished)
+        #expect(!session.completedWordIDs.contains("a"))
+    }
     @Test func normalizationIgnoresCasePunctuationButNotWrongLettersOrNonEnglish() {
         #expect(DictationAnswerPolicy.normalized("“DON’T!” ")==DictationAnswerPolicy.normalized("don't"))
         #expect(DictationAnswerPolicy.normalized("well - known")==DictationAnswerPolicy.normalized("Well-known"))
@@ -86,6 +96,8 @@ struct StudyLearningRulesTests {
         later.rows[1].included=false
         #expect(try later.confirmedWords(existing:imported).isEmpty)
         #expect(imported[0].definitionZH=="你好")
+        let literal=try VocabularyImportDraft(data:Data("word\t单词".utf8),filename:"literal.tsv")
+        #expect(try literal.confirmedWords(existing:[]).first?.word=="word")
     }
     @Test func reviewScheduleAndMultipleRewritesSurviveDiskReload()throws {
         let date=Date(timeIntervalSince1970:1700000000)

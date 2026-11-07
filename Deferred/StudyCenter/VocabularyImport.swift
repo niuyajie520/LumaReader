@@ -25,7 +25,7 @@ public nonisolated enum VocabularyImport {
     }
     private static func build(_ entries:[Item],filename:String)throws->[VocabularyWord] {
         guard !entries.isEmpty,entries.count<=20000 else {throw CocoaError(.fileReadCorruptFile)}
-        let deck="import."+hex(Data(filename.utf8))
+        let deck=deckIdentifier(for:filename)
         var seen=Set<String>()
         return try entries.compactMap {entry in
             let word=entry.word.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -35,5 +35,6 @@ public nonisolated enum VocabularyImport {
             return VocabularyWord(id:id,word:word,phoneticUK:"",phoneticUS:"",partOfSpeech:"",definitionZH:entry.meaning,exampleSentence:"",deckID:deck,deckTitle:(filename as NSString).deletingPathExtension)
         }
     }
+    static func deckIdentifier(for filename:String)->String {"import."+hex(Data(filename.utf8))}
     private static func hex(_ data:Data)->String {SHA256.hash(data:data).prefix(12).map{String(format:"%02x",$0)}.joined()}
 }
