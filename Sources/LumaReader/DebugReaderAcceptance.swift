@@ -11,6 +11,8 @@ import ZIPFoundation
         guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) else { return nil }
         return UUID(uuidString:String(arg.dropFirst(prefix.count)))
     }
+    static var studyMounted = false
+    static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
     private static var phase = "startup"
     private static var failedLine:UInt = 0
@@ -95,6 +97,23 @@ import ZIPFoundation
         view.cacheDisplay(in:view.bounds,to:bitmap)
         let data = try require(bitmap.representation(using:.png,properties:[:]))
         try data.write(to:root.appendingPathComponent(name+".png"),options:.atomic)
+    }
+    private static func nativeWindowScreenshot(_ window:NSWindow,name:String) async {
+        guard let folder=evidenceFolder else{return}
+        let target=URL(fileURLWithPath:folder).appendingPathComponent(name+".png")
+        try? FileManager.default.removeItem(at:target)
+        let process=Process();process.executableURL=URL(fileURLWithPath:"/usr/sbin/screencapture")
+        process.arguments=["-x","-l",String(window.windowNumber),target.path]
+        process.standardOutput=FileHandle.nullDevice;process.standardError=FileHandle.nullDevice
+        do {
+            try process.run()
+            let deadline=ContinuousClock.now.advanced(by:.seconds(8))
+            while process.isRunning && ContinuousClock.now<deadline {try await Task.sleep(for:.milliseconds(50))}
+            if process.isRunning {process.terminate();try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE timeout=true");return}
+            if process.terminationStatus==0,let image=NSImage(contentsOf:target),image.size.width>500 {
+                print("StudyWindowCapture status=PASS method=native-window physicalInput=NOT-RUN")
+            } else {try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE method=native-window")}
+        } catch {try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE method=native-window")}
     }
     private static func webState(_ web:WKWebView) async {
         print("ReaderFixture native window=\(web.window != nil) visible=\(web.window?.isVisible == true) hidden=\(web.isHiddenOrHasHiddenAncestor) loading=\(web.isLoading) fileURL=\(web.url?.isFileURL == true) urlPresent=\(web.url != nil) nonemptyVisibleRect=\(!web.visibleRect.isEmpty)")
@@ -342,6 +361,32 @@ import ZIPFoundation
         print("ReaderFixture keyboardChrome=true themedReading=true loadedFullscreen=true")
         print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
+        let workspaceBook=try require(store.selectedBook)
+        phase = "study-entry"
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until { studyMounted }
+        try await pause(700)
+        try screenshot(hosting,name:"study-home-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil)
+        try await until {store.selectedID==workspaceBook.id && controller.presentationReady}
+        try await pause(700)
+        let resumedBook=try require(store.selectedBook)
+        try check(resumedBook.position==workspaceBook.position)
+        try check(abs((resumedBook.readerOffset ?? 0)-(workspaceBook.readerOffset ?? 0))<0.025)
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until {studyMounted}
+        print("StudyFixture readingWorkspaceRoundTrip=true positionRetained=true")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力_今日计划"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-dictation-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_Task1题库"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-writing-shelf-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_模拟机考"])
+        try await pause(1500)
+        try screenshot(hosting,name:"study-writing-exam-synthetic")
+        await nativeWindowScreenshot(window,name:"study-window-native-synthetic")
+        print("StudyFixture mainAppMounted=true isolatedStorage=true")
         phase = "complete"
     }
 }
