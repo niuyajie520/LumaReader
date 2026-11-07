@@ -352,7 +352,7 @@ struct ContentView: View {
     private var primaryContent:some View {
         Group {
             if let book = store.selectedBook { reading(book).transition(.opacity) }
-            else if studyVisible { StudyCenterScreen(mode:$studyMode) }
+            else if studyVisible { StudyCenterScreen(mode:$studyMode,store:store) }
             else if store.showStatistics { StatisticsView(activity:store.activity,theme:store.theme,store:store).transition(.opacity) }
             else { library.transition(.opacity) }
         }

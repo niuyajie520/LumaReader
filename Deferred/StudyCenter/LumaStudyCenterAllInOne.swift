@@ -20,6 +20,7 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
+import Charts
 #endif
 
 // MARK: - 1. ExamScope (Trigger Boundary)
@@ -481,6 +482,7 @@ public final class ExamNSTextView: NSTextView {
 
 /// SwiftUI wrapper embedding `ExamNSTextView` with `NSTextViewDelegate` enforcement.
 public struct ExamEnglishTextEditor: NSViewRepresentable {
+    @Environment(\.studyAppearance) private var appearance
     @Binding public var text: String
     public var scope: EditorInputScope
     public var isEditable: Bool
@@ -533,7 +535,7 @@ public struct ExamEnglishTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.font = NSFont(name: "Georgia", size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-        textView.textColor = NSColor.labelColor
+        textView.textColor = NSColor(appearance.ink)
         textView.insertionPointColor = NSColor(calibratedRed: 0.95, green: 0.65, blue: 0.80, alpha: 1.0)
         textView.allowsUndo = true
         textView.isEditable = isEditable
@@ -560,6 +562,8 @@ public struct ExamEnglishTextEditor: NSViewRepresentable {
         }
         textView.onInputRejected = onInputRejected
         textView.onExamInputActivated = onExamInputActivated
+        textView.textColor = NSColor(appearance.ink)
+        textView.insertionPointColor = NSColor(appearance.accent)
 
         // Re-assert Exam Mode settings across Part toggles, pause/resume, or draft restoration
         if scope.requiresStrictExamEnglishMode {
@@ -1585,6 +1589,7 @@ public final class ListeningShelfViewModel: ObservableObject {
 }
 
 public struct ListeningShelfHomeView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let todayDictatedWordCount: Int
     @StateObject private var vm = ListeningShelfViewModel()
     public var onSelectDeck: (String) -> Void
@@ -1599,22 +1604,22 @@ public struct ListeningShelfHomeView: View {
             HStack {
                 Text("听力")
                     .font(.system(size: 30, weight: .bold, design: .serif))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                 Spacer()
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(Color.primary.opacity(0.6))
+                        .foregroundStyle(appearance.ink.opacity(0.6))
                     TextField("搜索词库或练习", text: $vm.searchText)
                         .textFieldStyle(.plain)
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(appearance.ink)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .frame(width: 240)
                 .background(
                     Capsule()
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                        .fill(appearance.surface)
+                        .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                 )
             }
 
@@ -1629,29 +1634,29 @@ public struct ListeningShelfHomeView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("词汇练习")
                             .font(.system(size: 24, weight: .semibold, design: .serif))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(appearance.ink)
                         Text("今天已听写 \(todayDictatedWordCount) 个单词")
                             .font(.system(size: 13))
-                            .foregroundStyle(Color.primary.opacity(0.92))
+                            .foregroundStyle(appearance.ink.opacity(0.92))
                         Spacer()
                         HStack {
                             Image(systemName: "headphones")
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .foregroundStyle(appearance.ink.opacity(0.85))
                             Spacer()
                             Text("继续练习")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(appearance.ink)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.black.opacity(0.28)))
+                                .background(Capsule().fill(appearance.surface))
                         }
                     }
                     .padding(18)
                     .frame(height: 245)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(LumaTheme.primaryCardGradient)
+                            .fill(appearance.primaryGradient)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .stroke(Color.white.opacity(0.25), lineWidth: 1)
@@ -1668,7 +1673,7 @@ public struct ListeningShelfHomeView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private func listeningDeckCard(id: String, title: String, icon: String) -> some View {
@@ -1678,12 +1683,12 @@ public struct ListeningShelfHomeView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
                     .font(.system(size: 22, weight: .medium, design: .serif))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                 Spacer()
                 HStack {
                     Image(systemName: icon)
                         .font(.system(size: 19))
-                        .foregroundStyle(Color.primary.opacity(0.8))
+                        .foregroundStyle(appearance.ink.opacity(0.8))
                     Spacer()
                 }
             }
@@ -1691,10 +1696,10 @@ public struct ListeningShelfHomeView: View {
             .frame(height: 245)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(LumaTheme.secondaryCardGradient)
+                    .fill(appearance.secondaryGradient)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(LumaTheme.glassBorder, lineWidth: 1)
+                            .stroke(appearance.line, lineWidth: 1)
                     )
             )
         }
@@ -1711,6 +1716,7 @@ public final class Task1BankViewModel: ObservableObject {
 }
 
 public struct Task1QuestionBankHomeView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let allCatalogItems: [Task1QuestionItem]
     @StateObject private var vm = Task1BankViewModel()
     public var onLaunchExam: (Task1QuestionItem) -> Void
@@ -1742,26 +1748,26 @@ public struct Task1QuestionBankHomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Task 1 题库")
                         .font(.system(size: 30, weight: .bold, design: .serif))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(appearance.ink)
                     Text("双击题目开始练习")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.primary.opacity(0.68))
+                        .foregroundStyle(appearance.ink.opacity(0.68))
                 }
                 Spacer()
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(Color.primary.opacity(0.6))
+                        .foregroundStyle(appearance.ink.opacity(0.6))
                     TextField("搜索题目与主题", text: $vm.searchQuery)
                         .textFieldStyle(.plain)
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(appearance.ink)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .frame(width: 240)
                 .background(
                     Capsule()
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                        .fill(appearance.surface)
+                        .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                 )
             }
 
@@ -1778,8 +1784,8 @@ public struct Task1QuestionBankHomeView: View {
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(isSelected ? LumaTheme.softPinkAccent : LumaTheme.sidebarPillFill)
-                                    .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                                    .fill(isSelected ? appearance.accent : appearance.surface)
+                                    .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                             )
                     }
                     .buttonStyle(.plain)
@@ -1805,11 +1811,12 @@ public struct Task1QuestionBankHomeView: View {
             }
         }
         .padding(28)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 }
 
 struct Task1TopicCardView: View {
+    @Environment(\.studyAppearance) private var appearance
     let item: Task1QuestionItem
     let isSelected: Bool
 
@@ -1817,7 +1824,7 @@ struct Task1TopicCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(item.shortTitle)
                 .font(.system(size: 18, weight: .medium, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1830,11 +1837,11 @@ struct Task1TopicCardView: View {
         .frame(height: 215)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isSelected ? LumaTheme.primaryCardGradient : LumaTheme.secondaryCardGradient)
+                .fill(isSelected ? appearance.primaryGradient : appearance.secondaryGradient)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(
-                            isSelected ? Color.white.opacity(0.85) : LumaTheme.glassBorder,
+                            isSelected ? Color.white.opacity(0.85) : appearance.line,
                             lineWidth: isSelected ? 2.0 : 1.0
                         )
                 )
@@ -1848,37 +1855,37 @@ struct Task1TopicCardView: View {
             Image(systemName: "chart.xyaxis.line")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         case .barChart:
             Image(systemName: "chart.bar.xaxis")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         case .pieChart:
             Image(systemName: "chart.pie")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         case .table:
             Image(systemName: "tablecells")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         case .map:
             Image(systemName: "map")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         case .processDiagram:
             Image(systemName: "arrow.triangle.branch")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .foregroundStyle(appearance.ink.opacity(0.85))
                 .padding(12)
         }
     }
@@ -1892,6 +1899,7 @@ public final class SplitPaneExamViewModel: ObservableObject {
 }
 
 public struct IELTSWritingExamSplitPaneView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let question: Task1QuestionItem
     @Binding public var draft: WritingExamDraftState
     @StateObject private var vm = SplitPaneExamViewModel()
@@ -1945,18 +1953,18 @@ public struct IELTSWritingExamSplitPaneView: View {
             HStack(spacing: 14) {
                 Text(draft.examTitle)
                     .font(.system(size: 22, weight: .semibold, design: .serif))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
 
                 if let banner = vm.transientBannerMessage {
                     Text(banner)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(LumaTheme.softPinkAccent)
+                        .foregroundStyle(appearance.accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(
                             Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                                .fill(appearance.surface)
+                                .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                         )
                 }
 
@@ -1967,13 +1975,13 @@ public struct IELTSWritingExamSplitPaneView: View {
                     Text(formattedRemainingTime)
                         .font(.system(size: 16, weight: .bold, design: .monospaced))
                 }
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(
                     Capsule()
-                        .fill(LumaTheme.sidebarSelectedFill)
-                        .overlay(Capsule().stroke(LumaTheme.softPinkAccent.opacity(0.6), lineWidth: 1))
+                        .fill(appearance.selected)
+                        .overlay(Capsule().stroke(appearance.accent.opacity(0.6), lineWidth: 1))
                 )
 
                 Button {
@@ -1982,13 +1990,13 @@ public struct IELTSWritingExamSplitPaneView: View {
                 } label: {
                     Text(draft.isPaused ? "继续" : "暂停")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(appearance.ink)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 7)
                         .background(
                             Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                                .fill(appearance.surface)
+                                .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                         )
                 }
                 .buttonStyle(.plain)
@@ -1998,13 +2006,13 @@ public struct IELTSWritingExamSplitPaneView: View {
                 } label: {
                     Text("交卷")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(appearance.ink)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 7)
                         .background(
                             Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
+                                .fill(appearance.surface)
+                                .overlay(Capsule().stroke(appearance.line, lineWidth: 1))
                         )
                 }
                 .buttonStyle(.plain)
@@ -2013,7 +2021,7 @@ public struct IELTSWritingExamSplitPaneView: View {
             HStack(spacing: 14) {
                 Text(draft.activePart == .part1 ? "Part 1" : "Part 2")
                     .font(.system(size: 16, weight: .bold, design: .serif))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                 Divider()
                     .frame(height: 18)
                     .background(Color.white.opacity(0.3))
@@ -2023,15 +2031,15 @@ public struct IELTSWritingExamSplitPaneView: View {
                         : "You should spend about 40 minutes on this task. Write at least 250 words."
                 )
                 .font(.system(size: 14.5, design: .serif))
-                .foregroundStyle(Color.primary.opacity(0.92))
+                .foregroundStyle(appearance.ink.opacity(0.92))
                 Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(LumaTheme.sidebarPillFill)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                    .fill(appearance.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.line, lineWidth: 1))
             )
 
             HSplitView {
@@ -2049,8 +2057,8 @@ public struct IELTSWritingExamSplitPaneView: View {
                     .frame(minWidth:220,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.24))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                            .fill(appearance.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.line, lineWidth: 1))
                     )
 
                     ExamEnglishTextEditor(
@@ -2068,8 +2076,8 @@ public struct IELTSWritingExamSplitPaneView: View {
                     .frame(minWidth:260,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.28))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                            .fill(appearance.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.line, lineWidth: 1))
                     )
             }
 
@@ -2085,19 +2093,19 @@ public struct IELTSWritingExamSplitPaneView: View {
 
                 Text("\(draft.activePart.rawValue)")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                     .frame(width: 26, height: 26)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(LumaTheme.sidebarSelectedFill)
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(LumaTheme.softPinkAccent, lineWidth: 1))
+                            .fill(appearance.selected)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(appearance.accent, lineWidth: 1))
                     )
 
                 Spacer()
 
                 Text("字数 \(currentWordCount)")
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color.primary.opacity(0.9))
+                    .foregroundStyle(appearance.ink.opacity(0.9))
 
                 Button {
                     draft.activePart = (draft.activePart == .part1) ? .part2 : .part1
@@ -2108,13 +2116,13 @@ public struct IELTSWritingExamSplitPaneView: View {
                         Image(systemName: draft.activePart == .part1 ? "arrow.right" : "arrow.left")
                     }
                     .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 7)
                     .background(
                         Capsule()
-                            .fill(LumaTheme.sidebarSelectedFill)
-                            .overlay(Capsule().stroke(LumaTheme.softPinkAccent.opacity(0.6), lineWidth: 1))
+                            .fill(appearance.selected)
+                            .overlay(Capsule().stroke(appearance.accent.opacity(0.6), lineWidth: 1))
                     )
                 }
                 .buttonStyle(.plain)
@@ -2123,12 +2131,12 @@ public struct IELTSWritingExamSplitPaneView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(LumaTheme.sidebarPillFill)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                    .fill(appearance.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(appearance.line, lineWidth: 1))
             )
         }
         .padding(20)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private func partSwitchButton(_ part: ExamPart, title: String) -> some View {
@@ -2139,12 +2147,12 @@ public struct IELTSWritingExamSplitPaneView: View {
         } label: {
             Text(title)
                 .font(.system(size: 13.5, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(Color.primary.opacity(isSelected ? 1.0 : 0.7))
+                .foregroundStyle(appearance.ink.opacity(isSelected ? 1.0 : 0.7))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(isSelected ? LumaTheme.sidebarSelectedFill : Color.clear)
+                        .fill(isSelected ? appearance.selected : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -2162,11 +2170,37 @@ public struct IELTSWritingExamSplitPaneView: View {
 }
 
 struct Task1ChartCardView: View {
+    @Environment(\.studyAppearance) private var appearance
+    @State private var chartZoom = 1.0
     let category: Task1ChartCategory
     let dataset: Task1ChartDataset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !dataset.series.isEmpty && category != .table {
+                HStack {
+                    Text("图表缩放")
+                    Slider(value:$chartZoom,in:1...2.5).frame(width:140)
+                    Button("重置") { chartZoom = 1 }
+                }.foregroundStyle(.black)
+                ScrollView([.horizontal,.vertical]) {
+                    Chart {
+                        ForEach(dataset.series,id:\.name) { series in
+                            ForEach(Array(series.values.enumerated()),id:\.offset) { index,value in
+                                if index < dataset.xAxisLabels.count {
+                                    if category == .lineGraph {
+                                        LineMark(x:.value("类别",dataset.xAxisLabels[index]),y:.value(series.unit,value)).foregroundStyle(by:.value("系列",series.name))
+                                    } else if category == .pieChart {
+                                        SectorMark(angle:.value("数值",value)).foregroundStyle(by:.value("类别",dataset.xAxisLabels[index]))
+                                    } else {
+                                        BarMark(x:.value("类别",dataset.xAxisLabels[index]),y:.value(series.unit,value)).foregroundStyle(by:.value("系列",series.name))
+                                    }
+                                }
+                            }
+                        }
+                    }.frame(width:340*chartZoom,height:240*chartZoom).padding(12)
+                }.frame(height:280)
+            }
             if !dataset.series.isEmpty {
                 ForEach(dataset.series, id: \.name) { series in
                     VStack(alignment: .leading, spacing: 4) {

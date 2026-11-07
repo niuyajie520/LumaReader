@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct StudyPromptView:NSViewRepresentable {
+    @Environment(\.studyAppearance) private var appearance
     let text:String
     func makeNSView(context:Context)->NSScrollView {
         let scroll = NSScrollView()
@@ -18,7 +19,7 @@ struct StudyPromptView:NSViewRepresentable {
         guard let view = scroll.documentView as? PromptTextView else { return }
         if view.string != text {
             view.string = text; view.font = .systemFont(ofSize:15)
-            view.textColor = .labelColor
+            view.textColor = NSColor(appearance.ink)
         }
     }
     final class PromptTextView:NSTextView {

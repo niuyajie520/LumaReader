@@ -5,6 +5,7 @@ import Combine
 
 @MainActor
 public struct LumaStudyCenterHostView: View {
+    @Environment(\.studyAppearance) private var appearance
     @Binding public var mode: String
 
     @MainActor
@@ -60,6 +61,7 @@ public struct LumaStudyCenterHostView: View {
         @Published var speechRateMultiplier: Float = 1.0
         @Published var showMeaning = false
         @Published var selectedDeck = "vocab_daily"
+        @Published var practiceSeconds = 3600
         @Published var statsScope: StudyStatisticsScope = .all
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
@@ -74,13 +76,18 @@ public struct LumaStudyCenterHostView: View {
 
     public var body: some View {
         ZStack {
-            LumaTheme.windowBackground.ignoresSafeArea()
+            appearance.paper.ignoresSafeArea()
 
             VStack(spacing:12) {
             HStack {
                 Button("学习主页") { mode = "学习" }
                 Button("Task 1") { mode = "学习_写作_Task1题库" }
                 Button("Task 2") { mode = "学习_写作_Task2题库" }
+                Picker("考试模式",selection:$vm.practiceSeconds) {
+                    Text("完整模拟 · 60 分钟").tag(3600)
+                    Text("Task 1 · 20 分钟").tag(1200)
+                    Text("Task 2 · 40 分钟").tag(2400)
+                }.frame(maxWidth:230)
                 Button("草稿") { mode = "学习_草稿" }
                 Button("历史作文") { mode = "学习_写作_历史作文" }
                 Spacer()
@@ -167,13 +174,13 @@ public struct LumaStudyCenterHostView: View {
                 id: UUID(),
                 questionID: chosen.id,
                 examTitle: "\(chosen.id) · \(chosen.shortTitle)",
-                activePart: .part1,
+                activePart: vm.practiceSeconds == 2400 ? .part2 : .part1,
                 part1EssayText: "",
                 part2EssayText: "",
-                remainingSeconds: 3600,
+                remainingSeconds: vm.practiceSeconds,
                 elapsedSeconds: 0,
                 isPaused: false,
-                isSingleTaskMode: singleTask,
+                isSingleTaskMode: vm.practiceSeconds != 3600,
                 lastSavedAt: Date(),
                 containsLegacyNonEnglishNotice: false
             )
@@ -194,7 +201,7 @@ public struct LumaStudyCenterHostView: View {
             part2EssayText: submittedDraft.part2EssayText,
             part1WordCount: p1Words,
             part2WordCount: p2Words,
-            durationSeconds: max(60, 3600 - submittedDraft.remainingSeconds),
+            durationSeconds: submittedDraft.elapsedSeconds,
             submittedAt: Date(),
             dateString: Self.todayDateString(),
             aiEvaluation: nil
@@ -226,7 +233,7 @@ public struct LumaStudyCenterHostView: View {
                     HStack(spacing: 12) {
                         Text(submode == .wrongWordReview ? "错词复习队列" : "词汇听写 · 自然女声优先")
                             .font(.system(size: 18, weight: .bold, design: .serif))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(appearance.ink)
                         Spacer()
                         Picker("口音", selection: $vm.selectedAccent) {
                             Text("英式女声 (en-GB)").tag(TTSVoiceAccent.british)
@@ -247,7 +254,7 @@ public struct LumaStudyCenterHostView: View {
                             speakCurrentWord()
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(LumaTheme.softPinkAccent)
+                        .tint(appearance.accent)
                     }
 
                     if let word = vm.dictationMachine.currentWord {
@@ -255,7 +262,7 @@ public struct LumaStudyCenterHostView: View {
                         Button("不熟悉 · 显示中文") { vm.showMeaning = true }
                         if vm.showMeaning { Text(word.definitionZH) }
                         Text("本轮累计错误：\(errorCount)/5 次").font(.system(size: 13))
-                            .foregroundStyle(Color.primary.opacity(0.85))
+                            .foregroundStyle(appearance.ink.opacity(0.85))
 
                         HStack(spacing: 12) {
                             TextField("听音后输入英文单词...", text: $vm.dictationInput)
@@ -271,38 +278,38 @@ public struct LumaStudyCenterHostView: View {
                     } else {
                         Text("🎉 当前听写队列已全部完成！")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(LumaTheme.softPinkAccent)
+                            .foregroundStyle(appearance.accent)
                     }
 
                     Text(vm.dictationFeedback)
                         .font(.system(size: 12.5))
-                        .foregroundStyle(Color.primary.opacity(0.78))
+                        .foregroundStyle(appearance.ink.opacity(0.78))
                 }
                 .padding(20)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                        .fill(appearance.surface)
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(appearance.line, lineWidth: 1))
                 )
                 .padding(.horizontal, 32)
             }
         }
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private var stubbornWordsDedicatedView: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("顽固单词")
                 .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
             Text("当日累计答错满 5 次自动转入顽固单词，当日不再自动出现；按错误次数从高到低排序，独立记录复习会话。")
                 .font(.system(size: 13))
-                .foregroundStyle(Color.primary.opacity(0.7))
+                .foregroundStyle(appearance.ink.opacity(0.7))
 
             if vm.storeSnapshot.stubbornWords.isEmpty {
                 Text("暂无顽固单词记录。")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.primary.opacity(0.6))
+                    .foregroundStyle(appearance.ink.opacity(0.6))
                     .padding(.top, 20)
             } else {
                 ScrollView {
@@ -312,18 +319,18 @@ public struct LumaStudyCenterHostView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(rec.word)
                                         .font(.system(size: 18, weight: .bold, design: .serif))
-                                        .foregroundStyle(Color.primary)
+                                        .foregroundStyle(appearance.ink)
                                     Text("所属原词库：\(rec.sourceDeckTitle) · 记录日期：\(rec.dateString)")
                                         .font(.system(size: 12))
-                                        .foregroundStyle(Color.primary.opacity(0.65))
+                                        .foregroundStyle(appearance.ink.opacity(0.65))
                                 }
                                 Spacer()
                                 Text("错误 \(rec.errorCount) 次")
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(LumaTheme.softPinkAccent)
+                                    .foregroundStyle(appearance.accent)
                             }
                             .padding(14)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(LumaTheme.sidebarPillFill))
+                            .background(RoundedRectangle(cornerRadius: 10).fill(appearance.surface))
                         }
                     }
                 }
@@ -331,18 +338,18 @@ public struct LumaStudyCenterHostView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private var listeningRecordsDedicatedView: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("听力学习记录")
                 .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
             if vm.storeSnapshot.dictationLogs.isEmpty {
                 Text("今日尚无听写记录，前往「听力 → 今日计划」开始练习后将自动记录。")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.primary.opacity(0.65))
+                    .foregroundStyle(appearance.ink.opacity(0.65))
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
@@ -350,17 +357,17 @@ public struct LumaStudyCenterHostView: View {
                             HStack {
                                 Text(log.word)
                                     .font(.system(size: 15, weight: .semibold, design: .serif))
-                                    .foregroundStyle(Color.primary)
+                                    .foregroundStyle(appearance.ink)
                                 Text("输入：\(log.userTyped)")
                                     .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(Color.primary.opacity(0.75))
+                                    .foregroundStyle(appearance.ink.opacity(0.75))
                                 Spacer()
                                 Text(log.isCorrect ? "✓ 正确" : "✗ 错误 (第\(log.sessionErrorCountForWord)次)")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(log.isCorrect ? .green : .pink)
                             }
                             .padding(12)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(LumaTheme.sidebarPillFill))
+                            .background(RoundedRectangle(cornerRadius: 8).fill(appearance.surface))
                         }
                     }
                 }
@@ -368,7 +375,7 @@ public struct LumaStudyCenterHostView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     // MARK: - 2. Task 2 Bank & Writing History / AI Feedback Views
@@ -377,10 +384,10 @@ public struct LumaStudyCenterHostView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Task 2 议论文题库")
                 .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
             Text("双击任意题目进入 40 分钟 / 250 词纯英文无纠错写作机考")
                 .font(.system(size: 13))
-                .foregroundStyle(Color.primary.opacity(0.68))
+                .foregroundStyle(appearance.ink.opacity(0.68))
 
             ScrollView {
                 VStack(spacing: 12) {
@@ -389,21 +396,21 @@ public struct LumaStudyCenterHostView: View {
                             HStack {
                                 Text("\(item.companionTask2ID ?? "T2") · \(item.shortTitle)")
                                     .font(.system(size: 16, weight: .bold, design: .serif))
-                                    .foregroundStyle(LumaTheme.softPinkAccent)
+                                    .foregroundStyle(appearance.accent)
                                 Spacer()
                                 Text("建议 40 分钟 · 至少 250 词")
                                     .font(.system(size: 12))
-                                    .foregroundStyle(Color.primary.opacity(0.6))
+                                    .foregroundStyle(appearance.ink.opacity(0.6))
                             }
                             Text(item.companionTask2Prompt ?? "")
                                 .font(.system(size: 14, design: .serif))
-                                .foregroundStyle(Color.primary.opacity(0.92))
+                                .foregroundStyle(appearance.ink.opacity(0.92))
                         }
                         .padding(16)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                                .fill(appearance.surface)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(appearance.line, lineWidth: 1))
                         )
                         .onTapGesture(count: 2) {
                             launchExam(for: item, singleTask: false)
@@ -414,14 +421,14 @@ public struct LumaStudyCenterHostView: View {
             }
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private var writingHistoryAndFeedbackView: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("历史作文与 AI 评分反馈")
                 .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
             Text("作文已保存在本机。尚未配置 AI 评分，当前状态为待评分。")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.yellow.opacity(0.9))
@@ -429,7 +436,7 @@ public struct LumaStudyCenterHostView: View {
             if vm.storeSnapshot.writingSubmissions.isEmpty {
                 Text("暂无已提交的历史作文。双击 Task 1 题卡完成练习并点击「交卷」后在此查看四项评分与逐句纠错。")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.primary.opacity(0.65))
+                    .foregroundStyle(appearance.ink.opacity(0.65))
                     .padding(.top, 16)
             } else {
                 ScrollView {
@@ -439,22 +446,22 @@ public struct LumaStudyCenterHostView: View {
                                 HStack {
                                     Text(sub.examTitle)
                                         .font(.system(size: 17, weight: .bold, design: .serif))
-                                        .foregroundStyle(Color.primary)
+                                        .foregroundStyle(appearance.ink)
                                     Spacer()
                                     if sub.aiEvaluation == nil { Text("待评分 · 尚未配置 AI 评分") }
                                     if let eval = sub.aiEvaluation {
                                         Text(String(format: "AI 估计总分：Band %.1f", eval.overallEstimatedBand))
                                             .font(.system(size: 13, weight: .bold))
-                                            .foregroundStyle(LumaTheme.softPinkAccent)
+                                            .foregroundStyle(appearance.accent)
                                     }
                                 }
                                 Text(sub.part1EssayText + "\n\n" + sub.part2EssayText).textSelection(.enabled)
                                 Text("提交日期：\(sub.dateString) · Part 1 字数：\(sub.part1WordCount) · Part 2 字数：\(sub.part2WordCount) · 用时：\(sub.durationSeconds / 60) 分钟")
                                     .font(.system(size: 12))
-                                    .foregroundStyle(Color.primary.opacity(0.7))
+                                    .foregroundStyle(appearance.ink.opacity(0.7))
                             }
                             .padding(16)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(LumaTheme.sidebarPillFill))
+                            .background(RoundedRectangle(cornerRadius: 12).fill(appearance.surface))
                         }
                     }
                 }
@@ -462,7 +469,7 @@ public struct LumaStudyCenterHostView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private var studyHome: some View {
@@ -479,7 +486,7 @@ public struct LumaStudyCenterHostView: View {
     private func homeCard(_ title:String,symbol:String,destination:String)->some View {
         Button { mode = destination } label: {
             VStack(spacing:20) { Image(systemName:symbol).font(.largeTitle); Text(title).font(.headline) }
-                .frame(maxWidth:.infinity,minHeight:180).background(LumaTheme.sidebarPillFill,in:RoundedRectangle(cornerRadius:16))
+                .frame(maxWidth:.infinity,minHeight:180).background(appearance.surface,in:RoundedRectangle(cornerRadius:16))
         }.buttonStyle(.plain)
     }
     private func startDictation(mode:DictationSessionMode) {
@@ -543,7 +550,7 @@ public struct LumaStudyCenterHostView: View {
             HStack {
                 Text("学习统计")
                     .font(.system(size: 30, weight: .bold, design: .serif))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(appearance.ink)
                 Spacer()
                 Picker("模块", selection: $vm.statsScope) {
                     ForEach(StudyStatisticsScope.allCases, id: \.self) { s in
@@ -581,27 +588,27 @@ public struct LumaStudyCenterHostView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private func statCard(title: String, value: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 13))
-                .foregroundStyle(Color.primary.opacity(0.7))
+                .foregroundStyle(appearance.ink.opacity(0.7))
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .serif))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(appearance.ink)
             Text(subtitle)
                 .font(.system(size: 11.5))
-                .foregroundStyle(Color.primary.opacity(0.55))
+                .foregroundStyle(appearance.ink.opacity(0.55))
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LumaTheme.sidebarPillFill)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                .fill(appearance.surface)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(appearance.line, lineWidth: 1))
         )
     }
 
