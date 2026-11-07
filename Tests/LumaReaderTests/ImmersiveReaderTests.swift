@@ -7,6 +7,14 @@ import ZIPFoundation
 @testable import LumaReader
 
 @MainActor @Suite(.serialized) struct ImmersiveReaderTests {
+    private static var preparedApplication = false
+    private func prepareApplication() {
+        _ = NSApplication.shared
+        guard !Self.preparedApplication else { return }
+        Self.preparedApplication = true
+        NSApp.setActivationPolicy(.regular)
+        NSApp.finishLaunching()
+    }
     private func pump() { _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002)) }
     private func pause(_ ms:Int) async throws {
         let deadline = Date().addingTimeInterval(Double(ms)/1000)
@@ -47,6 +55,7 @@ import ZIPFoundation
         try data.write(to:root.appendingPathComponent(name+".png"),options:.atomic)
     }
     private func webState(_ web:WKWebView) async {
+        print("ReaderFixture native window=\(web.window != nil) visible=\(web.window?.isVisible == true) hidden=\(web.isHiddenOrHasHiddenAncestor) loading=\(web.isLoading) fileURL=\(web.url?.isFileURL == true) urlPresent=\(web.url != nil) nonemptyVisibleRect=\(!web.visibleRect.isEmpty)")
         let script = "JSON.stringify({ready:document.readyState,hidden:document.hidden,engine:!!window.Luma,width:innerWidth,height:innerHeight,content:!!document.getElementById('luma-content')})"
         await withCheckedContinuation { (continuation:CheckedContinuation<Void,Never>) in
             web.evaluateJavaScript(script,in:nil,in:WKContentWorld.world(name:"LumaReader")) { result in
@@ -73,7 +82,7 @@ import ZIPFoundation
         try png.write(to:URL(fileURLWithPath:folder).appendingPathComponent(name+".png"),options:.atomic)
     }
     @Test func syntheticEPUBChromeRevealsHidesAndKeepsWebView() async throws {
-        _ = NSApplication.shared
+        prepareApplication()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticUI-"+UUID().uuidString)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         defer { try? FileManager.default.removeItem(at:root) }
@@ -81,9 +90,10 @@ import ZIPFoundation
         #expect(await store.importFiles([try epub(root)],provider:nil) == 1)
         let book = try #require(store.books.first)
         let controller = ReaderController()
-        let hosting = NSHostingView(rootView:ContentView(store:store,controller:controller))
+        let hostController = NSHostingController(rootView:ContentView(store:store,controller:controller))
+        let hosting = hostController.view
         let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
-        window.isReleasedWhenClosed = false; window.contentView = hosting
+        window.isReleasedWhenClosed = false; window.contentViewController = hostController
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps:true)
@@ -91,6 +101,8 @@ import ZIPFoundation
         store.open(book)
         try await pause(500)
         try screenshot(hosting,name:"reader-mount-synthetic")
+        if let web = controller.illustrationWebView { await webState(web) }
+        try await pause(2000)
         if let web = controller.illustrationWebView { await webState(web) }
         var waits = 0
         try await until {
@@ -157,7 +169,7 @@ import ZIPFoundation
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
     }
     @Test func syntheticPDFChromeKeepsViewportAndReadingPosition() async throws {
-        _ = NSApplication.shared
+        prepareApplication()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticPDF-"+UUID().uuidString)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         defer { try? FileManager.default.removeItem(at:root) }
@@ -175,9 +187,10 @@ import ZIPFoundation
         let store = LibraryStore(root:root.appendingPathComponent("library"))
         #expect(await store.importFiles([file],provider:nil) == 1)
         let controller = ReaderController()
-        let hosting = NSHostingView(rootView:ContentView(store:store,controller:controller))
+        let hostController = NSHostingController(rootView:ContentView(store:store,controller:controller))
+        let hosting = hostController.view
         let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
-        window.isReleasedWhenClosed = false; window.contentView = hosting
+        window.isReleasedWhenClosed = false; window.contentViewController = hostController
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
         store.open(try #require(store.books.first))
