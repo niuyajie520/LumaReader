@@ -310,6 +310,12 @@ struct ContentView: View {
                     }
                 }
             }
+            // A keyboard shortcut is a temporary reveal, not a permanent pin.
+            // Retain focus only while the user is actively hovering a control.
+            if !chromeTopHovered && !chromeBottomHovered && !chromeHeaderHovered {
+                chromeKeyboardPinned = false
+                readerBackFocused = false
+            }
             guard !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
