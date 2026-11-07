@@ -3,9 +3,9 @@ import UniformTypeIdentifiers
 import PDFKit
 
 struct ContentView: View {
-    init(store:LibraryStore, controller:ReaderController = ReaderController()) {
+    @MainActor init(store:LibraryStore, controller:ReaderController? = nil) {
         self.store = store
-        _controller = State(initialValue:controller)
+        _controller = State(initialValue:controller ?? ReaderController())
     }
     @Bindable var store: LibraryStore
     @Environment(\.undoManager) private var undo
@@ -324,9 +324,9 @@ struct ContentView: View {
     // Keep interactive controls in the content area, away from titlebar drag hit regions.
     private var glassActive:Bool { store.effectiveGlassEffectsEnabled && !reduceTransparency }
     private func appHeader(availableWidth:CGFloat)->some View {
-        let itemWidth:CGFloat = store.selectedBook != nil && availableWidth < 520 ? 28:44
+        let itemWidth:CGFloat = store.selectedBook == nil || availableWidth >= 520 ? 44:(availableWidth < 400 ? 24:32)
         return LumaGlassCluster(enabled:glassActive) {
-        HStack(spacing:8) {
+        HStack(spacing:availableWidth < 520 ? 4:8) {
             Color.clear.frame(width:columnVisibility == .detailOnly ? titlebarInset:0,height:1).allowsHitTesting(false)
             if store.selectedBook != nil {
                 HStack(spacing:3) {
