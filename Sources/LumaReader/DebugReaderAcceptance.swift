@@ -41,7 +41,6 @@ import ZIPFoundation
         Task { @MainActor in
             var report:[String:Any] = ["status":"FAIL", "method":"Debug app process with native SwiftUI lifecycle", "physicalInput":"NOT RUN"]
             let originalCursor = CGEvent(source:nil)?.location
-            defer { if let originalCursor { CGWarpMouseCursorPosition(originalCursor) } }
             do {
                 try await run(store:store,controller:controller,root:root(token))
                 report["status"] = "PASS"
@@ -61,6 +60,7 @@ import ZIPFoundation
             if let data = try? JSONSerialization.data(withJSONObject:report,options:.sortedKeys) {
                 try? data.write(to:file,options:.atomic)
             }
+            if let originalCursor { CGWarpMouseCursorPosition(originalCursor) }
             NSApp.terminate(nil)
         }
     }
