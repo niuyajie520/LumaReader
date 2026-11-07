@@ -212,9 +212,9 @@ struct ContentView: View {
             ZStack(alignment:.topTrailing) {
             primaryContent
                 .environment(\.lumaSurfacePolish,true)
-                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-(store.immersive ? 0:64)))
+                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-(store.immersive && store.selectedBook == nil ? 0:64)))
                 .clipped()
-                .padding(.top,store.immersive ? 0:64)
+                .padding(.top,store.immersive && store.selectedBook == nil ? 0:64)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
                 .animation(nil,value:aiWidth)
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
@@ -407,7 +407,7 @@ struct ContentView: View {
                     headerTitle.allowsHitTesting(false)
                 }
             }
-            .background(store.selectedBook == nil ? store.paper(dark:colorScheme == .dark):.clear)
+            .background(store.paper(dark:colorScheme == .dark))
         }
     
     }
