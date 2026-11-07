@@ -19,7 +19,7 @@ struct SpeechSettingsPanel:View {
             HStack {Text("听写专项设置").font(.title2);Spacer();Button("完成",action:onClose).keyboardShortcut(.defaultAction)}
             Form {
                 Section("发音与播放") {
-                    Picker("口音",selection:$accent) {Text("英式").tag(TTSVoiceAccent.british);Text("美式").tag(TTSVoiceAccent.american)}
+                    Picker("Apple 口音",selection:$accent) {Text("英式").tag(TTSVoiceAccent.british);Text("美式").tag(TTSVoiceAccent.american)}
                     Picker("Apple 已安装声音",selection:$voiceID) {
                         Text("自动选择自然女声").tag("")
                         ForEach(voices.filter{$0.localeIdentifier==accent.rawValue}) {voice in Text(voice.displayName+(voice.isFemale ? " · 女声":" · 其他声线")).tag(voice.id)}

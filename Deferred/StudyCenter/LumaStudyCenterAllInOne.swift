@@ -2166,11 +2166,14 @@ public struct IELTSWritingExamSplitPaneView: View {
 struct Task1ChartCardView: View {
     @Environment(\.studyAppearance) private var appearance
     @State private var chartZoom = 1.0
+    @State private var expanded=false
+    var allowsExpansion:Bool = true
     let category: Task1ChartCategory
     let dataset: Task1ChartDataset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if allowsExpansion {Button("放大查看图表",systemImage:"arrow.up.left.and.arrow.down.right") {expanded=true}.foregroundStyle(.black)}
             if !dataset.series.isEmpty && category != .table {
                 HStack {
                     Text("图表缩放")
@@ -2219,6 +2222,9 @@ struct Task1ChartCardView: View {
                 }
             }
             if let map = dataset.mapComparison {
+                StudyMapDiagram(title:map.beforeYearLabel,features:map.beforeFeatures)
+                StudyMapDiagram(title:map.afterYearLabel,features:map.afterFeatures)
+                DisclosureGroup("地图原始数据") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Before (\(map.beforeYearLabel)):")
                         .font(.system(size: 13, weight: .bold))
@@ -2239,6 +2245,7 @@ struct Task1ChartCardView: View {
                     }
                 }
             }
+                }
             if let steps = dataset.processSteps {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(steps, id: \.stepNumber) { step in
@@ -2249,7 +2256,9 @@ struct Task1ChartCardView: View {
                             Text("\(step.title): \(step.detail)")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.black.opacity(0.85))
-                        }
+                        }.padding(12).frame(maxWidth:.infinity,alignment:.leading)
+                            .background(Color.black.opacity(0.04),in:RoundedRectangle(cornerRadius:8))
+                        if step.stepNumber != steps.last?.stepNumber {Image(systemName:"arrow.down").font(.caption).foregroundStyle(.black.opacity(0.5)).frame(maxWidth:.infinity)}
                     }
                 }
             }
@@ -2257,6 +2266,15 @@ struct Task1ChartCardView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+        .environment(\.colorScheme,.light)
+        .sheet(isPresented:$expanded) {
+            VStack {
+                HStack {Text("题目图表").font(.title2);Spacer();Button("关闭") {expanded=false}.keyboardShortcut(.cancelAction)}
+                ScrollView([.horizontal,.vertical]) {
+                    Task1ChartCardView(allowsExpansion:false,category:category,dataset:dataset).frame(width:860)
+                }
+            }.padding(24).frame(minWidth:800,minHeight:600)
+        }
     }
 }
 #endif
