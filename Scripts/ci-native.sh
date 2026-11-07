@@ -24,7 +24,7 @@ phase resolve /usr/bin/xcrun swift package resolve
 phase debug /usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug
 native_probe_bin="$(/usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug --show-bin-path 2>ci-raw/probe-path.log)"
 phase debug-probe bash Scripts/prepare-debug-probe.sh "$native_probe_bin" "$PWD/ci-raw/LumaReaderAcceptance.app"
-phase tests env LUMA_SYNTHETIC_UI_EVIDENCE="$PWD/ci-ui" LUMA_NATIVE_PROBE_EXECUTABLE="$PWD/ci-raw/LumaReaderAcceptance.app/Contents/MacOS/LumaReader" /usr/bin/xcrun swift test --sdk "$SDKROOT"
+phase tests env LUMA_SYNTHETIC_UI_EVIDENCE="$PWD/ci-ui" LUMA_NATIVE_PROBE_EXECUTABLE="$PWD/ci-raw/LumaReaderAcceptance.app/Contents/MacOS/LumaReader" /usr/bin/xcrun swift test --sdk "$SDKROOT" --no-parallel
 phase test-completion python3 Scripts/check-native-test-completion.py ci-raw/tests.log ci-ui
 phase release env LUMA_NO_OPEN=1 LUMA_CI_AUDIT=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'

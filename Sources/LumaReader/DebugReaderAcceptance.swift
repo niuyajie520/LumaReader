@@ -14,6 +14,7 @@ import ZIPFoundation
     private static var started = false
     private static var phase = "startup"
     private static var failedLine:UInt = 0
+    private static var windowState:[String:Any] = [:]
     private static var evidenceFolder:String? {
         let prefix = "--luma-reader-evidence="
         if let argument = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) { return String(argument.dropFirst(prefix.count)) }
@@ -41,6 +42,7 @@ import ZIPFoundation
                 report["failedLine"] = failedLine
             }
             report["phase"] = phase
+            report["windowState"] = windowState
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("luma-reader-acceptance-"+token.uuidString+".json")
             if let data = try? JSONSerialization.data(withJSONObject:report,options:.sortedKeys) {
                 try? data.write(to:file,options:.atomic)
@@ -142,7 +144,6 @@ import ZIPFoundation
         try await until { NSApp.windows.contains { $0.canBecomeMain && $0.isVisible } }
         let window = try require(NSApp.windows.first { $0.canBecomeMain && $0.isVisible })
         let hosting = try require(window.contentView)
-        window.level = .floating
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps:true)
         try check(await store.importFiles([try epub(root)],provider:nil) == 1)
@@ -295,6 +296,11 @@ import ZIPFoundation
         window.level = .normal
         NSApp.activate(ignoringOtherApps:true)
         window.makeKeyAndOrderFront(nil)
+        try await pause(700)
+        windowState = ["active":NSApp.isActive,"key":window.isKeyWindow,"level":window.level.rawValue,
+                       "collectionBehavior":window.collectionBehavior.rawValue,"styleMask":window.styleMask.rawValue,
+                       "attachedSheet":window.attachedSheet != nil]
+        try await until { NSApp.isActive && window.isKeyWindow }
         window.toggleFullScreen(nil)
         try await until { window.styleMask.contains(.fullScreen) }
         try await pause(1200)

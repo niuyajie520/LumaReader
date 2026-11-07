@@ -122,7 +122,6 @@ import Testing
         let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
         window.isReleasedWhenClosed = false; window.contentViewController = hostController
         window.setContentSize(NSSize(width:1100,height:760))
-        window.level = .floating
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
         store.open(try #require(store.books.first))
