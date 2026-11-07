@@ -42,6 +42,10 @@ import ZIPFoundation
             } catch {
                 report["errorCode"] = (error as NSError).code
                 report["failedLine"] = failedLine
+                report["readerReady"] = store.reader?.presentationReady == true
+                report["webPresent"] = store.reader?.illustrationWebView != nil
+                report["sameInitialController"] = store.reader === controller
+                report["bookSelected"] = store.selectedBook != nil
             }
             report["phase"] = phase
             report["windowState"] = windowState
@@ -175,16 +179,32 @@ import ZIPFoundation
         try await pause(2000)
         if let web = controller.illustrationWebView { await webState(web) }
         var waits = 0
+        // Resolve the controller mounted by SwiftUI, rather than retaining a
+        // transient onAppear value while the initial window is being rebuilt.
+        var stableSince: ContinuousClock.Instant?
+        var mountedController: ReaderController?
+        var mountedWeb: WKWebView?
         try await until {
             hosting.layoutSubtreeIfNeeded(); waits += 1
-            if waits % 100 == 0 {
-                print("ReaderFixture selected=\(store.selectedBook != nil) sameController=\(store.reader === controller) web=\(controller.illustrationWebView != nil) error=\(store.error != nil) chapters=\(controller.chapters.count) hostSizeValid=\(hosting.bounds.width > 300 && hosting.bounds.height > 300)")
+            guard let active = store.reader, active.presentationReady,
+                  let web = active.illustrationWebView, web.window === window,
+                  !web.bounds.isEmpty else {
+                stableSince = nil
+                return false
             }
-            return controller.presentationReady && controller.illustrationWebView != nil
+            if mountedController !== active || mountedWeb !== web {
+                mountedController = active
+                mountedWeb = web
+                stableSince = .now
+            }
+            if stableSince == nil { stableSince = .now }
+            return stableSince!.duration(to: .now) >= .seconds(1)
         }
-        try await pause(1000)
+        let controller = try require(mountedController)
+        let web = try require(mountedWeb)
+        // From this point onward all existing checks require this exact view.
+        try check(store.reader === controller && controller.illustrationWebView === web)
         phase = "chrome"
-        let web = try require(controller.illustrationWebView)
         let size = web.bounds.size
         try await readerSnapshot(web,name:"epub-rendered-content-synthetic")
         // The entry hint has expired. Quiet reading must not retain native

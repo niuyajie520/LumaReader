@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct LumaReaderApp: App {
     @State private var store:LibraryStore
+    @State private var readerController = ReaderController()
     @MainActor init() {
         #if DEBUG
         _store = State(initialValue:DebugReaderAcceptance.makeStore())
@@ -13,7 +14,7 @@ struct LumaReaderApp: App {
     @Environment(\.openWindow) private var openWindow
     var body: some Scene {
         Window(store.selectedBook == nil ? L10n.text("Luma · 图书") : "",id:"main") {
-            ContentView(store: store).modifier(AppLanguageScope()).modifier(LumaThemeScope(store:store))
+            ContentView(store: store, controller: readerController).modifier(AppLanguageScope()).modifier(LumaThemeScope(store:store))
                 .frame(minWidth: 940, minHeight: 620)
                 .preferredColorScheme(store.preferredColorScheme)
                 .onAppear { DiagnosticManager.shared.applicationDidStart() }
