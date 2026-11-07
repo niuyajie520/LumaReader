@@ -257,8 +257,8 @@ struct ContentView: View {
     private var chromeState:ChromeState {
         if activeReaderPanel != nil || showBookSearch || showSettings || showCustomization { return .modalOpen }
         if chromeKeyboardPinned || chromeHeaderHovered { return .interacting }
-        if controller.hasSelection { return .selectionActive }
         if chromeTopHovered || chromeBottomHovered { return .hoverVisible }
+        if controller.hasSelection { return .selectionActive }
         return focusHeaderShown ? .pageTurnFeedback:.hidden
     }
     private var readerChromeVisible:Bool {

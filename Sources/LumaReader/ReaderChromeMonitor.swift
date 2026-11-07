@@ -17,6 +17,7 @@ struct ReaderChromeMonitor: NSViewRepresentable {
         var trailingInset: CGFloat = 0
         var onTopHover: (Bool) -> Void = { _ in }
         var onBottomHover: (Bool) -> Void = { _ in }
+        private var focusObserver: NSObjectProtocol?
         private var monitor: Any?
         private var tracking: NSTrackingArea?
         private weak var host: NSView?
@@ -30,6 +31,9 @@ struct ReaderChromeMonitor: NSViewRepresentable {
             guard enabled, let window, let content = window.contentView else { stop(); return }
             guard monitor == nil else { return }
             observedWindow = window; previousMouseMoved = window.acceptsMouseMovedEvents; window.acceptsMouseMovedEvents = true
+            focusObserver = NotificationCenter.default.addObserver(forName:NSWindow.didBecomeKeyNotification,object:window,queue:.main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.lastInside = nil; self?.lastBottomInside = nil }
+            }
             host = content
             let tracking = NSTrackingArea(rect:.zero,options:[.activeAlways,.mouseEnteredAndExited,.inVisibleRect],owner:self,userInfo:nil)
             content.addTrackingArea(tracking); self.tracking = tracking
@@ -53,6 +57,7 @@ struct ReaderChromeMonitor: NSViewRepresentable {
             guard lastBottomInside != inside else { return }; lastBottomInside = inside; onBottomHover(inside)
         }
         func stop() {
+            if let focusObserver { NotificationCenter.default.removeObserver(focusObserver) }; focusObserver = nil
             if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
             if let tracking { host?.removeTrackingArea(tracking) }; tracking = nil; host = nil
             observedWindow?.acceptsMouseMovedEvents = previousMouseMoved; observedWindow = nil; lastInside = nil; lastBottomInside = nil
