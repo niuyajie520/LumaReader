@@ -6,7 +6,9 @@ struct ExamEnglishInputPolicyTests {
     @Test func preservesMisspellingsAndAsciiPunctuation() {
         let policy = ExamEnglishInputPolicy()
         #expect(policy.validateReplacement("teh enviroment, don't fix it!") == .allowVerbatim)
-        #expect(policy.validateReplacement("\\|{}") == .allowVerbatim)
+        #expect(policy.validateReplacement(#"\|{}"#) == .allowVerbatim)
+        #expect(policy.validateReplacement("Paragraph 1.\n\nParagraph 2.") == .allowVerbatim)
+        #expect(policy.validateReplacement("") == .allowVerbatim)
     }
 
     @Test func rejectsCJKWithoutChangingTheAnswer() {
@@ -20,11 +22,13 @@ struct ExamEnglishInputPolicyTests {
 
     @Test func rejectsFullWidthPunctuation() {
         let policy = ExamEnglishInputPolicy()
-        guard case .rejectEntirely(let reason, _) = policy.validateReplacement("Hello，world") else {
-            Issue.record("Full-width punctuation should not enter exam answers")
-            return
+        for sample in ["Hello，world", "“quoted”", "don’t"] {
+            guard case .rejectEntirely(let reason, _) = policy.validateReplacement(sample) else {
+                Issue.record("Full-width punctuation should not enter exam answers")
+                return
+            }
+            #expect(reason == .containsFullWidthPunctuation)
         }
-        #expect(reason == .containsFullWidthPunctuation)
     }
 
     @Test func leavesOrdinaryBookAndChatInputUnrestricted() {
