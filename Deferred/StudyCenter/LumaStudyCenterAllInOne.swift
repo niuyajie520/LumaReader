@@ -950,6 +950,7 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var selectedVoiceIdentifier: String?
     public var preferredAccent: String // "en-GB" or "en-US"
     public var preferredSpeechRate: Float // 0.35 ... 0.65 (1.0x normalized = 0.5)
+    public var importedWords:[VocabularyWord]? = nil
     public var speechService:SpeechServiceSettings? = nil
     public var speechRepeatCount:Int? = nil
     public var speechInterval:Double? = nil
@@ -1744,10 +1745,7 @@ public struct Task1QuestionBankHomeView: View {
         )
     }
 
-    private let fiveColumnGrid = Array(
-        repeating: GridItem(.flexible(minimum: 150, maximum: 220), spacing: 16),
-        count: 5
-    )
+    private let fiveColumnGrid = [GridItem(.adaptive(minimum:150,maximum:220),spacing:20)]
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {

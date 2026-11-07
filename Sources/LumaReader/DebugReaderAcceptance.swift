@@ -349,7 +349,7 @@ import ZIPFoundation
         try await until { studyMounted }
         try await pause(700)
         try screenshot(hosting,name:"study-home-synthetic")
-        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力"])
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力_今日计划"])
         try await pause(700)
         try screenshot(hosting,name:"study-dictation-synthetic")
         print("StudyFixture mainAppMounted=true isolatedStorage=true")

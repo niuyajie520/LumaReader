@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import UniformTypeIdentifiers
 #if canImport(SwiftUI) && canImport(AppKit)
 
 @MainActor
@@ -68,6 +69,10 @@ public struct LumaStudyCenterHostView: View {
     }
     @StateObject private var vm:HostStateModel
     @StateObject private var audio = SpeechAudioPipeline()
+    @State private var importShown=false
+    @State private var deckSearch=""
+    @FocusState private var answerFocused:Bool
+    private var allWords:[VocabularyWord] {Self.builtInVocabularyWords + (vm.storeSnapshot.importedWords ?? [])}
 
     private var ttsEngine:MacOSSpeechSynthesisManager { vm.speech }
 
@@ -81,24 +86,32 @@ public struct LumaStudyCenterHostView: View {
             appearance.paper.ignoresSafeArea()
 
             VStack(spacing:12) {
-            HStack {
-                Button("学习主页") { mode = "学习" }
-                Button("Task 1") { mode = "学习_写作_Task1题库" }
-                Button("Task 2") { mode = "学习_写作_Task2题库" }
-                Picker("考试模式",selection:$vm.practiceSeconds) {
-                    Text("完整模拟 · 60 分钟").tag(3600)
-                    Text("Task 1 · 20 分钟").tag(1200)
-                    Text("Task 2 · 40 分钟").tag(2400)
-                }.frame(maxWidth:230)
-                Button("草稿") { mode = "学习_草稿" }
-                Button("历史作文") { mode = "学习_写作_历史作文" }
+            HStack(spacing:12) {
+                Button {mode="学习"} label:{Image(systemName:"square.grid.2x2")}.help("学习主页")
+                if mode.contains("听力") {
+                    Button("词库") {mode="学习_听力"}
+                    Button("错词") {mode="学习_听力_错词复习"}
+                    Button("顽固单词") {mode="学习_听力_顽固单词"}
+                    Button("记录") {mode="学习_听力_学习记录"}
+                } else if mode.contains("写作") || mode=="学习_草稿" {
+                    Button("Task 1") {mode="学习_写作_Task1题库"}
+                    Button("Task 2") {mode="学习_写作_Task2题库"}
+                    if !mode.contains("模拟机考") {
+                        Picker("模式",selection:$vm.practiceSeconds) {
+                            Text("完整模拟 · 60 分钟").tag(3600)
+                            Text("Task 1 · 20 分钟").tag(1200)
+                            Text("Task 2 · 40 分钟").tag(2400)
+                        }.frame(maxWidth:230)
+                    }
+                    Button("草稿") {mode="学习_草稿"}
+                    Button("历史作文") {mode="学习_写作_历史作文"}
+                }
                 Spacer()
-            }.padding(.horizontal,24).padding(.top,12)
+            }.buttonStyle(.borderless).padding(.horizontal,32).padding(.vertical,10)
             if let error = vm.storageError { Text(error).foregroundStyle(.red).textSelection(.enabled).padding() }
             switch mode {
             case "学习": studyHome
-            case "学习_阅读":
-                Text("雅思阅读题库尚未接入").frame(maxWidth:.infinity,maxHeight:.infinity)
+            case "学习_听力", "学习_听力_我的词库": listeningHome
             case "学习_草稿":
                 List(Array(vm.storeSnapshot.activeWritingDrafts.values),id:\.id) { draft in
                     Button(draft.examTitle) {
@@ -108,7 +121,7 @@ public struct LumaStudyCenterHostView: View {
                     }
                 }
 
-            case "学习_听力", "学习_听力_今日计划", "学习_听力_我的词库":
+            case "学习_听力_今日计划":
                 listeningCenterView(submode: .newTask)
             case "学习_听力_错词复习":
                 listeningCenterView(submode: .wrongWordReview)
@@ -144,6 +157,16 @@ public struct LumaStudyCenterHostView: View {
                 )
             }
         }
+        }
+        .fileImporter(isPresented:$importShown,allowedContentTypes:[.json,.tabSeparatedText,.plainText]) { result in
+            do {
+                let url=try result.get();let access=url.startAccessingSecurityScopedResource();defer{if access{url.stopAccessingSecurityScopedResource()}}
+                let data=try Data(contentsOf:url)
+                let words=try VocabularyImport.parse(data,filename:url.lastPathComponent)
+                var existing=vm.storeSnapshot.importedWords ?? []
+                let ids=Set(existing.map(\.id));existing.append(contentsOf:words.filter{!ids.contains($0.id)})
+                vm.storeSnapshot.importedWords=existing;vm.save()
+            } catch {vm.storageError="导入失败，现有词库和记录未更改：\(error.localizedDescription)"}
         }
         .onDisappear { vm.save(); ttsEngine.stop(); audio.stop() }
         .onChange(of:mode) { _,_ in ttsEngine.stop();audio.stop() }
@@ -224,7 +247,7 @@ public struct LumaStudyCenterHostView: View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
                     Picker("词库",selection:$vm.selectedDeck) {
-                        ForEach(Array(Set(Self.builtInVocabularyWords.map(\.deckID))).sorted(),id:\.self) { Text($0).tag($0) }
+                        ForEach(Array(Set(allWords.map(\.deckID))).sorted(),id:\.self) { Text($0).tag($0) }
                     }
                     Button("开始听写") { startDictation(mode:.newTask) }
                     Button("错词复习") { startDictation(mode:.wrongWordReview) }
@@ -234,7 +257,7 @@ public struct LumaStudyCenterHostView: View {
                             SpeechSettingsPanel(audio:audio,settings:Binding(get:{vm.storeSnapshot.speechService ?? SpeechServiceSettings()},set:{vm.storeSnapshot.speechService=$0;vm.save()}),voiceID:Binding(get:{vm.storeSnapshot.selectedVoiceIdentifier ?? ""},set:{vm.storeSnapshot.selectedVoiceIdentifier=$0;vm.save()}),accent:$vm.selectedAccent,rate:$vm.speechRateMultiplier,repeats:Binding(get:{vm.storeSnapshot.speechRepeatCount ?? 1},set:{vm.storeSnapshot.speechRepeatCount=$0;vm.save()}),interval:Binding(get:{vm.storeSnapshot.speechInterval ?? 0.5},set:{vm.storeSnapshot.speechInterval=$0;vm.save()}),voices:ttsEngine.availableVoices(for:vm.selectedAccent),onClose:{vm.save();vm.speechSettingsShown=false})
                         }
                 }.padding(.horizontal,32)
-                Text("词汇练习 · 内置 4 个示例词 · 今日已听写 \(DictationSessionStateMachine.todayDictatedWordCount(from:vm.storeSnapshot.dictationLogs,on:Self.todayDateString())) 个单词")
+                Text("今日已听写 \(DictationSessionStateMachine.todayDictatedWordCount(from:vm.storeSnapshot.dictationLogs,on:Self.todayDateString())) 个单词")
                     .font(.headline).padding(.horizontal,32)
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -258,9 +281,7 @@ public struct LumaStudyCenterHostView: View {
                         }
                         .frame(width: 125)
 
-                        Button("重播声音") {
-                            speakCurrentWord()
-                        }
+                        Button("重播声音") {speakCurrentWord()}.keyboardShortcut("r",modifiers:[.command])
                         .buttonStyle(.borderedProminent)
                         .tint(appearance.accent)
                     }
@@ -273,7 +294,9 @@ public struct LumaStudyCenterHostView: View {
                             .foregroundStyle(appearance.ink.opacity(0.85))
 
                         HStack(spacing: 12) {
-                            TextField("听音后输入英文单词...", text: $vm.dictationInput)
+                            TextField("听音后输入英文单词…", text: $vm.dictationInput)
+                                .focused($answerFocused)
+                                .autocorrectionDisabled()
                                 .textFieldStyle(.roundedBorder)
                                 .onSubmit {
                                     submitCurrentDictation()
@@ -282,7 +305,11 @@ public struct LumaStudyCenterHostView: View {
                                 submitCurrentDictation()
                             }
                             .buttonStyle(.borderedProminent)
+                            Button("跳过并记为错词") {vm.dictationInput="";submitCurrentDictation()}
+                                .keyboardShortcut(.rightArrow,modifiers:[.command])
                         }
+                        ProgressView(value:Double(vm.dictationMachine.completedWordIDs.count),total:Double(max(1,vm.dictationMachine.completedWordIDs.count+vm.dictationMachine.pendingQueue.count)))
+                        Text("剩余 \(vm.dictationMachine.pendingQueue.count) 个 · 已完成 \(vm.dictationMachine.completedWordIDs.count) 个").font(.caption).foregroundStyle(.secondary)
                     } else {
                         Text("🎉 当前听写队列已全部完成！")
                             .font(.system(size: 14, weight: .semibold))
@@ -485,7 +512,7 @@ public struct LumaStudyCenterHostView: View {
             Text("学习").font(.largeTitle)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:190))],spacing:20) {
                 homeCard("词汇听写",symbol:"headphones",destination:"学习_听力")
-                homeCard("雅思阅读",symbol:"doc.text.magnifyingglass",destination:"学习_阅读")
+                homeCard("学习统计",symbol:"chart.bar",destination:"学习_统计")
                 homeCard("雅思写作",symbol:"pencil",destination:"学习_写作_Task1题库")
             }
             Spacer()
@@ -497,9 +524,44 @@ public struct LumaStudyCenterHostView: View {
                 .frame(maxWidth:.infinity,minHeight:180).background(appearance.surface,in:RoundedRectangle(cornerRadius:16))
         }.buttonStyle(.plain)
     }
+    private var listeningHome:some View {
+        ScrollView {
+            VStack(alignment:.leading,spacing:24) {
+                HStack {
+                    VStack(alignment:.leading,spacing:6) {Text("听力").font(.largeTitle);Text("选择词库，听音默写").foregroundStyle(.secondary)}
+                    Spacer()
+                    TextField("搜索词库",text:$deckSearch).textFieldStyle(.roundedBorder).frame(maxWidth:240)
+                    Button("导入词库",systemImage:"square.and.arrow.down") {importShown=true}
+                }
+                Text("支持 UTF-8 TSV（英文、中文两列）或 JSON 数组（word、meaning）。").font(.caption).foregroundStyle(.secondary)
+                LazyVGrid(columns:[GridItem(.adaptive(minimum:170,maximum:220),spacing:24)],alignment:.leading,spacing:24) {
+                    ForEach(Array(Set(allWords.map(\.deckID))).sorted(),id:\.self) {deck in
+                        let words=allWords.filter{$0.deckID==deck}
+                        let title=words.first?.deckTitle ?? deck
+                        if deckSearch.isEmpty || title.localizedStandardContains(deckSearch) {
+                            Button {
+                                vm.selectedDeck=deck;startDictation(mode:.newTask);mode="学习_听力_今日计划";answerFocused=true
+                            } label: {
+                                VStack(alignment:.leading,spacing:16) {
+                                    Image(systemName:"headphones").font(.system(size:30,weight:.light))
+                                    Spacer()
+                                    Text(title).font(.title3.weight(.medium)).multilineTextAlignment(.leading)
+                                    Text("\(words.count) 个词").font(.caption)
+                                    if deck=="vocab_daily" {Text("内置示例词库").font(.caption2).foregroundStyle(.secondary)}
+                                }.padding(22).frame(maxWidth:.infinity,minHeight:220,alignment:.leading)
+                                    .background(appearance.secondaryGradient,in:RoundedRectangle(cornerRadius:16))
+                                    .overlay(RoundedRectangle(cornerRadius:16).stroke(appearance.line,lineWidth:1))
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }
+            }.padding(32)
+        }.background(appearance.paper)
+    }
+
     private func startDictation(mode:DictationSessionMode) {
         let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect }.map(\.wordID))
-        let words = Self.builtInVocabularyWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || wrongIDs.contains($0.id)) }
+        let words = allWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || wrongIDs.contains($0.id)) }
         vm.dictationMachine = DictationSessionStateMachine(mode:mode,dateString:Self.todayDateString(),initialWords:words,existingStubbornWordsForToday:vm.storeSnapshot.stubbornWords,previousLogs:vm.storeSnapshot.dictationLogs)
         vm.showMeaning = false; vm.dictationInput = ""; vm.save(); speakCurrentWord()
     }
@@ -552,16 +614,22 @@ public struct LumaStudyCenterHostView: View {
     // MARK: - 3. Study Statistics View (全部｜听力｜写作 + 今天｜7天｜30天｜全部时间)
 
     private var studyStatisticsView: some View {
+        let allowedDates:Set<String>? = {
+            let count:Int
+            switch vm.statsTimeWindow {case .allTime:return nil;case .today:count=1;case .last7Days:count=7;case .last30Days:count=30}
+            let formatter=DateFormatter();formatter.locale=Locale(identifier:"en_US_POSIX");formatter.dateFormat="yyyy-MM-dd"
+            return Set((0..<count).compactMap{Calendar.current.date(byAdding:.day,value: -$0,to:Date())}.map{formatter.string(from:$0)})
+        }()
         let overview = StudyStatisticsCalculator.computeOverview(
             dictationLogs: vm.storeSnapshot.dictationLogs,
-            writingSubmissions: vm.storeSnapshot.writingSubmissions
+            writingSubmissions: vm.storeSnapshot.writingSubmissions,allowedDates:allowedDates
         )
         let listeningStats = StudyStatisticsCalculator.computeListening(
             dictationLogs: vm.storeSnapshot.dictationLogs,
-            stubbornWords: vm.storeSnapshot.stubbornWords.sorted { $0.errorCount > $1.errorCount }
+            stubbornWords: vm.storeSnapshot.stubbornWords.sorted { $0.errorCount > $1.errorCount },allowedDates:allowedDates
         )
         let writingStats = StudyStatisticsCalculator.computeWriting(
-            submissions: vm.storeSnapshot.writingSubmissions
+            submissions: vm.storeSnapshot.writingSubmissions,allowedDates:allowedDates
         )
 
         return VStack(alignment: .leading, spacing: 20) {
