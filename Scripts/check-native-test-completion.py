@@ -22,6 +22,8 @@ def validate(log, evidence):
     return int(summary.group(1))
 
 if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        sys.exit('Usage: check-native-test-completion.py <test-log-path> <evidence-dir>')
     try:
         count = validate(Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace'), Path(sys.argv[2]))
     except (ValueError, OSError) as error:
