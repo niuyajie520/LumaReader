@@ -8,6 +8,8 @@ struct ContentView: View {
         self.store = store
         _controller = State(initialValue:controller ?? ReaderController())
     }
+    @State private var studySession:LumaStudySession?
+    @AppStorage("workspaceReadingBookID") private var workspaceReadingBookID=""
     @State private var studyVisible = false
     @State private var studyPreviousVisibility:NavigationSplitViewVisibility = .all
     @State private var studyPreviousAI = false
@@ -98,7 +100,7 @@ struct ContentView: View {
             chromeTopHovered = false; chromeHeaderHovered = false
             // Briefly introduce the controls on entry, then let the single
             // cancellation-aware chrome timer return the reader to quiet mode.
-            if id != nil { revealReaderChrome(delay:1200) }
+            if let id {workspaceReadingBookID=id.uuidString;studyVisible=false;revealReaderChrome(delay:1200)}
             store.showInspector = false
             let keyboard = NSApp.currentEvent?.type == .keyDown
             withAnimation(keyboard || reduceMotion || store.effectiveMotionLevel == .off ? nil:.smooth(duration:0.24,extraBounce:0)) {
@@ -138,6 +140,7 @@ struct ContentView: View {
 
     private var lumaReaderChrome: some View {
         lumaNavigation
+        .onChange(of:studyVisible){_,shown in if !shown{studySession?.suspend()}}
         .onChange(of:studyMode) { oldMode,mode in
             guard studyVisible else{return}
             let wasPractice=oldMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(oldMode)
@@ -150,8 +153,9 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
-            store.returnToLibrary(); studyMode = notice.userInfo?["mode"] as? String ?? "学习"; studyVisible = true
+            openStudy(mode:notice.userInfo?["mode"] as? String ?? "学习",resume:notice.userInfo?["resume"] as? Bool ?? false)
         }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.ResumeReadingWorkspace"))){_ in resumeReadingWorkspace()}
         .onReceive(NotificationCenter.default.publisher(for:.lumaFindInBook)) { _ in
             guard store.selectedBook != nil else { return }; activeReaderPanel = nil; showBookSearch = true
         }
@@ -367,7 +371,7 @@ struct ContentView: View {
     private var primaryContent:some View {
         Group {
             if let book = store.selectedBook { reading(book).transition(.opacity) }
-            else if studyVisible { StudyCenterScreen(mode:$studyMode,store:store) }
+            else if studyVisible,let studySession { StudyCenterScreen(mode:$studyMode,store:store,session:studySession) }
             else if store.showStatistics { StatisticsView(activity:store.activity,theme:store.theme,store:store).transition(.opacity) }
             else { library.transition(.opacity) }
         }
@@ -595,6 +599,10 @@ struct ContentView: View {
 
             LumaSidebarSection("图书",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
+                    if let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) {
+                        Button {resumeReadingWorkspace()} label:{Label("继续阅读 · \(book.title)",systemImage:"book.pages").lineLimit(1).frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)}
+                            .buttonStyle(LumaSidebarButtonStyle(isSelected:store.selectedID==book.id,accent:store.accent))
+                    }
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
                     sideRow("正在阅读",symbol:"book",count:store.shelfBooks.filter{$0.progress>0 && !$0.isFinished}.count)
                     sideRow("已读完",symbol:"checkmark.circle",count:store.shelfBooks.filter{$0.isFinished}.count)
@@ -679,13 +687,29 @@ struct ContentView: View {
         .padding(.horizontal,10)
     }
 
+    private func openStudy(mode:String,resume:Bool) {
+        if studySession==nil {
+            #if DEBUG
+            studySession=LumaStudySession(storageDirectory:DebugReaderAcceptance.studyDirectory)
+            #else
+            studySession=LumaStudySession()
+            #endif
+        }
+        let destination=resume ? studySession!.destination(for:mode):mode
+        store.returnToLibrary();studyMode=destination;studyVisible=true
+    }
+    private func resumeReadingWorkspace() {
+        guard let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) else{return}
+        studyVisible=false;store.open(book)
+    }
+
     private func studyRow(_ title:String, mode:String, symbol:String)->some View {
         Button {
-            store.returnToLibrary(); studyVisible = true; studyMode = mode
+            openStudy(mode:mode,resume:true)
         } label: {
             Label(title,systemImage:symbol).font(store.homeFont(13))
                 .frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)
-        }.buttonStyle(LumaSidebarButtonStyle(isSelected:studyVisible && studyMode == mode,accent:store.accent))
+        }.buttonStyle(LumaSidebarButtonStyle(isSelected:studyVisible && (studyMode == mode || (mode=="学习_听力" && studyMode.hasPrefix("学习_听力")) || (mode=="学习_写作_Task1题库" && (studyMode.contains("写作") || studyMode=="学习_草稿"))),accent:store.accent))
     }
 
     private func sideRow(_ title: String, symbol: String, count: Int?) -> some View {

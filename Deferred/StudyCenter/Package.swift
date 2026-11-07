@@ -18,7 +18,7 @@ let package = Package(
             name: "LumaReaderStudyKit",
             path: ".",
             exclude: ["README.md", "Tests"],
-            sources: ["LumaStudyCenterAllInOne.swift", "StudyHome.swift", "StudyPersistence.swift", "DictationEngine.swift", "StudyPromptView.swift", "StudyAppearance.swift", "SpeechAudioPipeline.swift", "SpeechSettingsPanel.swift", "VocabularyImport.swift", "StudyMapDiagram.swift", "StudyReview.swift", "WritingReviewPanel.swift", "VocabularyImportReview.swift", "DictationReportView.swift"],
+            sources: ["LumaStudyCenterAllInOne.swift", "StudyHome.swift", "StudyPersistence.swift", "DictationEngine.swift", "StudyPromptView.swift", "StudyAppearance.swift", "SpeechAudioPipeline.swift", "SpeechSettingsPanel.swift", "VocabularyImport.swift", "StudyMapDiagram.swift", "StudyWorkspace.swift", "StudyReview.swift", "WritingReviewPanel.swift", "VocabularyImportReview.swift", "DictationReportView.swift"],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]

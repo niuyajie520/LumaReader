@@ -361,11 +361,21 @@ import ZIPFoundation
         print("ReaderFixture keyboardChrome=true themedReading=true loadedFullscreen=true")
         print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
+        let workspaceBook=try require(store.selectedBook)
         phase = "study-entry"
         NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
         try await until { studyMounted }
         try await pause(700)
         try screenshot(hosting,name:"study-home-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil)
+        try await until {store.selectedID==workspaceBook.id && controller.presentationReady}
+        try await pause(700)
+        let resumedBook=try require(store.selectedBook)
+        try check(resumedBook.position==workspaceBook.position)
+        try check(abs((resumedBook.readerOffset ?? 0)-(workspaceBook.readerOffset ?? 0))<0.025)
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until {studyMounted}
+        print("StudyFixture readingWorkspaceRoundTrip=true positionRetained=true")
         NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力_今日计划"])
         try await pause(700)
         try screenshot(hosting,name:"study-dictation-synthetic")

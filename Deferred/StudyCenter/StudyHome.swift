@@ -14,6 +14,7 @@ public struct LumaStudyCenterHostView: View {
     final class HostStateModel: ObservableObject {
         @Published var storageError: String?
         let speech = MacOSSpeechSynthesisManager()
+        var clockOwner:UUID?
         var persistence: StudyPersistenceManager?
         init(storageDirectory:URL? = nil) {
             do {
@@ -30,8 +31,21 @@ public struct LumaStudyCenterHostView: View {
                     if session.dateString==LumaStudyCenterHostView.todayDateString() {dictationMachine=session}
                     else {dictationMachine=DictationSessionStateMachine(mode:session.mode,dateString:LumaStudyCenterHostView.todayDateString(),initialWords:session.pendingQueue,existingStubbornWordsForToday:saved.stubbornWords)}
                 }
+                if let state=saved.workspace {
+                    if state.inputWordID==dictationMachine.currentWord?.id {dictationInput=state.dictationInput}
+                    if let id=state.writingDraftID,let draft=saved.activeWritingDrafts.values.first(where:{$0.id==id}),let question=LumaStudyCenterHostView.builtInPracticeQuestions.first(where:{$0.id==draft.questionID}) {
+                        currentDraft=draft;selectedExamQuestion=question
+                    }
+                }
                 if manager.recoveryPerformed {storageError="检测到学习记录损坏，已恢复上次有效备份；损坏原文件保存在备份目录中。"}
             } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
+        }
+        func remember(_ mode:String) {
+            var state=storeSnapshot.workspace ?? StudyWorkspaceState()
+            if mode.hasPrefix("学习_听力"){state.listeningMode=mode}
+            if mode.contains("写作") || mode=="学习_草稿" || mode=="学习_模拟机考"{state.writingMode=mode}
+            storeSnapshot.workspace=state
+            save()
         }
         static func sessionKey(mode:DictationSessionMode,date:String,deck:String)->String {mode.rawValue+"|"+date+"|"+deck}
         func storeDraft(_ draft:WritingExamDraftState) {
@@ -41,6 +55,10 @@ public struct LumaStudyCenterHostView: View {
         }
         @discardableResult func save()->Bool {
             guard let persistence else { return false }
+            var workspace=storeSnapshot.workspace ?? StudyWorkspaceState()
+            workspace.dictationInput=dictationInput;workspace.inputWordID=dictationMachine.currentWord?.id
+            if storeSnapshot.activeWritingDrafts.values.contains(where:{$0.id==currentDraft.id}){workspace.writingDraftID=currentDraft.id}
+            storeSnapshot.workspace=workspace
             storeSnapshot.dictationSession = dictationMachine
             if storeSnapshot.dictationSessions==nil {storeSnapshot.dictationSessions=[:]}
             let deck=dictationMachine.currentWord?.deckID ?? dictationMachine.attemptLogs.last?.deckID ?? selectedDeck
@@ -83,6 +101,7 @@ public struct LumaStudyCenterHostView: View {
         @Published var statsScope: StudyStatisticsScope = .all
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
+    @State private var clockToken=UUID()
     @StateObject private var vm:HostStateModel
     @StateObject private var audio = SpeechAudioPipeline()
     @State private var revealedWordID:String?
@@ -96,8 +115,8 @@ public struct LumaStudyCenterHostView: View {
     private var ttsEngine:MacOSSpeechSynthesisManager { vm.speech }
     private let evaluateWriting:(@MainActor (WritingSubmissionRecord,Task1QuestionItem) async throws->IELTSFourCriteriaEstimate)?
 
-    public init(mode: Binding<String>, storageDirectory:URL? = nil,evaluateWriting:(@MainActor (WritingSubmissionRecord,Task1QuestionItem) async throws->IELTSFourCriteriaEstimate)? = nil) {
-        self._vm = StateObject(wrappedValue:HostStateModel(storageDirectory:storageDirectory))
+    public init(mode: Binding<String>, storageDirectory:URL? = nil,session:LumaStudySession? = nil,evaluateWriting:(@MainActor (WritingSubmissionRecord,Task1QuestionItem) async throws->IELTSFourCriteriaEstimate)? = nil) {
+        self._vm = StateObject(wrappedValue:session?.model ?? HostStateModel(storageDirectory:storageDirectory))
         self._mode = mode
         self.evaluateWriting=evaluateWriting
     }
@@ -194,16 +213,22 @@ public struct LumaStudyCenterHostView: View {
             WritingReviewPanel(session:session,onSave:saveWritingRevision)
         }
         .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:mode)
-        .onDisappear { vm.save(); ttsEngine.stop(); audio.stop() }
-        .onChange(of:mode) { _,_ in ttsEngine.stop();audio.stop() }
+        .onAppear {vm.remember(mode)}
+        .onChange(of:vm.dictationInput){_,_ in vm.save()}
+        .onReceive(NotificationCenter.default.publisher(for:NSApplication.willResignActiveNotification)){_ in vm.save()}
+        .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)){_ in vm.save()}
+        .onDisappear { if vm.clockOwner==clockToken{vm.clockOwner=nil};vm.save(); ttsEngine.stop(); audio.stop() }
+        .onChange(of:mode) { _,destination in vm.remember(destination);ttsEngine.stop();audio.stop() }
         .onReceive(audio.$errorMessage) { message in if let message { vm.dictationFeedback = message } }
         .task {
             if let service = vm.storeSnapshot.speechService, service.enabled { await audio.connect(service) }
         }
         .task {
+            let owner=clockToken;vm.clockOwner=owner
             var previous = ContinuousClock.now
             while !Task.isCancelled {
                 do { try await Task.sleep(for:.seconds(1)) } catch { return }
+                guard vm.clockOwner==owner else{return}
                 let now = ContinuousClock.now
                 let elapsed = previous.duration(to:now)
                 let seconds = Int(elapsed.components.seconds)

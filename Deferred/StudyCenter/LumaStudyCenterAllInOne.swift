@@ -962,6 +962,7 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var stubbornWords: [StubbornWordRecord]
     public var activeWritingDrafts: [String: WritingExamDraftState] // Keyed by questionID
     public var legacyDraftBackups: [String: String] // Preserves unmodified legacy drafts with Chinese/special chars
+    public var workspace:StudyWorkspaceState? = nil
     public var reviewSchedule:[String:WordReviewProgress]? = nil
     public var writingRevisions:[WritingRevision]? = nil
     public var writingSubmissions: [WritingSubmissionRecord]

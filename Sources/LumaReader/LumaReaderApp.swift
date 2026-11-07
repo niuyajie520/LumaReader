@@ -27,6 +27,11 @@ struct LumaReaderApp: App {
                 Divider()
                 Button(L10n.text("返回书库")) { store.returnToLibrary() }.keyboardShortcut("l")
             }
+            CommandMenu("学习") {
+                Button("继续听写") {NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力","resume":true]);openWindow(id:"main")}.keyboardShortcut("3",modifiers:[.command,.option])
+                Button("继续写作") {NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_Task1题库","resume":true]);openWindow(id:"main")}.keyboardShortcut("4",modifiers:[.command,.option])
+                Button("继续阅读") {NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil);openWindow(id:"main")}.keyboardShortcut("5",modifiers:[.command,.option])
+            }
             CommandMenu(L10n.text("阅读")) {
                 Button(L10n.text("展开 / 收起 AI 助手")) { if store.aiPanelVisible { store.aiPanelVisible = false } else { store.askAI() }; openWindow(id:"main") }.keyboardShortcut("a",modifiers:[.command,.option])
                 Divider()
