@@ -96,12 +96,14 @@ import ZIPFoundation
         try FileManager.default.zipItem(at:source,to:file,shouldKeepParent:false)
         return file
     }
-    private static func mouse(_ window:NSWindow,x:CGFloat,y:CGFloat) throws {
+    private static func mouse(_ window:NSWindow,x:CGFloat,y:CGFloat,alignSystemCursor:Bool = true) throws {
         // Native hover reconciliation also consults the system cursor after
         // focus/fullscreen changes. Keep it aligned with the delivered event.
-        let screenPoint = window.convertPoint(toScreen:NSPoint(x:x,y:y))
-        let primaryTop = try require(NSScreen.screens.first).frame.maxY
-        try check(CGWarpMouseCursorPosition(CGPoint(x:screenPoint.x,y:primaryTop-screenPoint.y)) == .success)
+        if alignSystemCursor {
+            let screenPoint = window.convertPoint(toScreen:NSPoint(x:x,y:y))
+            let primaryTop = try require(NSScreen.screens.first).frame.maxY
+            try check(CGWarpMouseCursorPosition(CGPoint(x:screenPoint.x,y:primaryTop-screenPoint.y)) == .success)
+        }
         let event = try require(NSEvent.mouseEvent(with:.mouseMoved,location:NSPoint(x:x,y:y),modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:0,pressure:0))
         NSApp.sendEvent(event)
     }
@@ -245,9 +247,12 @@ import ZIPFoundation
         try check(web.bounds.size == size)
         try screenshot(hosting,name:"reader-bottom-synthetic")
         for _ in 0..<20 {
-            try mouse(window,x:150,y:window.contentView!.bounds.height-10)
-            try mouse(window,x:150,y:300)
+            try mouse(window,x:150,y:window.contentView!.bounds.height-10,alignSystemCursor:false)
+            try mouse(window,x:150,y:300,alignSystemCursor:false)
         }
+        // Avoid queuing 40 asynchronous system tracking updates while still
+        // delivering all 40 rapid events through the real native monitor.
+        try mouse(window,x:150,y:300)
         try await pause(1700)
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)

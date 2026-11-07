@@ -336,10 +336,10 @@ struct ContentView: View {
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
             guard !Task.isCancelled else { return }
             // Hover notifications can remain stuck after SwiftUI replaces an
-            // interactive header during its fade. The last delivered window pointer
-            // position drives both hover and expiration, including native tests.
+            // interactive header during its fade. The actual reading-window pointer
+            // position reconciles any delayed or stale hover events.
             if let window = controller.readingWindow, let content = window.contentView {
-                let point = content.convert(ReaderChromePointer.location(in:window), from:nil)
+                let point = content.convert(window.mouseLocationOutsideOfEventStream, from:nil)
                 if content.bounds.contains(point) {
                     let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
                     if fromTop > 72 {
