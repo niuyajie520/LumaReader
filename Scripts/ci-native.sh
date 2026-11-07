@@ -23,6 +23,7 @@ if ! luma_developer_tools_work /usr/bin/xcrun >ci-raw/toolchain.log 2>&1; then e
 phase resolve /usr/bin/xcrun swift package resolve
 phase debug /usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug
 phase tests env LUMA_SYNTHETIC_UI_EVIDENCE="$PWD/ci-ui" /usr/bin/xcrun swift test --sdk "$SDKROOT"
+phase test-completion python3 Scripts/check-native-test-completion.py ci-raw/tests.log ci-ui
 phase release env LUMA_NO_OPEN=1 LUMA_CI_AUDIT=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'
 phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader"; lipo -archs "dist/Luma Reader.app/Contents/MacOS/LumaReader" | grep -qw arm64'

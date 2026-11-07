@@ -29,6 +29,7 @@ jobs:
           set -euo pipefail
           mkdir -p ci-raw ci-safe
           python3 Tests/Shell/release-privacy.py
+          python3 Tests/Shell/native-test-completion.py
           python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
           python3 - <<'PY'
           from pathlib import Path

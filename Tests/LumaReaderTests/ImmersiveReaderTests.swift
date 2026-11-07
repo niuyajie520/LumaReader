@@ -8,11 +8,17 @@ import ZIPFoundation
 @testable import LumaReader
 
 @MainActor @Suite(.serialized) struct ImmersiveReaderTests {
+    @MainActor private final class ApplicationDelegate:NSObject,NSApplicationDelegate {
+        func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply { .terminateCancel }
+        func applicationShouldTerminateAfterLastWindowClosed(_ sender:NSApplication) -> Bool { false }
+    }
+    private static let applicationDelegate = ApplicationDelegate()
     private static var preparedApplication = false
     private func prepareApplication() {
         _ = NSApplication.shared
         guard !Self.preparedApplication else { return }
         Self.preparedApplication = true
+        NSApp.delegate = Self.applicationDelegate
         NSApp.setActivationPolicy(.regular)
         NSApp.finishLaunching()
     }
