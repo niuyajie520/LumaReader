@@ -17,6 +17,7 @@ let package = Package(
         .target(
             name: "LumaReaderStudyKit",
             path: ".",
+            exclude: ["README.md", "Tests"],
             sources: ["LumaStudyCenterAllInOne.swift"],
             swiftSettings: [
                 .swiftLanguageMode(.v6)

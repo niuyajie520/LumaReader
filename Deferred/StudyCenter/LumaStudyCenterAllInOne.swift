@@ -533,7 +533,7 @@ public struct ExamEnglishTextEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
-        textView.font = NSFont.Name("Georgia").flatMap { NSFont(name: $0, size: fontSize) } ?? NSFont.systemFont(ofSize: fontSize)
+        textView.font = NSFont(name: "Georgia", size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
         textView.textColor = NSColor(calibratedWhite: 0.94, alpha: 1.0)
         textView.insertionPointColor = NSColor(calibratedRed: 0.95, green: 0.65, blue: 0.80, alpha: 1.0)
         textView.allowsUndo = true
@@ -2741,7 +2741,7 @@ public struct LumaStudyCenterHostView: View {
                             .foregroundStyle(LumaTheme.softPinkAccent)
                     }
 
-                    Text(dictationFeedback)
+                    Text(vm.dictationFeedback)
                         .font(.system(size: 12.5))
                         .foregroundStyle(.white.opacity(0.78))
                 }
