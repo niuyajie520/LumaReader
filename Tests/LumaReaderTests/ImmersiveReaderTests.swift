@@ -23,7 +23,6 @@ import ZIPFoundation
         NSApp.finishLaunching()
     }
     private func pump() {
-        while let event = NSApp.nextEvent(matching:.any,until:Date(),inMode:.default,dequeue:true) { NSApp.sendEvent(event) }
         NSApp.updateWindows()
         _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002))
         CATransaction.flush()
