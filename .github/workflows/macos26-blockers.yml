@@ -30,6 +30,8 @@ jobs:
           mkdir -p ci-raw ci-safe
           python3 Tests/Shell/release-privacy.py
           python3 Tests/Shell/native-test-completion.py
+          node Tests/Web/viewport-anchor.cjs
+          node Tests/Web/viewport-freeze.cjs
           python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
           python3 - <<'PY'
           from pathlib import Path

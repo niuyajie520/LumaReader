@@ -198,6 +198,7 @@ import ZIPFoundation
         }
         try await pause(1600)
         try check(controller.illustrationWebView === web)
+        print("ReaderFixture anchorBefore=\(saved.start) anchorAfter=\(store.selectedBook?.readerAnchor?.start ?? -1)")
         try check(store.selectedBook?.readerAnchor == saved)
         try check(store.error == nil)
         window.setContentSize(NSSize(width:760,height:620))

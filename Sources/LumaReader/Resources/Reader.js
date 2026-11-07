@@ -278,7 +278,8 @@
   function beginLayoutTransaction(token){
     viewportTransaction=token;viewportEpoch++;hideDeleteButton();
     if(!frozenGeometry){
-      stableAnchor=visibleAnchor()||stableAnchor;
+      // Geometry may already reflect the first resize frame; keep the last painted reading position.
+      stableAnchor=stableAnchor||visibleAnchor();
       const viewport=document.getElementById('luma-viewport'),rect=viewport.getBoundingClientRect(),style=getComputedStyle(root);
       frozenGeometry={viewport,viewportStyle:snapshotStyles(viewport,['width','height','left','top','bottom','transform']),rootStyle:snapshotStyles(root,['width','height','column-count','column-gap'])};
       for(const [key,value]of Object.entries({width:rect.width+'px',height:rect.height+'px',left:rect.left+'px',top:rect.top+'px',bottom:'auto',transform:'none'}))viewport.style.setProperty(key,value,'important');
