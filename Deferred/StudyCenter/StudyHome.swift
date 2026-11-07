@@ -521,9 +521,9 @@ public struct LumaStudyCenterHostView: View {
                                 HStack {
                                     Button("修改对照与重写") {
                                         let saved=vm.storeSnapshot.writingRevisions?.filter{$0.submissionID==sub.id}.max{$0.updatedAt<$1.updatedAt}
-                                        reviewSession=WritingReviewSession(original:sub,revision:saved ?? WritingRevision(submissionID:sub.id))
+                                        reviewSession=WritingReviewSession(original:sub,revision:saved ?? WritingRevision(original:sub))
                                     }
-                                    Button("新建重写版本") {reviewSession=WritingReviewSession(original:sub,revision:WritingRevision(submissionID:sub.id))}
+                                    Button("新建重写版本") {reviewSession=WritingReviewSession(original:sub,revision:WritingRevision(original:sub))}
                                     Text("\((vm.storeSnapshot.writingRevisions ?? []).filter{$0.submissionID==sub.id}.count) 个重写版本").font(.caption)
                                 }
                                 ForEach((vm.storeSnapshot.writingRevisions ?? []).filter{$0.submissionID==sub.id}.sorted{$0.updatedAt>$1.updatedAt}){revision in

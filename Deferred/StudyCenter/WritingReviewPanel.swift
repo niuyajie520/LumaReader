@@ -10,6 +10,7 @@ struct WritingReviewPanel:View {
     let onSave:@MainActor (WritingRevision)->String?
     @State private var revision:WritingRevision
     @State private var part=1
+    @State private var showSuggested=false
     @State private var status="尚未修改"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.studyAppearance) private var appearance
@@ -30,8 +31,13 @@ struct WritingReviewPanel:View {
             HSplitView {
                 ScrollView {
                     VStack(alignment:.leading,spacing:14) {
-                        Text("原稿").font(.headline)
-                        Text(part==1 ? original.part1EssayText:original.part2EssayText).textSelection(.enabled)
+                        Picker("对照版本",selection:$showSuggested){Text("原稿").tag(false);Text("建议修改稿").tag(true)}.pickerStyle(.segmented)
+                        if showSuggested {
+                            if let suggested=part==1 ? revision.suggestedPart1:revision.suggestedPart2 {
+                                Text(suggested).textSelection(.enabled)
+                                Text("仅合并可唯一定位的 AI 建议；可选优化不代表原句有错，请结合逐句反馈复盘。").font(.caption).foregroundStyle(.secondary)
+                            } else {Text("此版本尚无建议修改稿；原稿及重写稿独立保留。").foregroundStyle(.secondary)}
+                        } else {Text(part==1 ? original.part1EssayText:original.part2EssayText).textSelection(.enabled)}
                         if let evaluation=original.aiEvaluation {
                             ForEach(Array(evaluation.sentenceCorrections.enumerated()),id:\.offset){_,item in
                                 if (part==1 ? original.part1EssayText:original.part2EssayText).contains(item.originalSentence) {

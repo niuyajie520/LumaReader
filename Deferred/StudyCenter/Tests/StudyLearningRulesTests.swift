@@ -110,7 +110,8 @@ struct StudyLearningRulesTests {
         progress.record(cleanRecall:false,at:date,calendar:calendar)
         #expect(progress.stage==0)
         let originalID=UUID()
-        let first=WritingRevision(submissionID:originalID,part1:"teh first draft",updatedAt:date)
+        var first=WritingRevision(submissionID:originalID,part1:"teh first draft",updatedAt:date)
+        first.suggestedPart1="A separate suggested draft snapshot."
         let second=WritingRevision(submissionID:originalID,part2:"Another independent version.",updatedAt:date)
         var snapshot=StudyStoreSnapshot();snapshot.reviewSchedule=["a":progress];snapshot.writingRevisions=[first,second]
         let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -119,6 +120,16 @@ struct StudyLearningRulesTests {
         let restored=try StudyPersistenceManager(storageDirectory:dir).loadAndMigrateIfNeeded()
         #expect(restored.reviewSchedule==snapshot.reviewSchedule)
         #expect(restored.writingRevisions==[first,second])
+    }
+    @Test func suggestedDraftOnlyMergesUniqueQuotesAndPreservesOriginal() {
+        let original="A wrong sentence. Same. Same. Another sentence."
+        let corrections=[
+            IELTSFourCriteriaEstimate.SentenceCorrectionItem(originalSentence:"A wrong sentence.",correctedSentence:"A corrected sentence.",explanationZH:"错误修正",upgradedExpression:""),
+            IELTSFourCriteriaEstimate.SentenceCorrectionItem(originalSentence:"Same.",correctedSentence:"Ambiguous change.",explanationZH:"无法唯一定位",upgradedExpression:"")
+        ]
+        let suggested=WritingSuggestedDraft.applying(corrections,to:original)
+        #expect(suggested=="A corrected sentence. Same. Same. Another sentence.")
+        #expect(original=="A wrong sentence. Same. Same. Another sentence.")
     }
     @Test func olderSnapshotsAndSessionsKeepWorkingWithoutNewFields()throws {
         let session=DictationSessionStateMachine(dateString:"2026-11-07",initialWords:[word("a","hello")])
