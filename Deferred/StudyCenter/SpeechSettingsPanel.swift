@@ -50,7 +50,14 @@ struct SpeechSettingsPanel:View {
                         TextField("模型声线 ID",text:$settings.voice)
                         Button("验证音频并启用该引擎") {
                             busy=true
-                            Task {settings.enabled=await audio.verify(settings);notice=settings.enabled ? "音频验证通过，已启用。":"验证失败，继续使用 Apple 语音。";busy=false}
+                            let candidate=settings
+                            Task {
+                                let valid=await audio.verify(candidate)
+                                guard settings==candidate else {notice="配置已更改，请重新验证。";busy=false;return}
+                                settings.enabled=valid
+                                notice=valid ? "音频验证通过，已启用。":"验证失败，继续使用 Apple 语音。"
+                                busy=false
+                            }
                         }.disabled(busy || settings.model.isEmpty)
                     }
                     Toggle("使用已验证服务",isOn:$settings.enabled).disabled(!settings.enabled)

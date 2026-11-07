@@ -4,6 +4,8 @@ public final class StudyPersistenceManager: @unchecked Sendable {
     private let fileURL: URL
     private let backupDirectoryURL: URL
     private let lock = NSLock()
+    private var recovered = false
+    public var recoveryPerformed:Bool {lock.lock();defer{lock.unlock()};return recovered}
     private let policy = ExamEnglishInputPolicy()
 
     public init(storageDirectory: URL) throws {
@@ -35,6 +37,7 @@ public final class StudyPersistenceManager: @unchecked Sendable {
             guard let data = try? Data(contentsOf:backup), let recovered = try? decoder.decode(StudyStoreSnapshot.self,from:data) else { throw error }
             try rawData.write(to:backupDirectoryURL.appendingPathComponent("damaged-"+UUID().uuidString+".json"),options:.atomic)
             snapshot = recovered
+            self.recovered = true
             try data.write(to:fileURL,options:.atomic)
         }
 

@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 @MainActor
 public struct LumaStudyCenterHostView: View {
     @Environment(\.studyAppearance) private var appearance
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding public var mode: String
 
     @MainActor
@@ -24,9 +25,15 @@ public struct LumaStudyCenterHostView: View {
                 persistence = manager; storeSnapshot = saved
                 selectedAccent = TTSVoiceAccent(rawValue:saved.preferredAccent) ?? .british
                 speechRateMultiplier = saved.preferredSpeechRate < 0.7 ? saved.preferredSpeechRate * 2 : saved.preferredSpeechRate
-                if let session = saved.dictationSession { dictationMachine = session }
+                if let session = saved.dictationSession {
+                    selectedDeck=session.currentWord?.deckID ?? session.attemptLogs.last?.deckID ?? selectedDeck
+                    if session.dateString==LumaStudyCenterHostView.todayDateString() {dictationMachine=session}
+                    else {dictationMachine=DictationSessionStateMachine(mode:session.mode,dateString:LumaStudyCenterHostView.todayDateString(),initialWords:session.pendingQueue,existingStubbornWordsForToday:saved.stubbornWords)}
+                }
+                if manager.recoveryPerformed {storageError="检测到学习记录损坏，已恢复上次有效备份；损坏原文件保存在备份目录中。"}
             } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
         }
+        static func sessionKey(mode:DictationSessionMode,date:String,deck:String)->String {mode.rawValue+"|"+date+"|"+deck}
         func storeDraft(_ draft:WritingExamDraftState) {
             storeSnapshot.activeWritingDrafts=storeSnapshot.activeWritingDrafts.filter{$0.value.id != draft.id}
             storeSnapshot.activeWritingDrafts[draft.id.uuidString]=draft
@@ -35,6 +42,9 @@ public struct LumaStudyCenterHostView: View {
         func save() {
             guard let persistence else { return }
             storeSnapshot.dictationSession = dictationMachine
+            if storeSnapshot.dictationSessions==nil {storeSnapshot.dictationSessions=[:]}
+            let deck=dictationMachine.currentWord?.deckID ?? dictationMachine.attemptLogs.last?.deckID ?? selectedDeck
+            storeSnapshot.dictationSessions?[Self.sessionKey(mode:dictationMachine.mode,date:dictationMachine.dateString,deck:deck)]=dictationMachine
             storeSnapshot.preferredAccent = selectedAccent.rawValue
             storeSnapshot.preferredSpeechRate = speechRateMultiplier
             do { try persistence.save(storeSnapshot) }
@@ -45,7 +55,7 @@ public struct LumaStudyCenterHostView: View {
         @Published var currentDraft: WritingExamDraftState = WritingExamDraftState(
             id: UUID(),
             questionID: "ORIG-003",
-            examTitle: "Cambridge IELTS 9 · Test 1 (Island redevelopment)",
+            examTitle: "原创写作练习 · 岛屿改造",
             activePart: .part1,
             part1EssayText: "",
             part2EssayText: "",
@@ -99,7 +109,7 @@ public struct LumaStudyCenterHostView: View {
                 Button {mode="学习"} label:{Image(systemName:"square.grid.2x2")}.help("学习主页")
                 if mode.contains("听力") {
                     Button("词库") {mode="学习_听力"}
-                    Button("错词") {mode="学习_听力_错词复习"}
+                    Button("错词") {startDictation(mode:.wrongWordReview,resume:true);mode="学习_听力_错词复习"}
                     Button("顽固单词") {mode="学习_听力_顽固单词"}
                     Button("记录") {mode="学习_听力_学习记录"}
                 } else if mode.contains("写作") || mode=="学习_草稿" {
@@ -118,12 +128,12 @@ public struct LumaStudyCenterHostView: View {
                 Spacer()
             }.buttonStyle(.borderless).padding(.horizontal,32).padding(.vertical,10)
                 .padding(.top,isPractice ? 26:0)
-            if let error = vm.storageError { Text(error).foregroundStyle(.red).textSelection(.enabled).padding() }
+            if let error = vm.storageError {HStack {Text(error).foregroundStyle(.red).textSelection(.enabled);Spacer();Button("关闭提示"){vm.storageError=nil}}.padding(.horizontal,24)}
             switch mode {
             case "学习": studyHome
             case "学习_听力", "学习_听力_我的词库": listeningHome
             case "学习_草稿":
-                List(Array(vm.storeSnapshot.activeWritingDrafts.values),id:\.id) { draft in
+                List(Array(vm.storeSnapshot.activeWritingDrafts.values).sorted{$0.lastSavedAt>$1.lastSavedAt},id:\.id) { draft in
                     Button(draft.examTitle) {
                         if let question = Self.builtInPracticeQuestions.first(where: { $0.id == draft.questionID }) {
                             vm.selectedExamQuestion = question; vm.currentDraft = draft; mode = "学习_写作_模拟机考"
@@ -177,6 +187,7 @@ public struct LumaStudyCenterHostView: View {
                 vm.storeSnapshot.importedWords=existing;vm.save()
             } catch {vm.storageError="导入失败，现有词库和记录未更改：\(error.localizedDescription)"}
         }
+        .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:mode)
         .onDisappear { vm.save(); ttsEngine.stop(); audio.stop() }
         .onChange(of:mode) { _,_ in ttsEngine.stop();audio.stop() }
         .onReceive(audio.$errorMessage) { message in if let message { vm.dictationFeedback = message } }
@@ -267,7 +278,7 @@ public struct LumaStudyCenterHostView: View {
 
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 12) {
-                        Text(submode == .wrongWordReview ? "错词复习队列" : "词汇听写 · 自然女声优先")
+                        Text(vm.dictationMachine.mode == .wrongWordReview ? "错词复习" : vm.dictationMachine.mode == .stubbornWordReview ? "顽固单词复习":"词汇听写")
                             .font(.system(size: 18, weight: .bold, design: .serif))
                             .foregroundStyle(appearance.ink)
                         Spacer()
@@ -365,6 +376,9 @@ public struct LumaStudyCenterHostView: View {
                                         .foregroundStyle(appearance.ink.opacity(0.65))
                                 }
                                 Spacer()
+                                Button("复习此词库") {
+                                    vm.selectedDeck=rec.sourceDeckID;startDictation(mode:.stubbornWordReview,resume:true);mode="学习_听力_今日计划"
+                                }
                                 Text("错误 \(rec.errorCount) 次")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(appearance.accent)
@@ -570,7 +584,7 @@ public struct LumaStudyCenterHostView: View {
                         let title=words.first?.deckTitle ?? deck
                         if deckSearch.isEmpty || title.localizedStandardContains(deckSearch) {
                             Button {
-                                vm.selectedDeck=deck;startDictation(mode:.newTask);mode="学习_听力_今日计划";answerFocused=true
+                                vm.selectedDeck=deck;startDictation(mode:.newTask,resume:true);mode="学习_听力_今日计划";answerFocused=true
                             } label: {
                                 VStack(alignment:.leading,spacing:16) {
                                     Image(systemName:"headphones").font(.system(size:30,weight:.light))
@@ -589,9 +603,15 @@ public struct LumaStudyCenterHostView: View {
         }.background(appearance.paper)
     }
 
-    private func startDictation(mode:DictationSessionMode) {
+    private func startDictation(mode:DictationSessionMode,resume:Bool=false) {
+        vm.save()
+        let key=HostStateModel.sessionKey(mode:mode,date:Self.todayDateString(),deck:vm.selectedDeck)
+        if resume,let saved=vm.storeSnapshot.dictationSessions?[key],!saved.isSessionFinished {
+            vm.dictationMachine=saved;vm.showMeaning=false;vm.dictationInput="";vm.save();speakCurrentWord();return
+        }
+        let stubbornIDs=Set(vm.storeSnapshot.stubbornWords.map(\.wordID))
         let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect }.map(\.wordID))
-        let words = allWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || wrongIDs.contains($0.id)) }
+        let words = allWords.filter { $0.deckID == vm.selectedDeck && (mode == .newTask || (mode == .stubbornWordReview ? stubbornIDs.contains($0.id):wrongIDs.contains($0.id))) }
         vm.dictationMachine = DictationSessionStateMachine(mode:mode,dateString:Self.todayDateString(),initialWords:words,existingStubbornWordsForToday:vm.storeSnapshot.stubbornWords,previousLogs:vm.storeSnapshot.dictationLogs)
         vm.showMeaning = false; vm.dictationInput = ""; vm.save(); speakCurrentWord()
     }

@@ -67,6 +67,7 @@ actor SpeechAudioCache {
     private var limit=48*1024*1024, total=0
     init(session:URLSession = URLSession(configuration:.ephemeral)) { self.session=session }
     func configure(_ bytes:Int) { limit=max(0,bytes);evict() }
+    func discard(_ key:Key) {if let data=values.removeValue(forKey:key){total-=data.count};order.removeAll{$0==key}}
     private func evict() {
         while total>limit,let key=order.first { order.removeFirst(); if let data=values.removeValue(forKey:key){total-=data.count} }
     }
@@ -138,12 +139,13 @@ actor SpeechAudioCache {
     }
     func verify(_ settings:SpeechServiceSettings) async -> Bool {
         guard isConnected,verifiedEndpoint==settings.baseURL,models.contains(settings.model) else {errorMessage=SpeechServiceError.modelUnavailable.localizedDescription;return false}
+        let validationKey=key("hello",settings,1)
         do {
-            let result=try await cache.fetch(key("hello",settings,1))
+            let result=try await cache.fetch(validationKey)
             let sample=try AVAudioPlayer(data:result.data)
             guard sample.prepareToPlay() else {throw SpeechServiceError.emptyAudio}
             errorMessage=nil;return true
-        } catch {errorMessage=error.localizedDescription;return false}
+        } catch {await cache.discard(validationKey);errorMessage=error.localizedDescription;return false}
     }
     private func key(_ text:String,_ settings:SpeechServiceSettings,_ speed:Float)->SpeechAudioCache.Key {
         .init(endpoint:settings.baseURL,model:settings.model,voice:settings.voice,text:text,speed:speed,credential:SpeechServiceCredential.load(endpoint:settings.baseURL))
@@ -176,7 +178,7 @@ actor SpeechAudioCache {
                     while player.isPlaying {try await Task.sleep(for:.milliseconds(30))}
                     if index<repeats-1 {try await Task.sleep(for:.seconds(min(5,max(0,interval))))}
                 }
-            } catch is CancellationError {} catch {errorMessage=error.localizedDescription}
+            } catch is CancellationError {} catch {await cache.discard(key);errorMessage=error.localizedDescription}
         }
     }
     func stop() {playback?.cancel();prefetch?.cancel();player?.stop();player=nil}

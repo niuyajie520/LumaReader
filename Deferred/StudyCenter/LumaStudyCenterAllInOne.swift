@@ -955,6 +955,7 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var speechService:SpeechServiceSettings? = nil
     public var speechRepeatCount:Int? = nil
     public var speechInterval:Double? = nil
+    public var dictationSessions:[String:DictationSessionStateMachine]? = nil
     public var dictationSession: DictationSessionStateMachine? = nil
     public var dictationLogs: [DictationAttemptLog]
     public var stubbornWords: [StubbornWordRecord]
@@ -1104,32 +1105,15 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
         )
     ]
 
-    public func selectBestFemaleVoice(preferredVoiceID: String?, accent: TTSVoiceAccent) -> TTSVoiceDescriptor {
-        let voices = availableVoices(for: accent).sorted { $0.id < $1.id }
-        let femaleVoices = voices.filter(\.isFemale)
-
-        // 1. Honor saved voice ID if it is still available and female
-        if let preferredID = preferredVoiceID,
-           let matched = femaleVoices.first(where: { $0.id == preferredID && $0.localeIdentifier == accent.rawValue }) {
-            return matched
-        }
-
-        // 2. Match target accent + highest tier (Kokoro Neural -> Apple Premium/Enhanced -> Standard Fallback)
-        let accentMatched = femaleVoices.filter { $0.localeIdentifier == accent.rawValue }
-        let pool = accentMatched.isEmpty ? femaleVoices : accentMatched
-
-        if let neural = pool.first(where: { $0.tier == .localNeuralKokoro }) {
-            return neural
-        }
-        if let premium = pool.first(where: { $0.tier == .applePremiumOrEnhanced }) {
-            return premium
-        }
-        if let fallback = pool.first {
-            return fallback
-        }
-
-        // Guaranteed female fallback descriptor
-        return Self.defaultVoiceCatalog[0]
+    static func preferredFemaleVoice(in voices:[TTSVoiceDescriptor],preferredVoiceID:String?,accent:TTSVoiceAccent)->TTSVoiceDescriptor? {
+        let pool=voices.filter{$0.isFemale && $0.localeIdentifier==accent.rawValue}.sorted{$0.id<$1.id}
+        if let preferredVoiceID,let saved=pool.first(where:{$0.id==preferredVoiceID}){return saved}
+        return pool.first(where:{$0.tier == .applePremiumOrEnhanced}) ?? pool.first
+    }
+    public func selectBestFemaleVoice(preferredVoiceID:String?,accent:TTSVoiceAccent)->TTSVoiceDescriptor {
+        Self.preferredFemaleVoice(in:availableVoices(for:accent),preferredVoiceID:preferredVoiceID,accent:accent)
+            ?? Self.defaultVoiceCatalog.first(where:{$0.localeIdentifier==accent.rawValue})
+            ?? Self.defaultVoiceCatalog[0]
     }
 
     /// Computes effective playback rate.

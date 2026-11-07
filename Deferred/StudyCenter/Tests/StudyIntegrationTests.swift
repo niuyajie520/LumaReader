@@ -57,4 +57,20 @@ struct StudyIntegrationTests {
         #expect(Set(restored.activeWritingDrafts.values.map(\.part1EssayText))==["original draft","new draft"])
     }
 
+    @MainActor @Test func normalAndReviewQueuesAreIndependentlyDurable()throws {
+        let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer{try? FileManager.default.removeItem(at:dir)}
+        let model=LumaStudyCenterHostView.HostStateModel(storageDirectory:dir)
+        model.dictationMachine.submitAnswer("wrong");model.save()
+        let normal=model.dictationMachine
+        model.dictationMachine=DictationSessionStateMachine(mode:.wrongWordReview,dateString:normal.dateString,initialWords:LumaStudyCenterHostView.builtInVocabularyWords)
+        model.dictationMachine.submitAnswer("wrong");model.save()
+        let reloaded=try StudyPersistenceManager(storageDirectory:dir).loadAndMigrateIfNeeded()
+        let normalKey=LumaStudyCenterHostView.HostStateModel.sessionKey(mode:.newTask,date:normal.dateString,deck:"vocab_daily")
+        let reviewKey=LumaStudyCenterHostView.HostStateModel.sessionKey(mode:.wrongWordReview,date:normal.dateString,deck:"vocab_daily")
+        #expect(reloaded.dictationSessions?[normalKey]?.sessionID==normal.sessionID)
+        #expect(reloaded.dictationSessions?[reviewKey]?.mode == .wrongWordReview)
+        #expect(reloaded.dictationSessions?[normalKey]?.pendingQueue==normal.pendingQueue)
+    }
+
 }

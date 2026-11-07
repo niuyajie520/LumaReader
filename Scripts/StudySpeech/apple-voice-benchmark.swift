@@ -25,19 +25,27 @@ import AVFAudio
 }
 try MainActor.assumeIsolated {
     _ = NSApplication.shared
-    let voices=AVSpeechSynthesisVoice.speechVoices().filter{$0.language.hasPrefix("en")}.sorted {
-        if $0.gender != $1.gender{return $0.gender == .female}
-        if $0.quality != $1.quality{return $0.quality.rawValue > $1.quality.rawValue}
-        return $0.identifier < $1.identifier
+    var reports:[[String:Any]]=[]
+    let available=AVSpeechSynthesisVoice.speechVoices()
+    for locale in ["en-GB","en-US"] {
+        let voices=available.filter{$0.language==locale}.sorted {
+            if $0.gender != $1.gender{return $0.gender == .female}
+            if $0.quality != $1.quality{return $0.quality.rawValue > $1.quality.rawValue}
+            return $0.identifier < $1.identifier
+        }
+        guard let voice=voices.first else {
+            reports.append(["locale":locale,"available":false]);continue
+        }
+        let probe=AppleSpeechProbe(voice:voice);probe.next()
+        let deadline=Date().addingTimeInterval(45)
+        while !probe.done && Date()<deadline {RunLoop.current.run(until:Date().addingTimeInterval(0.05))}
+        guard probe.done,probe.starts.count==probe.words.count else{throw NSError(domain:"AppleSpeechProbe",code:2,userInfo:[NSLocalizedDescriptionKey:"System speech callbacks incomplete"])}
+        let sorted=probe.starts.dropFirst().sorted()
+        reports.append(["locale":voice.language,"available":true,"voice":voice.identifier,"quality":voice.quality.rawValue,"startMilliseconds":probe.starts,"warmMedianMS":sorted[sorted.count/2]])
+        print("AppleSpeechProbe locale=\(locale) callbackCount=\(probe.starts.count) completed=true")
     }
-    guard let voice=voices.first else{throw NSError(domain:"AppleSpeechProbe",code:1,userInfo:[NSLocalizedDescriptionKey:"No installed English system voice"])}
-    let probe=AppleSpeechProbe(voice:voice);probe.next()
-    let deadline=Date().addingTimeInterval(45)
-    while !probe.done && Date()<deadline {RunLoop.current.run(until:Date().addingTimeInterval(0.05))}
-    guard probe.done,probe.starts.count==probe.words.count else{throw NSError(domain:"AppleSpeechProbe",code:2,userInfo:[NSLocalizedDescriptionKey:"System speech callbacks incomplete"])}
-    let sorted=probe.starts.dropFirst().sorted()
-    let report:[String:Any] = ["method":"real installed Apple system voice; AVSpeechSynthesizer didStart callback latency","voice":voice.identifier,"locale":voice.language,"quality":voice.quality.rawValue,"startMilliseconds":probe.starts,"warmMedianMS":sorted[sorted.count/2],"physicalSoundLatency":"NOT MEASURED","fallbackRate":1.0]
+    guard reports.contains(where:{$0["available"] as? Bool == true}) else{throw NSError(domain:"AppleSpeechProbe",code:1,userInfo:[NSLocalizedDescriptionKey:"No installed UK/US system voices"])}
+    let report:[String:Any] = ["method":"real installed Apple UK/US voices; AVSpeechSynthesizer didStart callback latency","voices":reports,"physicalSoundLatency":"NOT MEASURED","fallbackRate":1.0]
     let path=CommandLine.arguments.count>1 ? CommandLine.arguments[1]:"apple-speech.json"
     try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:URL(fileURLWithPath:path),options:.atomic)
-    print("AppleSpeechProbe callbackCount=\(probe.starts.count) completed=true")
 }
