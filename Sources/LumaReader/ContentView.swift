@@ -120,7 +120,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.willResignActiveNotification)) { _ in store.flush() }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in store.flush() }
         .onDisappear { chromeHideTask?.cancel(); store.flush() }
-        .onAppear { store.syncAllConnectedClouds() }
+        .onAppear {
+            store.syncAllConnectedClouds()
+            #if DEBUG
+            DebugReaderAcceptance.startIfRequested(store:store,controller:controller)
+            #endif
+        }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.didBecomeActiveNotification)) { _ in store.syncAllConnectedClouds() }
     }
 
