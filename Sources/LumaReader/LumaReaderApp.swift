@@ -12,7 +12,7 @@ struct LumaReaderApp: App {
     }
     @Environment(\.openWindow) private var openWindow
     var body: some Scene {
-        Window(L10n.text("Luma · 图书"),id:"main") {
+        Window(store.selectedBook == nil ? L10n.text("Luma · 图书") : "",id:"main") {
             ContentView(store: store).modifier(AppLanguageScope()).modifier(LumaThemeScope(store:store))
                 .frame(minWidth: 940, minHeight: 620)
                 .preferredColorScheme(store.preferredColorScheme)

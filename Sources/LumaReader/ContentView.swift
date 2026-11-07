@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var titlebarInset: CGFloat = 90
     @State private var focusHeaderShown = false
     @State private var chromeTopHovered = false
-    @State private var chromeBottomHovered = false
     @State private var chromeHeaderHovered = false
     @State private var chromeKeyboardPinned = false
     @State private var chromeHideTask: Task<Void,Never>?
@@ -91,7 +90,7 @@ struct ContentView: View {
         .onChange(of:store.selectedID) { _,id in
             activeReaderPanel = nil; showBookSearch = false; bookSearchText = ""
             chromeHideTask?.cancel(); focusHeaderShown = false; chromeKeyboardPinned = false
-            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            chromeTopHovered = false; chromeHeaderHovered = false
             // Briefly introduce the controls on entry, then let the single
             // cancellation-aware chrome timer return the reader to quiet mode.
             if id != nil { revealReaderChrome(delay:1200) }
@@ -145,11 +144,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:NSMenu.didBeginTrackingNotification)) { _ in chromeKeyboardPinned = true }
         .onReceive(NotificationCenter.default.publisher(for:NSMenu.didEndTrackingNotification)) { _ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onReceive(NotificationCenter.default.publisher(for:NSWindow.didResignKeyNotification)) { _ in
-            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            chromeTopHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
         }
         .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
-            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            chromeTopHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
         }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
@@ -252,9 +251,6 @@ struct ContentView: View {
             .background(ReaderChromeMonitor(enabled:store.selectedBook != nil,trailingInset:store.aiPanelVisible ? aiWidth+16:0,onTopHover:{ inside in
                 chromeTopHovered = inside
                 if inside { revealReaderChrome() } else { scheduleChromeHide() }
-            },onBottomHover:{ inside in
-                chromeBottomHovered = inside
-                if inside { revealReaderChrome() } else { scheduleChromeHide() }
             }).frame(width:0,height:0))
             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
                 guard width > 0 else { return }; controller.beginViewportChange(); settleAILayout(delay:140)
@@ -276,7 +272,7 @@ struct ContentView: View {
     private var chromeState:ChromeState {
         if activeReaderPanel != nil || showBookSearch || showSettings || showCustomization { return .modalOpen }
         if chromeKeyboardPinned || chromeHeaderHovered { return .interacting }
-        if chromeTopHovered || chromeBottomHovered { return .hoverVisible }
+        if chromeTopHovered { return .hoverVisible }
         if controller.hasSelection { return .selectionActive }
         return focusHeaderShown ? .pageTurnFeedback:.hidden
     }
@@ -301,9 +297,8 @@ struct ContentView: View {
                 let point = content.convert(window.mouseLocationOutsideOfEventStream, from:nil)
                 if content.bounds.contains(point) {
                     let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
-                    if fromTop > 72 && fromTop < content.bounds.height - 56 {
+                    if fromTop > 72 {
                         chromeTopHovered = false
-                        chromeBottomHovered = false
                         chromeHeaderHovered = false
                         chromeKeyboardPinned = false
                         readerBackFocused = false
@@ -312,11 +307,11 @@ struct ContentView: View {
             }
             // A keyboard shortcut is a temporary reveal, not a permanent pin.
             // Retain focus only while the user is actively hovering a control.
-            if !chromeTopHovered && !chromeBottomHovered && !chromeHeaderHovered {
+            if !chromeTopHovered && !chromeHeaderHovered {
                 chromeKeyboardPinned = false
                 readerBackFocused = false
             }
-            guard !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
+            guard !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
@@ -903,6 +898,8 @@ struct ContentView: View {
                     .keyboardShortcut(.leftArrow,modifiers:[.command,.option])
                     .disabled(controller.isTurning || !controller.presentationReady)
                     .padding(8)
+                    .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible)
+                    .accessibilityHidden(!readerChromeVisible)
                 }
             }
             .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:controller.hasSelection)
@@ -910,21 +907,6 @@ struct ContentView: View {
             // Preserve the PDF viewport height; navigation is now a non-layout overlay.
             if book.kind == "pdf" && !store.immersive { Color.clear.frame(height:40).allowsHitTesting(false) }
 
-        }
-        .overlay(alignment:.bottom) {
-            if !controller.hasSelection {
-                HStack(spacing:16) {
-                    Button { controller.move(-1) } label: { Image(systemName:"chevron.left").frame(width:36,height:36) }.disabled(!controller.canGoBack)
-                    Text(L10n.text(controller.location)).font(.caption).monospacedDigit().lineLimit(1)
-                    Button { controller.move(1) } label: { Image(systemName:"chevron.right").frame(width:36,height:36) }.disabled(!controller.canGoForward)
-                }
-                .buttonStyle(.plain).padding(.horizontal,8)
-                .readerGlass(radius:20,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
-                .padding(.bottom,6)
-                .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible)
-                .accessibilityHidden(!readerChromeVisible)
-                .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
-            }
         }
         .overlay(alignment:.top) {
             if !controller.bookmarkFeedback.isEmpty {

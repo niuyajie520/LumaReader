@@ -62,7 +62,7 @@ await page.setViewportSize({width:1280,height:840});
 await page.goto(`http://127.0.0.1:${server.address().port}/workspace.html`);
 const ai=page.frameLocator('#ai'),reader=page.frameLocator('#book');
 await ai.locator('#provider option').first().waitFor({state:'attached'});
-await reader.locator('#luma-page-numbers span').first().waitFor();
+await reader.waitForFunction(()=>window.Luma && Luma.pageState().count > 0);
 const before=await page.locator('#book').boundingBox(),side=await page.locator('#ai').boundingBox();
 ok('reading is left of AI',before.x+before.width<=side.x+2);
 await ai.getByLabel('给 AI 的问题').fill('概念和判断有什么区别？');
