@@ -950,6 +950,7 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var selectedVoiceIdentifier: String?
     public var preferredAccent: String // "en-GB" or "en-US"
     public var preferredSpeechRate: Float // 0.35 ... 0.65 (1.0x normalized = 0.5)
+    public var speechService:SpeechServiceSettings? = nil
     public var speechRepeatCount:Int? = nil
     public var speechInterval:Double? = nil
     public var dictationSession: DictationSessionStateMachine? = nil

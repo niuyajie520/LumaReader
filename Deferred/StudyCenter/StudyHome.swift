@@ -67,6 +67,7 @@ public struct LumaStudyCenterHostView: View {
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
     @StateObject private var vm:HostStateModel
+    @StateObject private var audio = SpeechAudioPipeline()
 
     private var ttsEngine:MacOSSpeechSynthesisManager { vm.speech }
 
@@ -144,9 +145,11 @@ public struct LumaStudyCenterHostView: View {
             }
         }
         }
-        .onDisappear { vm.save(); ttsEngine.stop() }
-        .onChange(of:mode) { _,_ in ttsEngine.stop() }
+        .onDisappear { vm.save(); ttsEngine.stop(); audio.stop() }
+        .onChange(of:mode) { _,_ in ttsEngine.stop();audio.stop() }
+        .onReceive(audio.$errorMessage) { message in if let message { vm.dictationFeedback = message } }
         .task {
+            if let service = vm.storeSnapshot.speechService, service.enabled { await audio.connect(service) }
             var previous = ContinuousClock.now
             while !Task.isCancelled {
                 do { try await Task.sleep(for:.seconds(1)) } catch { return }
@@ -225,23 +228,10 @@ public struct LumaStudyCenterHostView: View {
                     }
                     Button("开始听写") { startDictation(mode:.newTask) }
                     Button("错词复习") { startDictation(mode:.wrongWordReview) }
-                    Button("停止播放") { ttsEngine.stop() }
+                    Button("停止播放") { ttsEngine.stop();audio.stop() }
                     Button("听写专项设置",systemImage:"slider.horizontal.3") { vm.speechSettingsShown = true }
-                        .popover(isPresented:$vm.speechSettingsShown) {
-                            VStack(alignment:.leading,spacing:16) {
-                                Text("听写声音").font(.title2)
-                                Text("引擎：Apple 系统语音")
-                                Picker("已安装声音",selection:Binding(get:{vm.storeSnapshot.selectedVoiceIdentifier ?? ""},set:{ vm.storeSnapshot.selectedVoiceIdentifier = $0; vm.save() })) {
-                                    Text("自动选择自然女声").tag("")
-                                    ForEach(ttsEngine.availableVoices(for:vm.selectedAccent).filter { $0.localeIdentifier == vm.selectedAccent.rawValue }) { voice in
-                                        Text(voice.displayName + (voice.isFemale ? " · 女声" : " · 其他声线")).tag(voice.id)
-                                    }
-                                }
-                                Stepper("重复 \(vm.storeSnapshot.speechRepeatCount ?? 1) 次",value:Binding(get:{vm.storeSnapshot.speechRepeatCount ?? 1},set:{vm.storeSnapshot.speechRepeatCount = $0;vm.save()}),in:1...5)
-                                Slider(value:Binding(get:{vm.storeSnapshot.speechInterval ?? 0.5},set:{vm.storeSnapshot.speechInterval = $0;vm.save()}),in:0...5)
-                                Text("重复间隔 \(vm.storeSnapshot.speechInterval ?? 0.5,specifier:"%.1f") 秒")
-                                Text("本地神经模型未安装；云端语音尚未配置。").font(.caption).foregroundStyle(.secondary)
-                            }.padding(24).frame(width:360)
+                        .sheet(isPresented:$vm.speechSettingsShown) {
+                            SpeechSettingsPanel(audio:audio,settings:Binding(get:{vm.storeSnapshot.speechService ?? SpeechServiceSettings()},set:{vm.storeSnapshot.speechService=$0;vm.save()}),voiceID:Binding(get:{vm.storeSnapshot.selectedVoiceIdentifier ?? ""},set:{vm.storeSnapshot.selectedVoiceIdentifier=$0;vm.save()}),accent:$vm.selectedAccent,rate:$vm.speechRateMultiplier,repeats:Binding(get:{vm.storeSnapshot.speechRepeatCount ?? 1},set:{vm.storeSnapshot.speechRepeatCount=$0;vm.save()}),interval:Binding(get:{vm.storeSnapshot.speechInterval ?? 0.5},set:{vm.storeSnapshot.speechInterval=$0;vm.save()}),voices:ttsEngine.availableVoices(for:vm.selectedAccent),onClose:{vm.save();vm.speechSettingsShown=false})
                         }
                 }.padding(.horizontal,32)
                 Text("词汇练习 · 内置 4 个示例词 · 今日已听写 \(DictationSessionStateMachine.todayDictatedWordCount(from:vm.storeSnapshot.dictationLogs,on:Self.todayDateString())) 个单词")
@@ -516,6 +506,13 @@ public struct LumaStudyCenterHostView: View {
 
     private func speakCurrentWord() {
         guard let word = vm.dictationMachine.currentWord else { return }
+        if let service = vm.storeSnapshot.speechService,service.enabled {
+            ttsEngine.stop()
+            let next = vm.dictationMachine.pendingQueue.dropFirst().map(\.word)
+            audio.play(text:word.word,next:Array(next),settings:service,speed:vm.speechRateMultiplier,repeats:vm.storeSnapshot.speechRepeatCount ?? 1,interval:vm.storeSnapshot.speechInterval ?? 0.5)
+            return
+        }
+        audio.stop()
         let voices = ttsEngine.availableVoices(for:vm.selectedAccent)
         let selected = voices.first { $0.id == vm.storeSnapshot.selectedVoiceIdentifier && $0.localeIdentifier == vm.selectedAccent.rawValue }
         let voice = selected ?? ttsEngine.selectBestFemaleVoice(
