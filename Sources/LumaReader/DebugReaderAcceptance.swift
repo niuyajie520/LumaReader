@@ -23,7 +23,8 @@ import ZIPFoundation
         return LibraryStore(root:root(token).appendingPathComponent("library"))
     }
     static func startIfRequested(store:LibraryStore,controller:ReaderController) {
-        guard !started, let token, store.root == root(token).appendingPathComponent("library") else { return }
+        guard !started, let token,
+              store.root.standardizedFileURL.path == root(token).appendingPathComponent("library").standardizedFileURL.path else { return }
         started = true
         Task { @MainActor in
             var report:[String:Any] = ["status":"FAIL", "method":"Debug app process with native SwiftUI lifecycle", "physicalInput":"NOT RUN"]
