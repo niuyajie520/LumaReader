@@ -1042,10 +1042,10 @@ extension ReaderController: WKScriptMessageHandler, WKNavigationDelegate {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if navigationAction.navigationType == .linkActivated {
             let sameDocument = url.isFileURL && url.deletingPathExtension().lastPathComponent.hasPrefix(".luma-") && url.fragment != nil &&
-                url.deletingLastPathComponent().standardizedFileURL == webView.url?.deletingLastPathComponent().standardizedFileURL
+                url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL == webView.url?.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
             decisionHandler(sameDocument ? .allow : .cancel); return
         }
-        let allowed = url.isFileURL && epub.map { url.standardizedFileURL.path.hasPrefix($0.root.standardizedFileURL.path + "/") } == true
+        let allowed = epub.map { ReaderFileNavigation.contains(url,in:$0.root) } == true
         decisionHandler(allowed ? .allow : .cancel)
     }
 }
