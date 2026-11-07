@@ -80,6 +80,12 @@ actor SpeechAudioCache {
             return Result(data:data,cacheHit:true,milliseconds:Self.ms(start.duration(to:.now)))
         }
         if let pending=inFlight[key] { return Result(data:try await pending.value,cacheHit:false,milliseconds:Self.ms(start.duration(to:.now))) }
+        while inFlight.count>=2 {
+            try Task.checkCancellation()
+            if let pending=inFlight.values.first {_ = try? await pending.value}
+            await Task.yield()
+        }
+        try Task.checkCancellation()
         guard let base=URL(string:key.endpoint) else { throw SpeechServiceError.invalidEndpoint }
         let session=self.session
         let task=Task<Data,Error> {
@@ -161,7 +167,7 @@ actor SpeechAudioCache {
                         lastPlayerSubmissionMS=SpeechAudioCache.ms(started.duration(to:.now))
                         playbackEvidence=String(format:"%@ · 音频获取 %.1f ms · 播放器准备/提交 %.1f ms",result.cacheHit ? "缓存命中":"新生成",result.milliseconds,SpeechAudioCache.ms(started.duration(to:.now)))
                         let keys=next.prefix(settings.profile.lookAhead).map{self.key($0,settings,key.speed)}
-                        prefetch=Task { [cache] in
+                        prefetch=Task(priority:.utility) { [cache] in
                             for key in keys {if Task.isCancelled{return};_ = try? await cache.fetch(key)}
                         }
                     }

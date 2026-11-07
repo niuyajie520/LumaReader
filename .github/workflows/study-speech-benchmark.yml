@@ -69,7 +69,17 @@ jobs:
           else:
               raise RuntimeError('Resident model worker did not become ready')
           PY
-          LUMA_REAL_SPEECH_URL=http://127.0.0.1:8765/v1 LUMA_REAL_SPEECH_MODEL="$MODEL_ID" swift test --package-path Deferred/StudyCenter --filter SpeechPipelinePlaybackTests > "$RUNNER_TEMP/study-real-playback.log" 2>&1
+          if ! LUMA_REAL_SPEECH_URL=http://127.0.0.1:8765/v1 LUMA_REAL_SPEECH_MODEL="$MODEL_ID" swift test --package-path Deferred/StudyCenter --filter SpeechPipelinePlaybackTests > "$RUNNER_TEMP/study-real-playback.log" 2>&1; then
+            python - <<'DIAGNOSTIC'
+          import os,re
+          from pathlib import Path
+          text=(Path(os.environ['RUNNER_TEMP'])/'study-real-playback.log').read_text()
+          for line in text.splitlines():
+              if any(marker in line for marker in ['error:', 'recorded an issue', 'Expectation failed', 'SpeechPlaybackProbe', 'Test run', 'failed after']):
+                  print(re.sub(r'/Users/[^\s:]+','[runner-path]',line))
+          DIAGNOSTIC
+            exit 1
+          fi
           python - <<'PY'
           import json,os,re
           from pathlib import Path
@@ -80,6 +90,7 @@ jobs:
           Path('speech-evidence/playback.json').write_text(json.dumps({'method':'production Swift cache and AVAudioPlayer; real generated WAV','cacheHit':True,'playerPrepareAndSubmitMS':float(match[1]),'physicalSoundLatency':'NOT MEASURED','within300MSTarget':float(match[1])<300},indent=2))
           PY
       - name: Upload numeric model measurements
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: study-speech-${{ matrix.model }}

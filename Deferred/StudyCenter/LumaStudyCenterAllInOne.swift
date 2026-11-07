@@ -908,6 +908,7 @@ public struct WritingExamDraftState: Codable, Equatable, Identifiable, Sendable 
     public var isSingleTaskMode: Bool
     public var lastSavedAt: Date
     public var containsLegacyNonEnglishNotice: Bool
+    public var promptHighlights:[Int:[StudyTextHighlight]]? = nil
 }
 
 public struct IELTSFourCriteriaEstimate: Codable, Equatable, Sendable {
@@ -2050,7 +2051,11 @@ public struct IELTSWritingExamSplitPaneView: View {
             HSplitView {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 16) {
-                            StudyPromptView(text:draft.activePart == .part1 ? question.promptText : (question.companionTask2Prompt ?? "Write about the following topic."))
+                            StudyPromptView(text:draft.activePart == .part1 ? question.promptText : (question.companionTask2Prompt ?? "Write about the following topic."),highlights:Binding(get:{draft.promptHighlights?[draft.activePart.rawValue] ?? []},set:{ ranges in
+                                    if draft.promptHighlights==nil{draft.promptHighlights=[:]}
+                                    draft.promptHighlights?[draft.activePart.rawValue]=ranges
+                                    onAutoSave(draft)
+                                }))
                                 .frame(minHeight:220)
 
                             if draft.activePart == .part1, let dataset = question.chartDataset {

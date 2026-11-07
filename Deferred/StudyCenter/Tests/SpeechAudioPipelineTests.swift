@@ -9,7 +9,11 @@ final class SpeechHTTPFixture:URLProtocol,@unchecked Sendable {
         var status=200
         func reset(status:Int=200){lock.lock();defer{lock.unlock()};requests=[];self.status=status}
         func response(_ request:URLRequest)->(Int,Data){
-            lock.lock();defer{lock.unlock()};requests.append(request)
+            lock.lock();defer{lock.unlock()}
+            if request.url?.host=="playback.example.invalid" {
+                return (200,request.url!.lastPathComponent=="models" ? Data(#"{"data":[{"id":"fixture-tts"}]}"#.utf8):Self.wave)
+            }
+            requests.append(request)
             if request.url!.lastPathComponent=="models" {return(status,Data(#"{"data":[{"id":"fixture-tts"}]}"#.utf8))}
             return(status,Self.wave)
         }
@@ -80,10 +84,10 @@ struct SpeechPipelinePlaybackTests {
     @MainActor @Test func verifiedAudioStartsFromWarmCacheAndStops()async throws {
         let live=ProcessInfo.processInfo.environment["LUMA_REAL_SPEECH_URL"]
         let config=URLSessionConfiguration.ephemeral
-        if live==nil {config.protocolClasses=[SpeechHTTPFixture.self];SpeechHTTPFixture.state.reset()}
+        if live==nil {config.protocolClasses=[SpeechHTTPFixture.self]}
         let pipeline=SpeechAudioPipeline(session:URLSession(configuration:config))
         var settings=SpeechServiceSettings()
-        settings.baseURL=live ?? "https://speech.example.invalid/v1"
+        settings.baseURL=live ?? "https://playback.example.invalid/v1"
         settings.model=ProcessInfo.processInfo.environment["LUMA_REAL_SPEECH_MODEL"] ?? "fixture-tts"
         settings.voice="default"
         await pipeline.connect(settings)
