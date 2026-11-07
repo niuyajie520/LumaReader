@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import WebKit
 import PDFKit
+import QuartzCore
 import Testing
 import ZIPFoundation
 @testable import LumaReader
@@ -15,7 +16,12 @@ import ZIPFoundation
         NSApp.setActivationPolicy(.regular)
         NSApp.finishLaunching()
     }
-    private func pump() { _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002)) }
+    private func pump() {
+        while let event = NSApp.nextEvent(matching:.any,until:Date(),inMode:.default,dequeue:true) { NSApp.sendEvent(event) }
+        NSApp.updateWindows()
+        _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002))
+        CATransaction.flush()
+    }
     private func pause(_ ms:Int) async throws {
         let deadline = Date().addingTimeInterval(Double(ms)/1000)
         while Date() < deadline { pump(); try await Task.sleep(for:.milliseconds(10)) }
@@ -34,7 +40,7 @@ import ZIPFoundation
         try FileManager.default.createDirectory(at:source.appendingPathComponent("META-INF"),withIntermediateDirectories:true)
         try "<container xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"book.opf\"/></rootfiles></container>".write(to:source.appendingPathComponent("META-INF/container.xml"),atomically:true,encoding:.utf8)
         try "<package xmlns=\"http://www.idpf.org/2007/opf\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>Synthetic Reader Fixture</dc:title><dc:creator>Luma Test</dc:creator></metadata><manifest><item id=\"c\" href=\"chapter.xhtml\" media-type=\"application/xhtml+xml\"/></manifest><spine><itemref idref=\"c\"/></spine></package>".write(to:source.appendingPathComponent("book.opf"),atomically:true,encoding:.utf8)
-        let paragraphs = (0..<400).map { "<p>Fixture paragraph \($0). This synthetic text tests stable reading layout. 测试文字与阅读布局。</p>" }.joined()
+        let paragraphs = (0..<1200).map { "<p>Fixture paragraph \($0). This synthetic text tests stable reading layout. 测试文字与阅读布局。</p>" }.joined()
         try ("<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><h1>Synthetic Reader</h1>"+paragraphs+"</body></html>").write(to:source.appendingPathComponent("chapter.xhtml"),atomically:true,encoding:.utf8)
         let file = root.appendingPathComponent("fixture.epub")
         try FileManager.default.zipItem(at:source,to:file,shouldKeepParent:false)
@@ -56,6 +62,7 @@ import ZIPFoundation
     }
     private func webState(_ web:WKWebView) async {
         print("ReaderFixture native window=\(web.window != nil) visible=\(web.window?.isVisible == true) hidden=\(web.isHiddenOrHasHiddenAncestor) loading=\(web.isLoading) fileURL=\(web.url?.isFileURL == true) urlPresent=\(web.url != nil) nonemptyVisibleRect=\(!web.visibleRect.isEmpty)")
+        print("ReaderFixture windowUnoccluded=\(web.window?.occlusionState.contains(.visible) == true) alphaVisible=\(web.alphaValue > 0.9)")
         let script = "JSON.stringify({ready:document.readyState,hidden:document.hidden,engine:!!window.Luma,width:innerWidth,height:innerHeight,content:!!document.getElementById('luma-content')})"
         await withCheckedContinuation { (continuation:CheckedContinuation<Void,Never>) in
             web.evaluateJavaScript(script,in:nil,in:WKContentWorld.world(name:"LumaReader")) { result in
@@ -81,6 +88,16 @@ import ZIPFoundation
         let png = try #require(bitmap.representation(using:.png,properties:[:]))
         try png.write(to:URL(fileURLWithPath:folder).appendingPathComponent(name+".png"),options:.atomic)
     }
+    private func readerJavaScript(_ web:WKWebView,_ script:String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            web.evaluateJavaScript(script,in:nil,in:WKContentWorld.world(name:"LumaReader")) { result in
+                switch result {
+                case .success(let value): continuation.resume(returning:value as? String ?? "")
+                case .failure(let error): continuation.resume(throwing:error)
+                }
+            }
+        }
+    }
     @Test func syntheticEPUBChromeRevealsHidesAndKeepsWebView() async throws {
         prepareApplication()
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticUI-"+UUID().uuidString)
@@ -95,8 +112,10 @@ import ZIPFoundation
         let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
         window.isReleasedWhenClosed = false; window.contentViewController = hostController
         window.setContentSize(NSSize(width:1100,height:760))
+        window.level = .floating
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps:true)
         hosting.layoutSubtreeIfNeeded()
         store.open(book)
@@ -123,6 +142,7 @@ import ZIPFoundation
         try mouse(window,x:150,y:window.contentView!.bounds.height-10)
         try await pause(300)
         #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
+        #expect(NativeWindowControls.snapshot(window).values.allSatisfy { $0 })
         try screenshot(hosting,name:"reader-top-synthetic")
         try mouse(window,x:150,y:300)
         try await pause(1700)
@@ -168,6 +188,26 @@ import ZIPFoundation
         try await readerSnapshot(web,name:"epub-narrow-ai-content-synthetic")
         store.aiPanelVisible = false
         try await pause(1600)
+        let selected = try await readerJavaScript(web,"var r=document.caretRangeFromPoint(innerWidth/2,100);if(r&&r.startContainer.nodeType===3){r.setEnd(r.startContainer,Math.min(r.startContainer.length,r.startOffset+5));getSelection().removeAllRanges();getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));}String(getSelection())")
+        try #require(!selected.isEmpty)
+        try await until { controller.hasSelection }
+        #expect(controller.selectedQuote == selected)
+        let selectionSize = web.bounds.size
+        try mouse(window,x:150,y:window.contentView!.bounds.height-10)
+        try await pause(300)
+        #expect(controller.hasSelection)
+        #expect(web.bounds.size == selectionSize)
+        #expect(try await readerJavaScript(web,"String(getSelection())") == selected)
+        controller.highlight(.purple)
+        try await until { !controller.hasSelection && store.selectedBook?.notes.count == 1 }
+        #expect(store.selectedBook?.notes.first?.quote == selected)
+        store.showInspector = false
+        controller.addBookmark()
+        store.flush()
+        let restored = LibraryStore(root:store.root)
+        #expect(restored.books.first?.notes.first?.quote == selected)
+        #expect(restored.books.first?.bookmarks == store.selectedBook?.bookmarks)
+        print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
     }
     @Test func syntheticPDFChromeKeepsViewportAndReadingPosition() async throws {
@@ -194,6 +234,7 @@ import ZIPFoundation
         let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
         window.isReleasedWhenClosed = false; window.contentViewController = hostController
         window.setContentSize(NSSize(width:1100,height:760))
+        window.level = .floating
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
         store.open(try #require(store.books.first))
