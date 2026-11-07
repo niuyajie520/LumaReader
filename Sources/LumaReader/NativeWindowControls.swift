@@ -24,10 +24,12 @@ import ObjectiveC
         let revision = state.revision
         let buttons = [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton].compactMap { window.standardWindowButton($0) }
         for button in buttons {
-            if controlsVisible { button.isHidden = false }
-            // Hidden native views already leave hit testing. Keep window/menu actions
-            // available while chrome is hidden (in particular toggleFullScreen).
-            if window.attachedSheet == nil { button.isEnabled = true }
+            if controlsVisible {
+                button.isHidden = false
+                // macOS may disable a standard titlebar button while it is hidden.
+                // Re-enable it when revealed; window/menu actions remain NSWindow-owned.
+                if window.attachedSheet == nil { button.isEnabled = true }
+            }
         }
         if animated {
             NSAnimationContext.runAnimationGroup { context in

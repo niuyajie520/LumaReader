@@ -301,9 +301,17 @@ import ZIPFoundation
                        "collectionBehavior":window.collectionBehavior.rawValue,"styleMask":window.styleMask.rawValue,
                        "attachedSheet":window.attachedSheet != nil,"zoomEnabled":window.standardWindowButton(.zoomButton)?.isEnabled == true]
         try await until { NSApp.isActive && window.isKeyWindow }
-        try check(window.standardWindowButton(.zoomButton)?.isEnabled == true)
+        // The zoom button can be disabled by AppKit while immersive chrome is hidden.
+        // Test NSWindow's fullscreen action itself, including in that hidden state.
+        try check(window.styleMask.contains(.resizable))
         window.toggleFullScreen(nil)
-        try await until { window.styleMask.contains(.fullScreen) }
+        do { try await until { window.styleMask.contains(.fullScreen) } }
+        catch {
+            windowState["afterToggleStyleMask"] = window.styleMask.rawValue
+            windowState["afterToggleZoomEnabled"] = window.standardWindowButton(.zoomButton)?.isEnabled == true
+            windowState["afterToggleWindowKey"] = window.isKeyWindow
+            throw error
+        }
         try await pause(1200)
         try check(controller.illustrationWebView === web)
         try check(store.error == nil)
