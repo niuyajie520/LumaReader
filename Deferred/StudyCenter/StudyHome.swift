@@ -595,10 +595,18 @@ public struct LumaStudyCenterHostView: View {
                     VStack(alignment:.leading,spacing:6) {Text("听力").font(.largeTitle);Text("选择词库，听音默写").foregroundStyle(.secondary)}
                     Spacer()
                     TextField("搜索词库",text:$deckSearch).textFieldStyle(.roundedBorder).frame(maxWidth:240)
-                    Button("到期复习") {startDictation(mode:.wrongWordReview,dueOnly:true);mode="学习_听力_错词复习"}
                     Button("导入词库",systemImage:"square.and.arrow.down") {importShown=true}
                 }
                 Text("支持 UTF-8 TSV（英文、中文两列）或 JSON 数组（word、meaning）。").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Picker("复习词库",selection:$vm.selectedDeck) {
+                        ForEach(Array(Set(allWords.map(\.deckID))).sorted(),id:\.self){deck in
+                            Text(allWords.first{$0.deckID==deck}?.deckTitle ?? deck).tag(deck)
+                        }
+                    }.frame(maxWidth:260)
+                    Text("到期 \(dueReviewCount) 个").font(.caption)
+                    Button("开始到期复习") {startDictation(mode:.wrongWordReview,dueOnly:true);mode="学习_听力_错词复习"}.disabled(dueReviewCount==0)
+                }
                 LazyVGrid(columns:[GridItem(.adaptive(minimum:170,maximum:220),spacing:24)],alignment:.leading,spacing:24) {
                     ForEach(Array(Set(allWords.map(\.deckID))).sorted(),id:\.self) {deck in
                         let words=allWords.filter{$0.deckID==deck}
@@ -624,6 +632,11 @@ public struct LumaStudyCenterHostView: View {
         }.background(appearance.paper)
     }
 
+    private var dueReviewCount:Int {
+        let wrong=Set(vm.storeSnapshot.dictationLogs.filter{!$0.isCorrect}.map(\.wordID))
+        let quarantined=Set(vm.storeSnapshot.stubbornWords.filter{$0.dateString==Self.todayDateString()}.map(\.wordID))
+        return allWords.filter{$0.deckID==vm.selectedDeck && wrong.contains($0.id) && !quarantined.contains($0.id) && (vm.storeSnapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast)<=Date()}.count
+    }
     private func startDictation(mode:DictationSessionMode,resume:Bool=false,dueOnly:Bool=false) {
         vm.save()
         let key=HostStateModel.sessionKey(mode:mode,date:Self.todayDateString(),deck:vm.selectedDeck)
