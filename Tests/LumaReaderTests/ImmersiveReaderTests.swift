@@ -166,7 +166,7 @@ import Testing
         #expect(window.standardWindowButton(.closeButton)?.alphaValue == 1)
         NativeWindowControls.restore(window,controlsVisible:false,animated:true)
         try await pause(400)
-        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
     }
 }
 
