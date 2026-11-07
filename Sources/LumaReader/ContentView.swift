@@ -131,6 +131,7 @@ struct ContentView: View {
         .onDisappear { chromeHideTask?.cancel(); store.flush() }
         .onAppear {
             store.syncAllConnectedClouds()
+            if store.selectedBook != nil { scheduleChromeHide() }
             #if DEBUG
             DebugReaderAcceptance.startIfRequested(store:store,controller:controller)
             #endif
