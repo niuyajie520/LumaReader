@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import PDFKit
 import Testing
 import ZIPFoundation
 @testable import LumaReader
@@ -57,6 +58,20 @@ import ZIPFoundation
             }
         }
     }
+    private func readerSnapshot(_ web:WKWebView,name:String) async throws {
+        guard let folder = ProcessInfo.processInfo.environment["LUMA_SYNTHETIC_UI_EVIDENCE"] else { return }
+        let image:NSImage = try await withCheckedThrowingContinuation { continuation in
+            web.takeSnapshot(with:nil) { image,error in
+                if let error { continuation.resume(throwing:error) }
+                else if let image { continuation.resume(returning:image) }
+                else { continuation.resume(throwing:CocoaError(.fileReadUnknown)) }
+            }
+        }
+        let tiff = try #require(image.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data:tiff))
+        let png = try #require(bitmap.representation(using:.png,properties:[:]))
+        try png.write(to:URL(fileURLWithPath:folder).appendingPathComponent(name+".png"),options:.atomic)
+    }
     @Test func syntheticEPUBChromeRevealsHidesAndKeepsWebView() async throws {
         _ = NSApplication.shared
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticUI-"+UUID().uuidString)
@@ -88,6 +103,7 @@ import ZIPFoundation
         try await pause(1000)
         let web = try #require(controller.illustrationWebView)
         let size = web.bounds.size
+        try await readerSnapshot(web,name:"epub-rendered-content-synthetic")
         #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
         try screenshot(hosting,name:"reader-hidden-synthetic")
         try mouse(window,x:150,y:window.contentView!.bounds.height-10)
@@ -110,6 +126,81 @@ import ZIPFoundation
         try await pause(1700)
         #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
         #expect(controller.illustrationWebView === web)
+        for _ in 0..<20 {
+            let before = store.selectedBook?.readerOffset
+            #expect(controller.canGoForward)
+            controller.move(1)
+            try await until { !controller.isTurning && store.selectedBook?.readerOffset != before }
+            #expect(controller.illustrationWebView === web)
+            #expect(store.error == nil)
+        }
+        let saved = try #require(store.selectedBook?.readerAnchor)
+        for _ in 0..<10 {
+            store.aiPanelVisible = true
+            try await pause(70)
+            store.aiPanelVisible = false
+        }
+        try await pause(1600)
+        #expect(controller.illustrationWebView === web)
+        #expect(store.selectedBook?.readerAnchor == saved)
+        #expect(store.error == nil)
+        window.setContentSize(NSSize(width:760,height:620))
+        store.aiPanelVisible = true
+        store.aiPanelExpanded = true
+        try await pause(1600)
+        #expect(web.bounds.width >= 300)
+        #expect(controller.illustrationWebView === web)
+        #expect(store.error == nil)
+        try await readerSnapshot(web,name:"epub-narrow-ai-content-synthetic")
+        store.aiPanelVisible = false
+        try await pause(1600)
+        print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
+    }
+    @Test func syntheticPDFChromeKeepsViewportAndReadingPosition() async throws {
+        _ = NSApplication.shared
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaSyntheticPDF-"+UUID().uuidString)
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:root) }
+        let document = PDFDocument()
+        for index in 0..<48 {
+            let image = NSImage(size:NSSize(width:600,height:800),flipped:false) { rect in
+                NSColor.white.setFill(); rect.fill()
+                ("Synthetic PDF page \(index+1)" as NSString).draw(at:NSPoint(x:40,y:700),withAttributes:[.font:NSFont.systemFont(ofSize:22),.foregroundColor:NSColor.black])
+                return true
+            }
+            document.insert(try #require(PDFPage(image:image)),at:index)
+        }
+        let file = root.appendingPathComponent("fixture.pdf")
+        try #require(document.write(to:file))
+        let store = LibraryStore(root:root.appendingPathComponent("library"))
+        #expect(await store.importFiles([file],provider:nil) == 1)
+        let controller = ReaderController()
+        let hosting = NSHostingView(rootView:ContentView(store:store,controller:controller))
+        let window = NSWindow(contentRect:NSRect(x:100,y:100,width:1100,height:760),styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed = false; window.contentView = hosting
+        defer { window.close(); store.reader = nil; store.ai.flushHistory() }
+        window.makeKeyAndOrderFront(nil)
+        store.open(try #require(store.books.first))
+        try await until { controller.presentationReady && controller.currentPDFPage != nil }
+        try await pause(1000)
+        let page = try #require(controller.currentPDFPage)
+        let bounds = page.bounds(for:.mediaBox)
+        let view = try #require(hosting.subviews.recursivePDFView)
+        let size = view.bounds.size
+        for _ in 0..<20 {
+            try mouse(window,x:150,y:window.contentView!.bounds.height-10)
+            try await pause(25)
+            try mouse(window,x:150,y:10)
+            try await pause(25)
+            #expect(controller.currentPDFPage === page)
+            #expect(view.bounds.size == size)
+            #expect(page.bounds(for:.mediaBox) == bounds)
+        }
+        try mouse(window,x:150,y:300)
+        try await pause(1700)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+        #expect(store.error == nil)
+        print("ReaderFixture pdfEdgeCrossings=true viewportStable=true pagePreserved=true")
     }
     @Test func nativeFadeReversalsDoNotApplyStaleHiddenState() async throws {
         _ = NSApplication.shared
@@ -126,6 +217,16 @@ import ZIPFoundation
         NativeWindowControls.restore(window,controlsVisible:false,animated:true)
         try await pause(400)
         #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+    }
+}
+
+private extension Array where Element == NSView {
+    @MainActor var recursivePDFView:PDFView? {
+        for view in self {
+            if let pdf = view as? PDFView { return pdf }
+            if let pdf = view.subviews.recursivePDFView { return pdf }
+        }
+        return nil
     }
 }
 
