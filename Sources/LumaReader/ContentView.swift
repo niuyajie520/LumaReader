@@ -382,13 +382,37 @@ struct ContentView: View {
                     .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
                     .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
             }
-            headerTitle.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false).opacity(readerChromeVisible && availableWidth >= 640 ? 1:0)
-            HStack(spacing:3) { headerActions(itemWidth:itemWidth) }.padding(3)
-                .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { store.selectedBook == nil ? $0:nil }
-                .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+            Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false)
+            if store.selectedBook != nil {
+                HStack(spacing:10) {
+                    HStack(spacing:3) { readerUtilityActions(itemWidth:itemWidth) }.padding(3)
+                        .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                    readerBookmarkAction(itemWidth:itemWidth)
+                        .padding(3)
+                        .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                }
                 .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
+            } else {
+                HStack(spacing:3) { headerActions(itemWidth:itemWidth) }.padding(3)
+                    .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+                    .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+            }
         }.buttonStyle(InteractiveToolbarButtonStyle()).padding(.horizontal,12).frame(height:64)
-            .background(store.paper(dark:colorScheme == .dark).opacity(readerChromeVisible ? 1:0))
+            .overlay(alignment:.center) {
+                if let book = store.selectedBook {
+                    // Apple Books-style quiet reading: the title stays centered,
+                    // while every actionable control fades away.
+                    Text(book.title)
+                        .font(store.homeFont(13,weight:.medium))
+                        .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink.opacity(0.55))
+                        .lineLimit(1)
+                        .frame(maxWidth:max(160,availableWidth*0.34))
+                        .allowsHitTesting(false)
+                } else {
+                    headerTitle.allowsHitTesting(false)
+                }
+            }
+            .background(store.selectedBook == nil ? store.paper(dark:colorScheme == .dark):.clear)
         }
     
     }
@@ -410,19 +434,8 @@ struct ContentView: View {
             } label: { Image(systemName:"ellipsis.circle").frame(width:40,height:44) }.help(L10n.text("显示与排序"))
         }
         if store.selectedBook != nil {
-            Button { controller.addBookmark() } label: {
-                Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:itemWidth,height:44)
-                    .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
-                        icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
-                    } animation: { _ in MotionTokens.micro }
-            }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
-                .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
-            Button { closeReaderPanels(); showSettings = true } label: {
-                AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
-            }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
-            Button { store.aiPanelVisible.toggle() } label: {
-                Image(systemName:"sparkles").frame(width:itemWidth,height:44)
-            }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
+            readerBookmarkAction(itemWidth:itemWidth)
+            readerUtilityActions(itemWidth:itemWidth)
         } else {
             Button { showCustomization = true } label: { Image(systemName:"slider.horizontal.3").frame(width:itemWidth,height:44) }
                 .help(L10n.text("外观与排版")).accessibilityLabel(L10n.text("外观与排版"))
@@ -431,6 +444,24 @@ struct ContentView: View {
             Button { store.aiPanelVisible.toggle() } label: { Image(systemName:"sparkles").frame(width:itemWidth,height:44) }
                 .help(L10n.text("AI 助手")).accessibilityLabel(L10n.text("AI 助手"))
         }
+    }
+
+    private func readerBookmarkAction(itemWidth:CGFloat)->some View {
+        Button { controller.addBookmark() } label: {
+            Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:itemWidth,height:44)
+                .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
+                    icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
+                } animation: { _ in MotionTokens.micro }
+        }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
+            .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
+    }
+    @ViewBuilder private func readerUtilityActions(itemWidth:CGFloat)->some View {
+        Button { closeReaderPanels(); showSettings = true } label: {
+            AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
+        }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
+        Button { store.aiPanelVisible.toggle() } label: {
+            Image(systemName:"sparkles").frame(width:itemWidth,height:44)
+        }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
     }
 
     private var readerPanelPresented:Binding<Bool> {
