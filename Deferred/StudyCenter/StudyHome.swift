@@ -11,15 +11,16 @@ public struct LumaStudyCenterHostView: View {
     final class HostStateModel: ObservableObject {
         @Published var storageError: String?
         var persistence: StudyPersistenceManager?
-        init() {
+        init(storageDirectory:URL? = nil) {
             do {
-                let directory = try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
-                    .appendingPathComponent("LumaReader/StudyCenter",isDirectory:true)
+                let directory:URL
+                if let storageDirectory { directory = storageDirectory }
+                else { directory = try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true).appendingPathComponent("LumaReader/StudyCenter",isDirectory:true) }
                 let manager = try StudyPersistenceManager(storageDirectory:directory)
                 let saved = try manager.loadAndMigrateIfNeeded()
                 persistence = manager; storeSnapshot = saved
                 selectedAccent = TTSVoiceAccent(rawValue:saved.preferredAccent) ?? .british
-                speechRateMultiplier = saved.preferredSpeechRate
+                speechRateMultiplier = saved.preferredSpeechRate < 0.7 ? saved.preferredSpeechRate * 2 : saved.preferredSpeechRate
                 if let session = saved.dictationSession { dictationMachine = session }
             } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
         }
@@ -61,11 +62,12 @@ public struct LumaStudyCenterHostView: View {
         @Published var statsScope: StudyStatisticsScope = .all
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
-    @StateObject private var vm = HostStateModel()
+    @StateObject private var vm:HostStateModel
 
     private let ttsEngine = MacOSSpeechSynthesisManager()
 
-    public init(mode: Binding<String>) {
+    public init(mode: Binding<String>, storageDirectory:URL? = nil) {
+        self._vm = StateObject(wrappedValue:HostStateModel(storageDirectory:storageDirectory))
         self._mode = mode
     }
 

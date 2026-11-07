@@ -958,7 +958,7 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
         sidebarState: SidebarExpansionState = SidebarExpansionState(),
         selectedVoiceIdentifier: String? = nil,
         preferredAccent: String = "en-GB",
-        preferredSpeechRate: Float = 0.5,
+        preferredSpeechRate: Float = 1.0,
         dictationLogs: [DictationAttemptLog] = [],
         stubbornWords: [StubbornWordRecord] = [],
         activeWritingDrafts: [String: WritingExamDraftState] = [:],

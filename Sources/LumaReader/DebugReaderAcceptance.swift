@@ -11,6 +11,8 @@ import ZIPFoundation
         guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) else { return nil }
         return UUID(uuidString:String(arg.dropFirst(prefix.count)))
     }
+    static var studyMounted = false
+    static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
     private static var phase = "startup"
     private static var failedLine:UInt = 0
@@ -342,6 +344,15 @@ import ZIPFoundation
         print("ReaderFixture keyboardChrome=true themedReading=true loadedFullscreen=true")
         print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
+        phase = "study-entry"
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until { studyMounted }
+        try await pause(700)
+        try screenshot(hosting,name:"study-home-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-dictation-synthetic")
+        print("StudyFixture mainAppMounted=true isolatedStorage=true")
         phase = "complete"
     }
 }

@@ -136,6 +136,9 @@ struct ContentView: View {
 
     private var lumaReaderChrome: some View {
         lumaNavigation
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
+            store.returnToLibrary(); studyMode = notice.userInfo?["mode"] as? String ?? "学习"; studyVisible = true
+        }
         .onReceive(NotificationCenter.default.publisher(for:.lumaFindInBook)) { _ in
             guard store.selectedBook != nil else { return }; activeReaderPanel = nil; showBookSearch = true
         }
@@ -349,7 +352,7 @@ struct ContentView: View {
     private var primaryContent:some View {
         Group {
             if let book = store.selectedBook { reading(book).transition(.opacity) }
-            else if studyVisible { LumaStudyCenterHostView(mode:$studyMode) }
+            else if studyVisible { StudyCenterScreen(mode:$studyMode) }
             else if store.showStatistics { StatisticsView(activity:store.activity,theme:store.theme,store:store).transition(.opacity) }
             else { library.transition(.opacity) }
         }
