@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Combine
+#if canImport(SwiftUI) && canImport(AppKit)
 
 @MainActor
 public struct LumaStudyCenterHostView: View {
@@ -209,14 +210,8 @@ public struct LumaStudyCenterHostView: View {
                     Button("错词复习") { startDictation(mode:.wrongWordReview) }
                     Button("停止播放") { ttsEngine.stop() }
                 }.padding(.horizontal,32)
-                ListeningShelfHomeView(
-                    todayDictatedWordCount: DictationSessionStateMachine.todayDictatedWordCount(
-                        from: vm.storeSnapshot.dictationLogs,
-                        on: Self.todayDateString()
-                    )
-                ) { _ in
-                    speakCurrentWord()
-                }
+                Text("词汇练习 · 内置 4 个示例词 · 今日已听写 \(DictationSessionStateMachine.todayDictatedWordCount(from:vm.storeSnapshot.dictationLogs,on:Self.todayDateString())) 个单词")
+                    .font(.headline).padding(.horizontal,32)
 
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 12) {
