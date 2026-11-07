@@ -1312,8 +1312,8 @@ public struct LumaStudyCenterHostView: View {
                 pieSlicePercentages: nil,
                 tableRowTotals: nil,
                 mapComparison: MapComparisonPayload(
-                    beforeTitle: "Before Development (2010)",
-                    afterTitle: "After Development (2024)",
+                    beforeYearLabel: "Before Development (2010)",
+                    afterYearLabel: "After Development (2024)",
                     beforeFeatures: [
                         MapStageFeature(label: "Natural palm trees & beach", region: "West Coast", status: "retained"),
                         MapStageFeature(label: "Empty central grassland", region: "Center", status: "modified"),
@@ -1383,7 +1383,7 @@ public struct LumaStudyCenterHostView: View {
                     ChartSeries(name: "Country Delta", unit: "count", values: [1900, 3400, 8.4, 48])
                 ],
                 pieSlicePercentages: nil,
-                tableRowTotals: ["Average": 2925, "Median": 2650],
+                tableRowTotals: nil,
                 mapComparison: nil,
                 processSteps: nil
             ),
@@ -1493,8 +1493,8 @@ public struct LumaStudyCenterHostView: View {
                 pieSlicePercentages: nil,
                 tableRowTotals: nil,
                 mapComparison: MapComparisonPayload(
-                    beforeTitle: "Existing Park Layout (1980)",
-                    afterTitle: "Proposed Redevelopment (2026)",
+                    beforeYearLabel: "Existing Park Layout (1980)",
+                    afterYearLabel: "Proposed Redevelopment (2026)",
                     beforeFeatures: [
                         MapStageFeature(label: "Surface car park", region: "North-West", status: "removed"),
                         MapStageFeature(label: "Open lawn & rose garden", region: "Center", status: "retained"),

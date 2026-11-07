@@ -721,11 +721,11 @@ public struct VocabularyWord: Codable, Equatable, Identifiable, Sendable {
     public init(
         id: String,
         word: String,
-        phoneticUK: String,
-        phoneticUS: String,
-        partOfSpeech: String,
+        phoneticUK: String = "",
+        phoneticUS: String = "",
+        partOfSpeech: String = "",
         definitionZH: String,
-        exampleSentence: String,
+        exampleSentence: String = "",
         deckID: String,
         deckTitle: String
     ) {
