@@ -140,8 +140,8 @@ struct ContentView: View {
         lumaNavigation
         .onChange(of:studyMode) { oldMode,mode in
             guard studyVisible else{return}
-            let wasPractice=oldMode.contains("模拟机考") || oldMode=="学习_听力_今日计划"
-            let nowPractice=mode.contains("模拟机考") || mode=="学习_听力_今日计划"
+            let wasPractice=oldMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(oldMode)
+            let nowPractice=mode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(mode)
             if nowPractice && !wasPractice {
                 studyPreviousVisibility=columnVisibility;studyPreviousAI=store.aiPanelVisible
                 columnVisibility = .detailOnly;store.aiPanelVisible=false
@@ -216,7 +216,7 @@ struct ContentView: View {
         .onChange(of:store.visualMotionLevel) { _,_ in controller.updateSettings() }
     }
 
-    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || studyMode=="学习_听力_今日计划")}
+    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(studyMode))}
     private var lumaNavigation: some View {
         HStack(spacing:0) {
             sidebar

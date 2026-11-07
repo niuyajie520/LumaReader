@@ -2040,7 +2040,7 @@ public struct IELTSWritingExamSplitPaneView: View {
                                     draft.promptHighlights?[draft.activePart.rawValue]=ranges
                                     onAutoSave(draft)
                                 }))
-                                .frame(minHeight:220)
+
 
                             if draft.activePart == .part1, let dataset = question.chartDataset {
                                 Task1ChartCardView(category: question.category, dataset: dataset)

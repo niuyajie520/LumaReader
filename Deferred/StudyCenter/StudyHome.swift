@@ -99,7 +99,7 @@ public struct LumaStudyCenterHostView: View {
         self.evaluateWriting=evaluateWriting
     }
 
-    private var isPractice:Bool {mode.contains("模拟机考") || mode=="学习_听力_今日计划"}
+    private var isPractice:Bool {mode.contains("模拟机考") || (mode=="学习_听力_今日计划" || mode=="学习_听力_错词复习")}
     public var body: some View {
         ZStack {
             appearance.paper.ignoresSafeArea()

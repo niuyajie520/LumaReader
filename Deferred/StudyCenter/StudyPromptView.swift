@@ -47,6 +47,12 @@ struct StudyPromptView:NSViewRepresentable {
         scroll.documentView=view;scroll.hasVerticalScroller=true
         return scroll
     }
+    func sizeThatFits(_ proposal:ProposedViewSize,nsView:NSScrollView,context:Context)->CGSize? {
+        let width=max(120,proposal.width ?? 400)
+        let textWidth=max(80,width-24)
+        let bounds=(text as NSString).boundingRect(with:NSSize(width:textWidth,height:CGFloat.greatestFiniteMagnitude),options:[.usesLineFragmentOrigin,.usesFontLeading],attributes:[.font:NSFont.systemFont(ofSize:15)])
+        return CGSize(width:width,height:min(320,max(90,ceil(bounds.height)+20)))
+    }
     func updateNSView(_ scroll:NSScrollView,context:Context) {
         guard let view=scroll.documentView as? PromptTextView else{return}
         if view.string != text {view.string=text}
