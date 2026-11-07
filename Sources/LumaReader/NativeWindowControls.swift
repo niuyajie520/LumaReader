@@ -25,7 +25,9 @@ import ObjectiveC
         let buttons = [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton].compactMap { window.standardWindowButton($0) }
         for button in buttons {
             if controlsVisible { button.isHidden = false }
-            if window.attachedSheet == nil { button.isEnabled = controlsVisible }
+            // Hidden native views already leave hit testing. Keep window/menu actions
+            // available while chrome is hidden (in particular toggleFullScreen).
+            if window.attachedSheet == nil { button.isEnabled = true }
         }
         if animated {
             NSAnimationContext.runAnimationGroup { context in

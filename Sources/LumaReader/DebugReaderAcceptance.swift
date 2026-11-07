@@ -299,8 +299,9 @@ import ZIPFoundation
         try await pause(700)
         windowState = ["active":NSApp.isActive,"key":window.isKeyWindow,"level":window.level.rawValue,
                        "collectionBehavior":window.collectionBehavior.rawValue,"styleMask":window.styleMask.rawValue,
-                       "attachedSheet":window.attachedSheet != nil]
+                       "attachedSheet":window.attachedSheet != nil,"zoomEnabled":window.standardWindowButton(.zoomButton)?.isEnabled == true]
         try await until { NSApp.isActive && window.isKeyWindow }
+        try check(window.standardWindowButton(.zoomButton)?.isEnabled == true)
         window.toggleFullScreen(nil)
         try await until { window.styleMask.contains(.fullScreen) }
         try await pause(1200)
