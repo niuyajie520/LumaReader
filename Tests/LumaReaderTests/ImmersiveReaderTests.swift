@@ -11,7 +11,8 @@ import ZIPFoundation
         while Date() < deadline { pump(); try await Task.sleep(for:.milliseconds(10)) }
     }
     private func until(_ condition:()->Bool) async throws {
-        for _ in 0..<1500 {
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
             if condition() { return }
             try await pause(20)
         }
@@ -59,7 +60,16 @@ import ZIPFoundation
         window.makeKeyAndOrderFront(nil)
         hosting.layoutSubtreeIfNeeded()
         store.open(book)
-        try await until { hosting.layoutSubtreeIfNeeded(); return controller.presentationReady && controller.illustrationWebView != nil }
+        try await pause(500)
+        try screenshot(hosting,name:"reader-mount-synthetic")
+        var waits = 0
+        try await until {
+            hosting.layoutSubtreeIfNeeded(); waits += 1
+            if waits % 100 == 0 {
+                print("ReaderFixture selected=\(store.selectedBook != nil) sameController=\(store.reader === controller) web=\(controller.illustrationWebView != nil) error=\(store.error != nil) chapters=\(controller.chapters.count) hostSizeValid=\(hosting.bounds.width > 300 && hosting.bounds.height > 300)")
+            }
+            return controller.presentationReady && controller.illustrationWebView != nil
+        }
         try await pause(1000)
         let web = try #require(controller.illustrationWebView)
         let size = web.bounds.size

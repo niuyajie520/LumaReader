@@ -109,12 +109,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Review synthetic reader screenshots
-        if: success()
+        id: ui_evidence
+        if: always()
         run: |
-          python3 Scripts/privacy-gate.py ci-ui
-          gitleaks dir ci-ui --redact --no-banner
+          if [ -d ci-ui ]; then
+            python3 Scripts/privacy-gate.py ci-ui
+            gitleaks dir ci-ui --redact --no-banner
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Upload synthetic reader screenshots
-        if: success()
+        if: always() && steps.ui_evidence.outputs.approved == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: macOS-synthetic-reader-ui
