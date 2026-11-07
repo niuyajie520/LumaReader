@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import CoreGraphics
 import WebKit
 import ZIPFoundation
 
@@ -39,6 +40,8 @@ import ZIPFoundation
         started = true
         Task { @MainActor in
             var report:[String:Any] = ["status":"FAIL", "method":"Debug app process with native SwiftUI lifecycle", "physicalInput":"NOT RUN"]
+            let originalCursor = CGEvent(source:nil)?.location
+            defer { if let originalCursor { CGWarpMouseCursorPosition(originalCursor) } }
             do {
                 try await run(store:store,controller:controller,root:root(token))
                 report["status"] = "PASS"
@@ -94,6 +97,11 @@ import ZIPFoundation
         return file
     }
     private static func mouse(_ window:NSWindow,x:CGFloat,y:CGFloat) throws {
+        // Native hover reconciliation also consults the system cursor after
+        // focus/fullscreen changes. Keep it aligned with the delivered event.
+        let screenPoint = window.convertPoint(toScreen:NSPoint(x:x,y:y))
+        let primaryTop = try require(NSScreen.screens.first).frame.maxY
+        try check(CGWarpMouseCursorPosition(CGPoint(x:screenPoint.x,y:primaryTop-screenPoint.y)) == .success)
         let event = try require(NSEvent.mouseEvent(with:.mouseMoved,location:NSPoint(x:x,y:y),modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:0,pressure:0))
         NSApp.sendEvent(event)
     }
