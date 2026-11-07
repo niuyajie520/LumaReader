@@ -227,6 +227,7 @@ import ZIPFoundation
         try check(store.selectedBook?.notes.first?.quote == selected)
         store.showInspector = false
         controller.addBookmark()
+        try check(store.selectedBook?.bookmarks.count == 1)
         store.flush()
         let restored = LibraryStore(root:store.root)
         try check(restored.books.first?.notes.first?.quote == selected)

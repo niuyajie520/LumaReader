@@ -123,6 +123,12 @@ import Testing
         let bounds = page.bounds(for:.mediaBox)
         let view = try #require(hosting.subviews.recursivePDFView)
         let size = view.bounds.size
+        try mouse(window,x:150,y:window.contentView!.bounds.height-10)
+        try await pause(300)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
+        try mouse(window,x:150,y:10)
+        try await pause(300)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
         for _ in 0..<20 {
             try mouse(window,x:150,y:window.contentView!.bounds.height-10)
             try await pause(25)
