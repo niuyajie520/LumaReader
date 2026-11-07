@@ -92,6 +92,9 @@ struct ContentView: View {
             activeReaderPanel = nil; showBookSearch = false; bookSearchText = ""
             chromeHideTask?.cancel(); focusHeaderShown = false; chromeKeyboardPinned = false
             chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            // Briefly introduce the controls on entry, then let the single
+            // cancellation-aware chrome timer return the reader to quiet mode.
+            if id != nil { revealReaderChrome(delay:1200) }
             store.showInspector = false
             let keyboard = NSApp.currentEvent?.type == .keyDown
             withAnimation(keyboard || reduceMotion || store.effectiveMotionLevel == .off ? nil:.smooth(duration:0.24,extraBounce:0)) {
@@ -145,6 +148,10 @@ struct ContentView: View {
             chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
         }
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
+            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            chromeKeyboardPinned = false; scheduleChromeHide()
+        }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
         .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
@@ -172,7 +179,10 @@ struct ContentView: View {
         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:true,animateControls:false,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
+        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),
+                                       controlsVisible:readerChromeVisible,animateControls:true,
+                                       onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } })
+            .frame(width:0,height:0))
         .onChange(of:store.immersive) { _,immersive in
             if immersive { visibilityBeforeImmersion = columnVisibility; columnVisibility = .detailOnly; closeReaderPanels(); focusHeaderShown = false }
             else { columnVisibility = visibilityBeforeImmersion }
@@ -355,7 +365,7 @@ struct ContentView: View {
                 .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
                 .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
         }.buttonStyle(InteractiveToolbarButtonStyle()).padding(.horizontal,12).frame(height:64)
-            .background(store.paper(dark:colorScheme == .dark))
+            .background(store.paper(dark:colorScheme == .dark).opacity(readerChromeVisible ? 1:0))
         }
     
     }

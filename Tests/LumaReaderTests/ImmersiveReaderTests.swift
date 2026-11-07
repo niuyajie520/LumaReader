@@ -148,7 +148,7 @@ import Testing
         }
         try mouse(window,x:150,y:300)
         try await pause(1700)
-        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
         #expect(store.error == nil)
         print("ReaderFixture pdfEdgeCrossings=true viewportStable=true pagePreserved=true")
     }
@@ -167,6 +167,12 @@ import Testing
         NativeWindowControls.restore(window,controlsVisible:false,animated:true)
         try await pause(400)
         #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+        for type in [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton] {
+            let button = try #require(window.standardWindowButton(type))
+            let container = try #require(button.superview)
+            let center = button.convert(NSPoint(x:button.bounds.midX,y:button.bounds.midY),to:container)
+            #expect(container.hitTest(center) !== button)
+        }
     }
 }
 
