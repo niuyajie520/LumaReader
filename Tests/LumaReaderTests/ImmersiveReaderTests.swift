@@ -54,7 +54,11 @@ import Testing
         }
         var directory = URL(fileURLWithPath:CommandLine.arguments[0]).deletingLastPathComponent()
         var executable:URL?
+        if let path = ProcessInfo.processInfo.environment["LUMA_NATIVE_PROBE_EXECUTABLE"], FileManager.default.isExecutableFile(atPath:path) {
+            executable = URL(fileURLWithPath:path)
+        }
         for _ in 0..<8 {
+            if executable != nil { break }
             let candidate = directory.appendingPathComponent("LumaReader")
             if FileManager.default.isExecutableFile(atPath:candidate.path) { executable = candidate; break }
             directory.deleteLastPathComponent()
