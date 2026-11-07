@@ -10,6 +10,7 @@ public struct LumaStudyCenterHostView: View {
     @MainActor
     final class HostStateModel: ObservableObject {
         @Published var storageError: String?
+        let speech = MacOSSpeechSynthesisManager()
         var persistence: StudyPersistenceManager?
         init(storageDirectory:URL? = nil) {
             do {
@@ -64,7 +65,7 @@ public struct LumaStudyCenterHostView: View {
     }
     @StateObject private var vm:HostStateModel
 
-    private let ttsEngine = MacOSSpeechSynthesisManager()
+    private var ttsEngine:MacOSSpeechSynthesisManager { vm.speech }
 
     public init(mode: Binding<String>, storageDirectory:URL? = nil) {
         self._vm = StateObject(wrappedValue:HostStateModel(storageDirectory:storageDirectory))
