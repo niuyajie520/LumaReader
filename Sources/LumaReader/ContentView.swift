@@ -171,11 +171,15 @@ struct ContentView: View {
             chromeTopHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
         }
-        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didEnterFullScreenNotification)) { _ in
-            // Fullscreen changes the native tracking geometry; old hover state
-            // and a canceled pre-transition idle task must not pin the header.
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didEnterFullScreenNotification)) { notice in
+            guard let window = controller.readingWindow, (notice.object as? NSWindow) === window else { return }
+            // AppKit can reveal its native controls during the transition even
+            // when the requested visibility has not changed. Reconcile them
+            // together with both header groups after the transition finishes.
             chromeTopHovered = false; chromeHeaderHovered = false
-            chromeKeyboardPinned = false; scheduleChromeHide()
+            chromeKeyboardPinned = false; focusHeaderShown = false
+            NativeWindowControls.restore(window,controlsVisible:false,animated:false)
+            scheduleChromeHide()
         }
         .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
             chromeTopHovered = false; chromeHeaderHovered = false
