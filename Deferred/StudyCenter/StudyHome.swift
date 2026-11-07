@@ -307,6 +307,7 @@ public struct LumaStudyCenterHostView: View {
     @State private var showWritingExit = false
     @State private var writingExitDestination = "学习_写作_Task1题库"
     @State private var exitToReading = false
+    @State private var exitToExternal = false
     @State private var submissionToDelete: UUID?
     @State private var draftToDelete: UUID?
     @State private var clockToken = UUID()
@@ -556,7 +557,10 @@ public struct LumaStudyCenterHostView: View {
         .alert("离开本次写作？", isPresented:$showWritingExit) {
             Button("保存并退出") { finishWritingExit(discard:false) }
             Button("放弃本次更改",role:.destructive) { finishWritingExit(discard:true) }
-            Button("继续编辑",role:.cancel) { exitToReading = false }
+            Button("继续编辑",role:.cancel) {
+                exitToReading = false; exitToExternal = false
+                NotificationCenter.default.post(name:Notification.Name("LumaReader.WritingExitCancelled"),object:nil)
+            }
         } message: {
             Text("保存可保留当前草稿；放弃会恢复进入本次编辑前的版本，新建草稿则不保留本次内容。")
         }
@@ -590,6 +594,10 @@ public struct LumaStudyCenterHostView: View {
             if mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习" {
                 speakCurrentWord()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.RequestWritingExit"))) { _ in
+            guard mode.contains("模拟机考") else { return }
+            exitToExternal = true; exitToReading = false; showWritingExit = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in vm.save() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in vm.save() }
@@ -650,9 +658,12 @@ public struct LumaStudyCenterHostView: View {
 
     private func finishWritingExit(discard:Bool) {
         guard vm.finishWritingEdit(discard:discard) else { return }
-        if exitToReading {
+        if exitToExternal {
+            exitToExternal = false; vm.allowWritingNavigation = true
+            NotificationCenter.default.post(name:Notification.Name("LumaReader.WritingExitApproved"),object:nil)
+        } else if exitToReading {
             vm.allowWritingNavigation = false
-            NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil)
+            NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil,userInfo:["writingExitApproved":true])
         } else {
             vm.allowWritingNavigation = true; mode = writingExitDestination
         }

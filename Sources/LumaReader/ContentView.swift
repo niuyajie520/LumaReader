@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var visibilityBeforeImmersion: NavigationSplitViewVisibility = .all
     @State private var controller = ReaderController()
     @State private var collection = "全部图书"
+    @State private var pendingWritingNavigation: (@MainActor () -> Void)?
     @State private var activeCloudFilter: CloudProvider? = nil
     @State private var activeGroupID: UUID?
     @State private var showGroupEditor = false
@@ -156,7 +157,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
             openStudy(mode:notice.userInfo?["mode"] as? String ?? "学习",resume:notice.userInfo?["resume"] as? Bool ?? false)
         }
-        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.ResumeReadingWorkspace"))){_ in resumeReadingWorkspace()}
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.ResumeReadingWorkspace"))){ notice in resumeReadingWorkspace(approved:notice.userInfo?["writingExitApproved"] as? Bool ?? false) }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.WritingExitApproved"))) { _ in
+            let action = pendingWritingNavigation; pendingWritingNavigation = nil; action?()
+        }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.WritingExitCancelled"))) { _ in pendingWritingNavigation = nil }
         .onReceive(NotificationCenter.default.publisher(for:.lumaFindInBook)) { _ in
             guard store.selectedBook != nil else { return }; activeReaderPanel = nil; showBookSearch = true
         }
@@ -630,7 +635,7 @@ struct ContentView: View {
             LumaSidebarSection("图书",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
                     if let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) {
-                        Button {resumeReadingWorkspace()} label:{Label("继续阅读 · \(book.title)",systemImage:"book.pages").lineLimit(1).frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)}
+                        Button {resumeReadingWorkspace()} label:{Label("继续阅读",systemImage:"book.pages").lineLimit(1).frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)}
                             .buttonStyle(LumaSidebarButtonStyle(isSelected:store.selectedID==book.id,accent:store.accent))
                     }
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
@@ -686,9 +691,11 @@ struct ContentView: View {
     }
     @ViewBuilder private func categoryRow(_ group:LibraryGroup)->some View {
         let row = Button {
+            navigateAfterWriting {
             studyVisible = false
             activeGroupID = group.id; activeCloudFilter = nil; collection = group.name
             store.returnToLibrary()
+            }
         } label: {
             HStack(spacing:10) {
                 Image(systemName:"folder").frame(width:20)
@@ -717,7 +724,16 @@ struct ContentView: View {
         .padding(.horizontal,10)
     }
 
+    private func navigateAfterWriting(_ action: @escaping @MainActor () -> Void) {
+        guard studyVisible && studyMode.contains("模拟机考") else { action(); return }
+        pendingWritingNavigation = action
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.RequestWritingExit"),object:nil)
+    }
+
     private func openStudy(mode:String,resume:Bool) {
+        navigateAfterWriting { openStudyImmediately(mode:mode,resume:resume) }
+    }
+    private func openStudyImmediately(mode:String,resume:Bool) {
         if studySession==nil {
             #if DEBUG
             studySession=LumaStudySession(storageDirectory:DebugReaderAcceptance.studyDirectory)
@@ -728,9 +744,10 @@ struct ContentView: View {
         let destination=resume ? studySession!.destination(for:mode):mode
         store.returnToLibrary();studyMode=destination;studyVisible=true
     }
-    private func resumeReadingWorkspace() {
+    private func resumeReadingWorkspace(approved:Bool = false) {
         guard let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) else{return}
-        studyVisible=false;store.open(book)
+        if approved { studyVisible=false;store.open(book) }
+        else { navigateAfterWriting { studyVisible=false;store.open(book) } }
     }
 
     private func studyRow(_ title:String, mode:String, symbol:String)->some View {
@@ -745,10 +762,12 @@ struct ContentView: View {
     private func sideRow(_ title: String, symbol: String, count: Int?) -> some View {
         let isSelected = activeGroupID == nil && activeCloudFilter == nil && ((title == "阅读统计" && store.showStatistics) || (title != "阅读统计" && !store.showStatistics && collection == title))
         return Button {
+            navigateAfterWriting {
             studyVisible = false
             activeCloudFilter = nil; activeGroupID = nil
             collection = title
             store.returnToLibrary(statistics: title == "阅读统计")
+            }
         } label: {
             HStack(spacing:10) {
                 Image(systemName:symbol).frame(width:20)
@@ -775,11 +794,13 @@ struct ContentView: View {
         let count = state.syncedBookCount
         return Button {
             if state.isConnected {
+            navigateAfterWriting {
                 studyVisible = false
                 activeCloudFilter = provider; activeGroupID = nil
                 collection = provider.title
                 store.returnToLibrary(statistics: false)
                 store.syncCloud(provider)
+            }
             } else {
                 store.connectCloud(provider)
             }
