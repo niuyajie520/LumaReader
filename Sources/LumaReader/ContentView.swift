@@ -246,7 +246,13 @@ struct ContentView: View {
             .padding(.trailing,store.aiPanelVisible ? aiWidth+16:0)
             .opacity(studyPractice ? 0:1)
             .allowsHitTesting(readerChromeVisible && !studyPractice)
-            .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
+            .onHover { inside in
+                // Reading hover belongs to the window event monitor. Keeping a
+                // second SwiftUI hover owner can re-pin the fading controls.
+                guard store.selectedBook == nil else { return }
+                chromeHeaderHovered = inside
+                if inside { revealReaderChrome() } else { scheduleChromeHide() }
+            }
             AIChatView(store:store,onCollapse:{ store.aiPanelVisible = false })
                 .frame(width:aiWidth)
                 .animation(aiDragWidth != nil || reduceMotion || store.effectiveMotionLevel == .off ? nil:AIPanelMotion.opening,value:store.aiPanelExpanded)
