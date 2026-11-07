@@ -185,7 +185,8 @@ import ZIPFoundation
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
         try mouse(window,x:150,y:10)
         try await pause(300)
-        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
+        // The bottom edge must stay quiet and must not reveal native controls.
+        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)
         try check(web.bounds.size == size)
         try screenshot(hosting,name:"reader-bottom-synthetic")
