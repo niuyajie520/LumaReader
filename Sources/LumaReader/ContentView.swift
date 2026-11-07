@@ -170,6 +170,12 @@ struct ContentView: View {
             chromeTopHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
         }
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didEnterFullScreenNotification)) { _ in
+            // Fullscreen changes the native tracking geometry; old hover state
+            // and a canceled pre-transition idle task must not pin the header.
+            chromeTopHovered = false; chromeHeaderHovered = false
+            chromeKeyboardPinned = false; scheduleChromeHide()
+        }
         .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
             chromeTopHovered = false; chromeHeaderHovered = false
             chromeKeyboardPinned = false; scheduleChromeHide()
@@ -324,7 +330,7 @@ struct ContentView: View {
             // Hover notifications can remain stuck after SwiftUI replaces an
             // interactive header during its fade. The last delivered window pointer
             // position drives both hover and expiration, including native tests.
-            if let window = NSApp.keyWindow, let content = window.contentView {
+            if let window = controller.readingWindow, let content = window.contentView {
                 let point = content.convert(ReaderChromePointer.location(in:window), from:nil)
                 if content.bounds.contains(point) {
                     let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
@@ -428,6 +434,11 @@ struct ContentView: View {
             .onChange(of:readerChromeVisible, initial:true) { _,visible in
                 #if DEBUG
                 DebugReaderAcceptance.topControlsVisible = visible
+                #endif
+            }
+            .onChange(of:[focusHeaderShown,chromeTopHovered,chromeHeaderHovered,chromeKeyboardPinned,controller.hasSelection,activeReaderPanel != nil,showBookSearch,showSettings,showCustomization], initial:true) { _,flags in
+                #if DEBUG
+                DebugReaderAcceptance.headerState = flags
                 #endif
             }
             .overlay(alignment:.center) {

@@ -13,6 +13,7 @@ import ZIPFoundation
     }
     static var studyMounted = false
     static var topControlsVisible = true
+    static var headerState:[Bool] = []
     private static var fullscreenTransitionFinished = false
     static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
@@ -48,6 +49,8 @@ import ZIPFoundation
                 report["webPresent"] = store.reader?.illustrationWebView != nil
                 report["sameInitialController"] = store.reader === controller
                 report["bookSelected"] = store.selectedBook != nil
+                report["headerState"] = headerState
+                report["readingWindowIsKey"] = store.reader?.readingWindow === NSApp.keyWindow
             }
             report["phase"] = phase
             report["windowState"] = windowState
@@ -373,12 +376,13 @@ import ZIPFoundation
             windowState["afterToggleWindowKey"] = window.isKeyWindow
             throw error
         }
-        try mouse(window,x:150,y:300)
+        let fullscreenWindow = try require(web.window)
+        try mouse(fullscreenWindow,x:150,y:300)
         try await pause(1700)
         try check(!topControlsVisible)
-        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
-        try check(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
-        try check(window.standardWindowButton(.zoomButton)?.isHidden == true)
+        try check(fullscreenWindow.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(fullscreenWindow.standardWindowButton(.miniaturizeButton)?.isHidden == true)
+        try check(fullscreenWindow.standardWindowButton(.zoomButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)
         try check(store.error == nil)
         try check(try await readerJavaScript(web,"String(window.Luma.readingContext().visibleText.length > 0)") == "true")
