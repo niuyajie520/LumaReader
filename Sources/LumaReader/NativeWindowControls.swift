@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor enum NativeWindowControls {
-    static func restore(_ window: NSWindow, controlsVisible:Bool = true) {
+    static func restore(_ window: NSWindow, controlsVisible:Bool = true, animated:Bool = false) {
         // Let macOS own fullscreen chrome; restore only ordinary window controls.
         guard !window.styleMask.contains(.fullScreen), !window.isMiniaturized else { return }
         let required: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -12,9 +12,23 @@ import AppKit
         window.isMovable = true
         for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             guard let button = window.standardWindowButton(type) else { continue }
-            button.isHidden = !controlsVisible
-            button.alphaValue = controlsVisible ? 1:0
-            if window.attachedSheet == nil { button.isEnabled = true }
+            let target:CGFloat = controlsVisible ? 1:0
+            if controlsVisible && button.isHidden { button.alphaValue = animated ? 0:1; button.isHidden = false }
+            if window.attachedSheet == nil { button.isEnabled = controlsVisible }
+            if animated && button.alphaValue != target {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = controlsVisible ? 0.20:0.16
+                    button.animator().alphaValue = target
+                } completionHandler: { [weak button] in
+                    MainActor.assumeIsolated {
+                        // A reversed transition has a different model alpha: never apply a stale hide.
+                        if let button, button.alphaValue == 0 { button.isHidden = true }
+                    }
+                }
+            } else if !animated {
+                button.alphaValue = target; button.isHidden = !controlsVisible
+            }
+
         }
     }
 

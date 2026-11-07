@@ -22,7 +22,7 @@ export LUMA_TOOLCHAIN_LOG="$PWD/ci-raw/toolchain-probe.log"
 if ! luma_developer_tools_work /usr/bin/xcrun >ci-raw/toolchain.log 2>&1; then echo 'Toolchain/SDK probe: FAIL';exit 1; fi
 phase resolve /usr/bin/xcrun swift package resolve
 phase debug /usr/bin/xcrun swift build --sdk "$SDKROOT" -c debug
-phase tests /usr/bin/xcrun swift test --sdk "$SDKROOT"
+phase tests env LUMA_SYNTHETIC_UI_EVIDENCE="$PWD/ci-ui" /usr/bin/xcrun swift test --sdk "$SDKROOT"
 phase release env LUMA_NO_OPEN=1 LUMA_CI_AUDIT=1 bash Scripts/build-macos.sh
 phase signature codesign --verify --deep --strict 'dist/Luma Reader.app'
 phase architecture bash -c 'file "dist/Luma Reader.app/Contents/MacOS/LumaReader"; lipo -archs "dist/Luma Reader.app/Contents/MacOS/LumaReader" | grep -qw arm64'

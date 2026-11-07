@@ -3,6 +3,10 @@ import UniformTypeIdentifiers
 import PDFKit
 
 struct ContentView: View {
+    init(store:LibraryStore, controller:ReaderController = ReaderController()) {
+        self.store = store
+        _controller = State(initialValue:controller)
+    }
     @Bindable var store: LibraryStore
     @Environment(\.undoManager) private var undo
     @Environment(\.openWindow) private var openWindow
@@ -163,7 +167,7 @@ struct ContentView: View {
         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:readerChromeVisible,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
+        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:readerChromeVisible,animateControls:!reduceMotion && store.effectiveMotionLevel != .off,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
         .onChange(of:store.immersive) { _,immersive in
             if immersive { visibilityBeforeImmersion = columnVisibility; columnVisibility = .detailOnly; closeReaderPanels(); focusHeaderShown = false }
             else { columnVisibility = visibilityBeforeImmersion }
@@ -200,7 +204,7 @@ struct ContentView: View {
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
                 .animation(nil,value:aiWidth)
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
-        appHeader
+        appHeader(availableWidth:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0))
             .padding(.trailing,store.aiPanelVisible ? aiWidth+16:0)
             .allowsHitTesting(readerChromeVisible)
             .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
@@ -319,28 +323,29 @@ struct ContentView: View {
 
     // Keep interactive controls in the content area, away from titlebar drag hit regions.
     private var glassActive:Bool { store.effectiveGlassEffectsEnabled && !reduceTransparency }
-    private var appHeader:some View {
-        LumaGlassCluster(enabled:glassActive) {
+    private func appHeader(availableWidth:CGFloat)->some View {
+        let itemWidth:CGFloat = store.selectedBook != nil && availableWidth < 520 ? 28:44
+        return LumaGlassCluster(enabled:glassActive) {
         HStack(spacing:8) {
             Color.clear.frame(width:columnVisibility == .detailOnly ? titlebarInset:0,height:1).allowsHitTesting(false)
             if store.selectedBook != nil {
                 HStack(spacing:3) {
                     Button { closeReaderPanels(); store.returnToLibrary() } label: {
-                        Image(systemName:"chevron.left").frame(width:44,height:44).contentShape(Rectangle())
+                        Image(systemName:"chevron.left").frame(width:itemWidth,height:44).contentShape(Rectangle())
                     }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
                     Button { activeReaderPanel = nil; showBookSearch.toggle() } label: {
-                        Image(systemName:"magnifyingglass").frame(width:44,height:44).contentShape(Rectangle())
+                        Image(systemName:"magnifyingglass").frame(width:itemWidth,height:44).contentShape(Rectangle())
                     }.anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
                         .help(L10n.text("在此书中搜索")).accessibilityLabel(L10n.text("在此书中搜索"))
-                    readerPanelButton(.contents,symbol:"list.bullet",label:"目录")
-                    readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记")
+                    readerPanelButton(.contents,symbol:"list.bullet",label:"目录",itemWidth:itemWidth)
+                    readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记",itemWidth:itemWidth)
                 }.padding(3)
                     .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
                     .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
                     .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
             }
-            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false).opacity(readerChromeVisible ? 1:0)
-            HStack(spacing:3) { headerActions }.padding(3)
+            headerTitle.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false).opacity(readerChromeVisible && availableWidth >= 640 ? 1:0)
+            HStack(spacing:3) { headerActions(itemWidth:itemWidth) }.padding(3)
                 .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { store.selectedBook == nil ? $0:nil }
                 .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
                 .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
@@ -357,9 +362,9 @@ struct ContentView: View {
             }
         } else { Text("Luma Reader").font(store.homeFont(14,weight:.medium)) }
     }
-    @ViewBuilder private var headerActions:some View {
+    @ViewBuilder private func headerActions(itemWidth:CGFloat)->some View {
         if store.selectedBook == nil {
-            Button { store.pickBooks(groupID:activeGroupID) } label: { Image(systemName:"plus").frame(width:44,height:44).contentShape(Rectangle()) }.help(L10n.text("导入图书 · ⌘O"))
+            Button { store.pickBooks(groupID:activeGroupID) } label: { Image(systemName:"plus").frame(width:itemWidth,height:44).contentShape(Rectangle()) }.help(L10n.text("导入图书 · ⌘O"))
             Menu {
                 Picker(L10n.text("显示"),selection:$libraryLayout) { Text(L10n.text("网格")).tag("grid"); Text(L10n.text("列表")).tag("list") }.pickerStyle(.inline)
                 Divider()
@@ -368,24 +373,24 @@ struct ContentView: View {
         }
         if store.selectedBook != nil {
             Button { controller.addBookmark() } label: {
-                Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:44,height:44)
+                Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:itemWidth,height:44)
                     .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
                         icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
                     } animation: { _ in MotionTokens.micro }
             }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
                 .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
             Button { closeReaderPanels(); showSettings = true } label: {
-                AnimatedSettingsGlyph(active:showSettings).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
+                AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
             }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
             Button { store.aiPanelVisible.toggle() } label: {
-                Image(systemName:"sparkles").frame(width:44,height:44)
+                Image(systemName:"sparkles").frame(width:itemWidth,height:44)
             }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
         } else {
-            Button { showCustomization = true } label: { Image(systemName:"slider.horizontal.3").frame(width:44,height:44) }
+            Button { showCustomization = true } label: { Image(systemName:"slider.horizontal.3").frame(width:itemWidth,height:44) }
                 .help(L10n.text("外观与排版")).accessibilityLabel(L10n.text("外观与排版"))
-            Button { showSettings = true } label: { AnimatedSettingsGlyph(active:showSettings).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 } }
+            Button { showSettings = true } label: { AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 } }
                 .help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
-            Button { store.aiPanelVisible.toggle() } label: { Image(systemName:"sparkles").frame(width:44,height:44) }
+            Button { store.aiPanelVisible.toggle() } label: { Image(systemName:"sparkles").frame(width:itemWidth,height:44) }
                 .help(L10n.text("AI 助手")).accessibilityLabel(L10n.text("AI 助手"))
         }
     }
@@ -430,12 +435,12 @@ struct ContentView: View {
         }
     }
 
-    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String)->some View {
+    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String,itemWidth:CGFloat)->some View {
         Button {
             showBookSearch = false
             activeReaderPanel = activeReaderPanel == panel ? nil:panel
         } label: {
-            Image(systemName:symbol).frame(width:44,height:44)
+            Image(systemName:symbol).frame(width:itemWidth,height:44)
                 .background(activeReaderPanel == panel ? Color.primary.opacity(0.12):.clear,in:Capsule())
                 .contentShape(Rectangle())
         }
@@ -1196,18 +1201,20 @@ extension View {
 private struct ReaderWindowChrome: NSViewRepresentable {
     let color: NSColor
     var controlsVisible:Bool
+    var animateControls:Bool
     var onSafeInset:(CGFloat)->Void
     func makeNSView(context: Context) -> ChromeView { ChromeView() }
-    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.controlsVisible = controlsVisible; view.onSafeInset = onSafeInset; view.apply() }
+    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.controlsVisible = controlsVisible; view.animateControls = animateControls; view.onSafeInset = onSafeInset; view.apply() }
     final class ChromeView: NSView {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        var animateControls = false
         var controlsVisible = true
         var onSafeInset:(CGFloat)->Void = { _ in }
         var color = NSColor.windowBackgroundColor
         override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); apply() }
         func apply() {
             guard let window else { return }
-            NativeWindowControls.restore(window,controlsVisible:controlsVisible)
+            NativeWindowControls.restore(window,controlsVisible:controlsVisible,animated:animateControls)
             if let content = window.contentView {
                 let maxX = [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton].compactMap { window.standardWindowButton($0) }.map { $0.convert($0.bounds,to:content).maxX }.max() ?? 78
                 let inset = max(90,maxX+16)

@@ -108,6 +108,19 @@ jobs:
           path: release-assets/
           if-no-files-found: error
           retention-days: 7
+      - name: Review synthetic reader screenshots
+        if: success()
+        run: |
+          python3 Scripts/privacy-gate.py ci-ui
+          gitleaks dir ci-ui --redact --no-banner
+      - name: Upload synthetic reader screenshots
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macOS-synthetic-reader-ui
+          path: ci-ui/*.png
+          if-no-files-found: error
+          retention-days: 7
       # Raw logs, crash dumps, source workspaces and dSYM are never uploaded here.
 
   publish:
