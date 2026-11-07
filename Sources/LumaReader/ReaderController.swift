@@ -935,7 +935,7 @@ final class ReaderController: NSObject {
         let appearanceCSS = ":root{--paper:\(paperColor.lumaCSSHex);--text:#\(store.readingPalette(dark:usesDarkPaper).inkHex);--reader-leading:\(store.readerLineHeight);--reader-paragraph:\(store.readerParagraphSpacing)em;--reader-indent:\(store.readerIndent ? "2em":"0");--reader-size:\(store.readerSize)px;--reader-width:\(store.readerWidth)px;--reader-font:\(store.readerFontFamily.cssStack);color-scheme:\(usesDarkPaper ? "dark":"light")}"
         let customFontCSS = store.readerFontCSS(in:epub.root)
         let html = """
-        <!doctype html><html data-paged data-focus="\(store.immersive)"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; font-src file: data:; script-src 'none'; form-action 'none'; base-uri 'none'"><style>\(css)\n\(appearanceCSS)</style><style id="luma-custom-font">\(customFontCSS)</style></head><body><div id="luma-viewport"><main id="luma-content">\(content)</main></div><div id="luma-page-numbers" aria-hidden="true"></div></body></html>
+        <!doctype html><html data-paged data-focus="\(store.immersive)"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; font-src file: data:; script-src 'none'; form-action 'none'; base-uri 'none'"><style>\(css)\n\(appearanceCSS)</style><style id="luma-custom-font">\(customFontCSS)</style></head><body><div id="luma-viewport"><main id="luma-content">\(content)</main></div></body></html>
         """
         let rendered = chapter.url.deletingLastPathComponent().appendingPathComponent(".luma-\(chapterIndex).html")
         let renderedData = Data(html.utf8)
@@ -1042,10 +1042,10 @@ extension ReaderController: WKScriptMessageHandler, WKNavigationDelegate {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if navigationAction.navigationType == .linkActivated {
             let sameDocument = url.isFileURL && url.deletingPathExtension().lastPathComponent.hasPrefix(".luma-") && url.fragment != nil &&
-                url.deletingLastPathComponent().standardizedFileURL == webView.url?.deletingLastPathComponent().standardizedFileURL
+                url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL == webView.url?.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
             decisionHandler(sameDocument ? .allow : .cancel); return
         }
-        let allowed = url.isFileURL && epub.map { url.standardizedFileURL.path.hasPrefix($0.root.standardizedFileURL.path + "/") } == true
+        let allowed = epub.map { ReaderFileNavigation.contains(url,in:$0.root) } == true
         decisionHandler(allowed ? .allow : .cancel)
     }
 }

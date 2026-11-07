@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Package only the checked-out, tested commit. All output remains gated."""
 import hashlib
+import gzip
+import shutil
 import json
 import os
 import plistlib
@@ -20,6 +22,18 @@ def digest(path):
         for chunk in iter(lambda: f.read(1024 * 1024), b''):
             h.update(chunk)
     return h.hexdigest()
+
+def create_source_tar_gz(archive, prefix, ref='HEAD'):
+    # Stored DEFLATE blocks avoid meaningless text-pattern hits in compressed
+    # bytes; the same privacy gate still scans the archive and source files.
+    with archive.open('wb') as output:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=output, compresslevel=0, mtime=0) as compressed:
+            process = subprocess.Popen(['git', 'archive', '--format=tar', f'--prefix={prefix}', ref], stdout=subprocess.PIPE)
+            assert process.stdout is not None
+            with process.stdout as source:
+                shutil.copyfileobj(source, compressed)
+            if process.wait() != 0:
+                raise subprocess.CalledProcessError(process.returncode, process.args)
 
 def verify_source_archive(archive, fmt, prefix, tracked):
     if fmt == 'zip':
@@ -62,7 +76,10 @@ def main():
     assert not any(set(PurePosixPath(p).parts) & {'.git', '.build', 'ci-raw', 'ci-safe', 'release-assets'} for p in tracked)
     for fmt, suffix in [('zip', 'zip'), ('tar.gz', 'tar.gz')]:
         archive = out / f'LumaReader-{version}-source.{suffix}'
-        run('git', 'archive', f'--format={fmt}', f'--prefix={prefix}', f'--output={archive}', 'HEAD')
+        if fmt == 'tar.gz':
+            create_source_tar_gz(archive, prefix)
+        else:
+            run('git', 'archive', f'--format={fmt}', f'--prefix={prefix}', f'--output={archive}', 'HEAD')
         verify_source_archive(archive, fmt, prefix, tracked)
     app_zip = out / f'LumaReader-{version}-macOS26-arm64.zip'
     run('/usr/bin/ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(app), str(app_zip))

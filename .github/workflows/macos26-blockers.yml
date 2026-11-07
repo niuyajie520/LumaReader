@@ -29,6 +29,9 @@ jobs:
           set -euo pipefail
           mkdir -p ci-raw ci-safe
           python3 Tests/Shell/release-privacy.py
+          python3 Tests/Shell/native-test-completion.py
+          node Tests/Web/viewport-anchor.cjs
+          node Tests/Web/viewport-freeze.cjs
           python3 Scripts/privacy-gate.py . > ci-safe/source-privacy.json
           python3 - <<'PY'
           from pathlib import Path
@@ -76,7 +79,7 @@ jobs:
           if p.exists():
               items=json.loads(p.read_text()) or []
               Path('ci-safe/gitleaks-summary.json').write_text(json.dumps({'findingCount':len(items),'rules':sorted({x['RuleID'] for x in items})}))
-          Path('ci-safe/gui-status.txt').write_text('Native GUI / XCUITest / M4 Air performance: NOT RUN. Build success alone is not launch success.\n')
+          Path('ci-safe/gui-status.txt').write_text('Synthetic native reader acceptance: see tests.log and test-completion.log. Physical mouse/trackpad, XCUITest, VoiceOver and M4 Air performance: NOT RUN.\n')
           PY
           python3 - <<'PROGRESS'
           import json, os, subprocess
@@ -86,7 +89,7 @@ jobs:
               'runID':os.environ['GITHUB_RUN_ID'],
               'native':'${{ steps.native.outcome }}',
               'package':'${{ steps.package.outcome }}',
-              'GUI':'NOT RUN','M4AirPerformance':'NOT RUN',
+              'GUI':'See test-completion.log; physical input NOT RUN','M4AirPerformance':'NOT RUN',
               'next':'Publish approved assets only after this job succeeds'}))
           PROGRESS
           python3 Scripts/privacy-gate.py ci-safe > ci-raw/artifact-privacy.json
@@ -106,6 +109,23 @@ jobs:
         with:
           name: LumaReader-release-approved
           path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Review synthetic reader screenshots
+        id: ui_evidence
+        if: always()
+        run: |
+          if [ -d ci-ui ]; then
+            python3 Scripts/privacy-gate.py ci-ui
+            gitleaks dir ci-ui --redact --no-banner
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload synthetic reader screenshots
+        if: always() && steps.ui_evidence.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macOS-synthetic-reader-ui
+          path: ci-ui/*.png
           if-no-files-found: error
           retention-days: 7
       # Raw logs, crash dumps, source workspaces and dSYM are never uploaded here.

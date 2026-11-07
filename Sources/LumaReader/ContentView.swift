@@ -3,6 +3,10 @@ import UniformTypeIdentifiers
 import PDFKit
 
 struct ContentView: View {
+    @MainActor init(store:LibraryStore, controller:ReaderController? = nil) {
+        self.store = store
+        _controller = State(initialValue:controller ?? ReaderController())
+    }
     @Bindable var store: LibraryStore
     @Environment(\.undoManager) private var undo
     @Environment(\.openWindow) private var openWindow
@@ -20,6 +24,7 @@ struct ContentView: View {
     @State private var editingGroupID: UUID?
     @State private var groupName = ""
     @State private var groupBookID: UUID?
+    @State private var titlebarInset: CGFloat = 90
     @State private var focusHeaderShown = false
     @State private var chromeTopHovered = false
     @State private var chromeHeaderHovered = false
@@ -86,6 +91,9 @@ struct ContentView: View {
             activeReaderPanel = nil; showBookSearch = false; bookSearchText = ""
             chromeHideTask?.cancel(); focusHeaderShown = false; chromeKeyboardPinned = false
             chromeTopHovered = false; chromeHeaderHovered = false
+            // Briefly introduce the controls on entry, then let the single
+            // cancellation-aware chrome timer return the reader to quiet mode.
+            if id != nil { revealReaderChrome(delay:1200) }
             store.showInspector = false
             let keyboard = NSApp.currentEvent?.type == .keyDown
             withAnimation(keyboard || reduceMotion || store.effectiveMotionLevel == .off ? nil:.smooth(duration:0.24,extraBounce:0)) {
@@ -114,7 +122,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.willResignActiveNotification)) { _ in store.flush() }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.willTerminateNotification)) { _ in store.flush() }
         .onDisappear { chromeHideTask?.cancel(); store.flush() }
-        .onAppear { store.syncAllConnectedClouds() }
+        .onAppear {
+            store.syncAllConnectedClouds()
+            #if DEBUG
+            DebugReaderAcceptance.startIfRequested(store:store,controller:controller)
+            #endif
+        }
         .onReceive(NotificationCenter.default.publisher(for:NSApplication.didBecomeActiveNotification)) { _ in store.syncAllConnectedClouds() }
     }
 
@@ -126,7 +139,18 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for:.lumaShowReaderChrome)) { _ in
             showReaderChromeFromKeyboard()
         }
-        .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:2000) }
+        .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:1000) }
+        .onChange(of:controller.hasSelection) { _,_ in scheduleChromeHide() }
+        .onReceive(NotificationCenter.default.publisher(for:NSMenu.didBeginTrackingNotification)) { _ in chromeKeyboardPinned = true }
+        .onReceive(NotificationCenter.default.publisher(for:NSMenu.didEndTrackingNotification)) { _ in chromeKeyboardPinned = false; scheduleChromeHide() }
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didResignKeyNotification)) { _ in
+            chromeTopHovered = false; chromeHeaderHovered = false
+            chromeKeyboardPinned = false; scheduleChromeHide()
+        }
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
+            chromeTopHovered = false; chromeHeaderHovered = false
+            chromeKeyboardPinned = false; scheduleChromeHide()
+        }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
         .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
@@ -154,7 +178,10 @@ struct ContentView: View {
         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark))).frame(width:0,height:0))
+        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),
+                                       controlsVisible:readerChromeVisible,animateControls:true,
+                                       onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } })
+            .frame(width:0,height:0))
         .onChange(of:store.immersive) { _,immersive in
             if immersive { visibilityBeforeImmersion = columnVisibility; columnVisibility = .detailOnly; closeReaderPanels(); focusHeaderShown = false }
             else { columnVisibility = visibilityBeforeImmersion }
@@ -185,13 +212,13 @@ struct ContentView: View {
             ZStack(alignment:.topTrailing) {
             primaryContent
                 .environment(\.lumaSurfacePolish,true)
-                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-(store.immersive ? 0:64)))
+                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-(store.immersive && store.selectedBook == nil ? 0:64)))
                 .clipped()
-                .padding(.top,store.immersive ? 0:64)
+                .padding(.top,store.immersive && store.selectedBook == nil ? 0:64)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
                 .animation(nil,value:aiWidth)
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
-        appHeader
+        appHeader(availableWidth:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0))
             .padding(.trailing,store.aiPanelVisible ? aiWidth+16:0)
             .allowsHitTesting(readerChromeVisible)
             .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
@@ -241,12 +268,20 @@ struct ContentView: View {
         .ignoresSafeArea(.container,edges:.top)
     }
 
+    private enum ChromeState { case hidden, hoverVisible, interacting, pageTurnFeedback, selectionActive, modalOpen }
+    private var chromeState:ChromeState {
+        if activeReaderPanel != nil || showBookSearch || showSettings || showCustomization { return .modalOpen }
+        if chromeKeyboardPinned || chromeHeaderHovered { return .interacting }
+        if chromeTopHovered { return .hoverVisible }
+        if controller.hasSelection { return .selectionActive }
+        return focusHeaderShown ? .pageTurnFeedback:.hidden
+    }
     private var readerChromeVisible:Bool {
-        store.selectedBook == nil || focusHeaderShown || chromeKeyboardPinned || activeReaderPanel != nil || showBookSearch || showSettings || showCustomization
+        store.selectedBook == nil || (chromeState != .hidden && chromeState != .selectionActive)
     }
     private func revealReaderChrome(delay:Int = 1250) {
         chromeHideTask?.cancel()
-        withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = true }
+        withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.20)) { focusHeaderShown = true }
         scheduleChromeHide(delay:delay)
     }
     private func scheduleChromeHide(delay:Int = 1250) {
@@ -254,7 +289,29 @@ struct ContentView: View {
         guard store.selectedBook != nil else { return }
         chromeHideTask = Task { @MainActor in
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
-            guard !Task.isCancelled, !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned,
+            guard !Task.isCancelled else { return }
+            // Hover notifications can remain stuck after SwiftUI replaces an
+            // interactive header during its fade. The live AppKit pointer
+            // position is authoritative when the idle timer expires.
+            if let window = NSApp.keyWindow, let content = window.contentView {
+                let point = content.convert(window.mouseLocationOutsideOfEventStream, from:nil)
+                if content.bounds.contains(point) {
+                    let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
+                    if fromTop > 72 {
+                        chromeTopHovered = false
+                        chromeHeaderHovered = false
+                        chromeKeyboardPinned = false
+                        readerBackFocused = false
+                    }
+                }
+            }
+            // A keyboard shortcut is a temporary reveal, not a permanent pin.
+            // Retain focus only while the user is actively hovering a control.
+            if !chromeTopHovered && !chromeHeaderHovered {
+                chromeKeyboardPinned = false
+                readerBackFocused = false
+            }
+            guard !chromeTopHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
@@ -299,32 +356,57 @@ struct ContentView: View {
 
     // Keep interactive controls in the content area, away from titlebar drag hit regions.
     private var glassActive:Bool { store.effectiveGlassEffectsEnabled && !reduceTransparency }
-    private var appHeader:some View {
-        LumaGlassCluster(enabled:glassActive) {
-        HStack(spacing:8) {
-            Color.clear.frame(width:columnVisibility == .detailOnly ? 78:0,height:1).allowsHitTesting(false)
+    private func appHeader(availableWidth:CGFloat)->some View {
+        let itemWidth:CGFloat = store.selectedBook == nil || availableWidth >= 520 ? 44:(availableWidth < 400 ? 24:32)
+        return LumaGlassCluster(enabled:glassActive) {
+        HStack(spacing:availableWidth < 520 ? 4:8) {
+            Color.clear.frame(width:columnVisibility == .detailOnly ? titlebarInset:0,height:1).allowsHitTesting(false)
             if store.selectedBook != nil {
                 HStack(spacing:3) {
                     Button { closeReaderPanels(); store.returnToLibrary() } label: {
-                        Image(systemName:"chevron.left").frame(width:44,height:44).contentShape(Rectangle())
+                        Image(systemName:"chevron.left").frame(width:itemWidth,height:44).contentShape(Rectangle())
                     }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
                     Button { activeReaderPanel = nil; showBookSearch.toggle() } label: {
-                        Image(systemName:"magnifyingglass").frame(width:44,height:44).contentShape(Rectangle())
+                        Image(systemName:"magnifyingglass").frame(width:itemWidth,height:44).contentShape(Rectangle())
                     }.anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
                         .help(L10n.text("在此书中搜索")).accessibilityLabel(L10n.text("在此书中搜索"))
-                    readerPanelButton(.contents,symbol:"list.bullet",label:"目录")
-                    readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记")
+                    readerPanelButton(.contents,symbol:"list.bullet",label:"目录",itemWidth:itemWidth)
+                    readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记",itemWidth:itemWidth)
                 }.padding(3)
                     .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
                     .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
                     .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
             }
-            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false).opacity(store.immersive && !readerChromeVisible ? 0:1)
-            HStack(spacing:3) { headerActions }.padding(3)
-                .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { store.selectedBook == nil ? $0:nil }
-                .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+            Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false)
+            if store.selectedBook != nil {
+                HStack(spacing:10) {
+                    HStack(spacing:3) { readerUtilityActions(itemWidth:itemWidth) }.padding(3)
+                        .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                    readerBookmarkAction(itemWidth:itemWidth)
+                        .padding(3)
+                        .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                }
                 .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
+            } else {
+                HStack(spacing:3) { headerActions(itemWidth:itemWidth) }.padding(3)
+                    .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+                    .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+            }
         }.buttonStyle(InteractiveToolbarButtonStyle()).padding(.horizontal,12).frame(height:64)
+            .overlay(alignment:.center) {
+                if let book = store.selectedBook {
+                    // Apple Books-style quiet reading: the title stays centered,
+                    // while every actionable control fades away.
+                    Text(book.title)
+                        .font(store.homeFont(13,weight:.medium))
+                        .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink.opacity(0.55))
+                        .lineLimit(1)
+                        .frame(maxWidth:max(160,availableWidth*0.34))
+                        .allowsHitTesting(false)
+                } else {
+                    headerTitle.allowsHitTesting(false)
+                }
+            }
             .background(store.paper(dark:colorScheme == .dark))
         }
     
@@ -337,9 +419,9 @@ struct ContentView: View {
             }
         } else { Text("Luma Reader").font(store.homeFont(14,weight:.medium)) }
     }
-    @ViewBuilder private var headerActions:some View {
+    @ViewBuilder private func headerActions(itemWidth:CGFloat)->some View {
         if store.selectedBook == nil {
-            Button { store.pickBooks(groupID:activeGroupID) } label: { Image(systemName:"plus").frame(width:44,height:44).contentShape(Rectangle()) }.help(L10n.text("导入图书 · ⌘O"))
+            Button { store.pickBooks(groupID:activeGroupID) } label: { Image(systemName:"plus").frame(width:itemWidth,height:44).contentShape(Rectangle()) }.help(L10n.text("导入图书 · ⌘O"))
             Menu {
                 Picker(L10n.text("显示"),selection:$libraryLayout) { Text(L10n.text("网格")).tag("grid"); Text(L10n.text("列表")).tag("list") }.pickerStyle(.inline)
                 Divider()
@@ -347,27 +429,34 @@ struct ContentView: View {
             } label: { Image(systemName:"ellipsis.circle").frame(width:40,height:44) }.help(L10n.text("显示与排序"))
         }
         if store.selectedBook != nil {
-            Button { controller.addBookmark() } label: {
-                Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:44,height:44)
-                    .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
-                        icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
-                    } animation: { _ in MotionTokens.micro }
-            }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
-                .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
-            Button { closeReaderPanels(); showSettings = true } label: {
-                AnimatedSettingsGlyph(active:showSettings).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
-            }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
-            Button { store.aiPanelVisible.toggle() } label: {
-                Image(systemName:"sparkles").frame(width:44,height:44)
-            }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
+            readerBookmarkAction(itemWidth:itemWidth)
+            readerUtilityActions(itemWidth:itemWidth)
         } else {
-            Button { showCustomization = true } label: { Image(systemName:"slider.horizontal.3").frame(width:44,height:44) }
+            Button { showCustomization = true } label: { Image(systemName:"slider.horizontal.3").frame(width:itemWidth,height:44) }
                 .help(L10n.text("外观与排版")).accessibilityLabel(L10n.text("外观与排版"))
-            Button { showSettings = true } label: { AnimatedSettingsGlyph(active:showSettings).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 } }
+            Button { showSettings = true } label: { AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 } }
                 .help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
-            Button { store.aiPanelVisible.toggle() } label: { Image(systemName:"sparkles").frame(width:44,height:44) }
+            Button { store.aiPanelVisible.toggle() } label: { Image(systemName:"sparkles").frame(width:itemWidth,height:44) }
                 .help(L10n.text("AI 助手")).accessibilityLabel(L10n.text("AI 助手"))
         }
+    }
+
+    private func readerBookmarkAction(itemWidth:CGFloat)->some View {
+        Button { controller.addBookmark() } label: {
+            Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill").frame(width:itemWidth,height:44)
+                .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
+                    icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
+                } animation: { _ in MotionTokens.micro }
+        }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
+            .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
+    }
+    @ViewBuilder private func readerUtilityActions(itemWidth:CGFloat)->some View {
+        Button { closeReaderPanels(); showSettings = true } label: {
+            AnimatedSettingsGlyph(active:showSettings).frame(width:itemWidth,height:44).clipped().contentShape(Rectangle()).anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
+        }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
+        Button { store.aiPanelVisible.toggle() } label: {
+            Image(systemName:"sparkles").frame(width:itemWidth,height:44)
+        }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
     }
 
     private var readerPanelPresented:Binding<Bool> {
@@ -410,12 +499,12 @@ struct ContentView: View {
         }
     }
 
-    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String)->some View {
+    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String,itemWidth:CGFloat)->some View {
         Button {
             showBookSearch = false
             activeReaderPanel = activeReaderPanel == panel ? nil:panel
         } label: {
-            Image(systemName:symbol).frame(width:44,height:44)
+            Image(systemName:symbol).frame(width:itemWidth,height:44)
                 .background(activeReaderPanel == panel ? Color.primary.opacity(0.12):.clear,in:Capsule())
                 .contentShape(Rectangle())
         }
@@ -809,34 +898,15 @@ struct ContentView: View {
                     .keyboardShortcut(.leftArrow,modifiers:[.command,.option])
                     .disabled(controller.isTurning || !controller.presentationReady)
                     .padding(8)
+                    .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible)
+                    .accessibilityHidden(!readerChromeVisible)
                 }
             }
             .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:controller.hasSelection)
 
-            if book.kind == "pdf" && !store.immersive {
-                HStack(spacing: 12) {
-                    Text(L10n.text(controller.location)).monospacedDigit()
-                    Spacer()
-                    Button { controller.move(-1) } label: { Image(systemName:"chevron.left") }
-                        .buttonStyle(LumaTactileButtonStyle(pressScale: 0.92, cornerRadius: 6, horizontalPadding: 8, verticalPadding: 4))
-                        .disabled(!controller.canGoBack)
-                    if !controller.currentChapterTitle.isEmpty {
-                        Text(controller.currentChapterTitle)
-                            .lineLimit(1)
-                            .padding(.horizontal, 6)
-                    }
-                    Button { controller.move(1) } label: { Image(systemName:"chevron.right") }
-                        .buttonStyle(LumaTactileButtonStyle(pressScale: 0.92, cornerRadius: 6, horizontalPadding: 8, verticalPadding: 4))
-                        .disabled(!controller.canGoForward)
-                    Spacer()
-                    Text(L10n.text("\(book.bookmarks?.count ?? 0) 个书签 · \(book.notes.count) 处批注")).monospacedDigit()
-                }
-                .font(store.homeFont(11))
-                .foregroundStyle(muted)
-                .padding(.horizontal,24)
-                .frame(height:40)
-                .background(store.paper(dark:colorScheme == .dark))
-            }
+            // Preserve the PDF viewport height; navigation is now a non-layout overlay.
+            if book.kind == "pdf" && !store.immersive { Color.clear.frame(height:40).allowsHitTesting(false) }
+
         }
         .overlay(alignment:.top) {
             if !controller.bookmarkFeedback.isEmpty {
@@ -1181,15 +1251,26 @@ extension View {
 
 private struct ReaderWindowChrome: NSViewRepresentable {
     let color: NSColor
+    var controlsVisible:Bool
+    var animateControls:Bool
+    var onSafeInset:(CGFloat)->Void
     func makeNSView(context: Context) -> ChromeView { ChromeView() }
-    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.apply() }
+    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.controlsVisible = controlsVisible; view.animateControls = animateControls; view.onSafeInset = onSafeInset; view.apply() }
     final class ChromeView: NSView {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        var animateControls = false
+        var controlsVisible = true
+        var onSafeInset:(CGFloat)->Void = { _ in }
         var color = NSColor.windowBackgroundColor
         override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); apply() }
         func apply() {
             guard let window else { return }
-            NativeWindowControls.restore(window)
+            NativeWindowControls.restore(window,controlsVisible:controlsVisible,animated:animateControls)
+            if let content = window.contentView {
+                let maxX = [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton].compactMap { window.standardWindowButton($0) }.map { $0.convert($0.bounds,to:content).maxX }.max() ?? 78
+                let inset = max(90,maxX+16)
+                DispatchQueue.main.async { [weak self] in self?.onSafeInset(inset) }
+            }
             // Do not reassign styleMask on every SwiftUI update; that rebuilds native window chrome.
             if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
             if window.titleVisibility != .hidden { window.titleVisibility = .hidden }

@@ -192,7 +192,7 @@ final class LibraryStore {
         .googleDrive: CloudDriveState(provider: .googleDrive)
     ]
 
-    let ai = AIChatStore()
+    let ai: AIChatStore
     var reader: ReaderController?
     let root: URL
     let activity: ReadingActivityStore
@@ -233,9 +233,10 @@ final class LibraryStore {
         homeFontSize = 14.0
     }
 
-    init() {
-        root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    init(root testRoot:URL? = nil) {
+        root = testRoot ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("LumaReader", isDirectory: true)
+        ai = AIChatStore(historyDirectory:root.appendingPathComponent("PrivateAI/History"))
         activity = ReadingActivityStore(root:root)
         do {
             try FileManager.default.createDirectory(at: root.appendingPathComponent("Books"), withIntermediateDirectories: true)

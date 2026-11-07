@@ -34,7 +34,7 @@ const css=fs.readFileSync(path.join(project,'Sources/LumaReader/Resources/Reader
   await page.evaluate(()=>Luma.settings(21,680,true,'black','serif'));
 
   assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(0, 0, 0)');
-  assert.deepEqual(await page.locator('#luma-page-numbers span').allTextContents(),['1','2']);
+  assert.equal(await page.locator('#luma-page-numbers span').count(),0,'No page labels are drawn');
   assert.ok(await page.evaluate(()=>messages.some(m=>m.type==='painted'&&m.token==='first')));
   assert.equal(await page.evaluate(()=>Luma.turn(1)),true);
   assert.equal((await page.evaluate(()=>Luma.pageState())).index,2);
@@ -91,7 +91,7 @@ const css=fs.readFileSync(path.join(project,'Sources/LumaReader/Resources/Reader
     const viewport=document.getElementById('luma-viewport').getBoundingClientRect();
     return Math.abs(viewport.width-document.getElementById('luma-content').clientWidth)<1 && !document.elementFromPoint(viewport.right+10,viewport.top+20)?.closest('#luma-content');
   }),'Single-page gutter clips the next column');
-  await page.evaluate(()=>Luma.restore(0));assert.deepEqual(await page.locator('#luma-page-numbers span').allTextContents(),['1']);
+  await page.evaluate(()=>Luma.restore(0));assert.equal((await page.evaluate(()=>Luma.pageState())).index,0,'Single-page restore still works');
   await page.setViewportSize({width:1280,height:800});
   console.log('PASS paged reading, ready handshake, 44px AI/delete targets, forgiving hover, retained selection, image click, search highlight and resize; fallback='+fallback);
  }
