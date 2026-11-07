@@ -316,10 +316,10 @@ struct ContentView: View {
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
             guard !Task.isCancelled else { return }
             // Hover notifications can remain stuck after SwiftUI replaces an
-            // interactive header during its fade. The live AppKit pointer
-            // position is authoritative when the idle timer expires.
+            // interactive header during its fade. The last delivered window pointer
+            // position drives both hover and expiration, including native tests.
             if let window = NSApp.keyWindow, let content = window.contentView {
-                let point = content.convert(window.mouseLocationOutsideOfEventStream, from:nil)
+                let point = content.convert(ReaderChromePointer.location(in:window), from:nil)
                 if content.bounds.contains(point) {
                     let fromTop = content.isFlipped ? point.y : content.bounds.height - point.y
                     if fromTop > 72 {
@@ -401,7 +401,7 @@ struct ContentView: View {
                 }.padding(3)
                     .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
                     .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
-                    .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
+                    .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible).accessibilityHidden(!readerChromeVisible)
             }
             Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false)
             if store.selectedBook != nil {
@@ -419,6 +419,11 @@ struct ContentView: View {
                     .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
             }
         }.buttonStyle(InteractiveToolbarButtonStyle()).padding(.horizontal,12).frame(height:64)
+            .onChange(of:readerChromeVisible, initial:true) { _,visible in
+                #if DEBUG
+                DebugReaderAcceptance.topControlsVisible = visible
+                #endif
+            }
             .overlay(alignment:.center) {
                 if let book = store.selectedBook {
                     // Apple Books-style quiet reading: the title stays centered,

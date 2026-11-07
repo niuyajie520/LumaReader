@@ -93,6 +93,37 @@ class ReleasePrivacyTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn(b'email', result.stdout)
 
+    def test_stored_app_zip_preserves_every_entry_and_permissions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'app.zip'
+            entry = zipfile.ZipInfo('Luma Reader.app/Contents/MacOS/LumaReader')
+            entry.create_system = 3
+            entry.external_attr = 0o100755 << 16
+            entry.comment = b'fixture'
+            data = bytes(range(256)) * 30
+            with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
+                z.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED)
+                z.writestr('__MACOSX/resource', b'resource fork fixture')
+            release.store_zip_entries(archive)
+            with zipfile.ZipFile(archive) as z:
+                self.assertEqual(z.read(entry.filename), data)
+                self.assertEqual(z.getinfo(entry.filename).external_attr, entry.external_attr)
+                self.assertEqual(z.getinfo(entry.filename).comment, entry.comment)
+                self.assertTrue(all(i.compress_type == zipfile.ZIP_STORED for i in z.infolist()))
+                self.assertEqual(z.read('__MACOSX/resource'), b'resource fork fixture')
+
+    def test_stored_app_zip_keeps_actual_email_blocked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'app.zip'
+            private = b'person@' + b'private.invalid'
+            with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
+                z.writestr('Luma Reader.app/Contents/Resources/private.txt', private)
+            release.store_zip_entries(archive)
+            result = subprocess.run(['python3', str(ROOT / 'Scripts/privacy-gate.py'), directory], capture_output=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b'email', result.stdout)
+            self.assertNotIn(private, result.stdout)
+
     def test_tar_traversal_and_links_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             for link in [False, True]:

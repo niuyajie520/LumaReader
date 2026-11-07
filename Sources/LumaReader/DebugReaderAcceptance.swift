@@ -12,6 +12,7 @@ import ZIPFoundation
         return UUID(uuidString:String(arg.dropFirst(prefix.count)))
     }
     static var studyMounted = false
+    static var topControlsVisible = true
     static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
     private static var phase = "startup"
@@ -211,12 +212,14 @@ import ZIPFoundation
         // buttons or invisible click targets over the actual book.
         try await pause(550)
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(!topControlsVisible)
         try check(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
         try check(window.standardWindowButton(.zoomButton)?.isHidden == true)
         try screenshot(hosting,name:"reader-hidden-synthetic")
         try mouse(window,x:150,y:window.contentView!.bounds.height-10)
         try await pause(300)
         try check(window.standardWindowButton(.closeButton)?.isHidden == false)
+        try check(topControlsVisible)
         try check(NativeWindowControls.snapshot(window).values.allSatisfy { $0 })
         try screenshot(hosting,name:"reader-top-synthetic")
         try mouse(window,x:150,y:300)
