@@ -23,6 +23,12 @@ import ZIPFoundation
         NSApp.finishLaunching()
     }
     private func pump() {
+        // Deliver window/occlusion notifications without consuming runner control,
+        // Apple-event or keyboard messages from the application's general queue.
+        for _ in 0..<32 {
+            guard let event = NSApp.nextEvent(matching:.appKitDefined,until:Date(),inMode:.default,dequeue:true) else { break }
+            NSApp.sendEvent(event)
+        }
         NSApp.updateWindows()
         _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002))
         CATransaction.flush()
@@ -212,6 +218,43 @@ import ZIPFoundation
         let restored = LibraryStore(root:store.root)
         #expect(restored.books.first?.notes.first?.quote == selected)
         #expect(restored.books.first?.bookmarks == store.selectedBook?.bookmarks)
+        try mouse(window,x:150,y:300)
+        NotificationCenter.default.post(name:.lumaShowReaderChrome,object:nil)
+        try await pause(300)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
+        _ = try await readerJavaScript(web,"var p=document.querySelector('#luma-content p');p.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,clientX:100,clientY:100}));p.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,clientX:100,clientY:100}));'ok'")
+        try await pause(1600)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+        let monetEnabled = store.monetEnabled
+        store.monetEnabled = false
+        for theme in [ReaderTheme.black,.rose,.paper] {
+            store.theme = theme
+            controller.updateSettings()
+            try await pause(300)
+            #expect(controller.illustrationWebView === web)
+            #expect(store.error == nil)
+            if theme == .black {
+                #expect(try await readerJavaScript(web,"String(getComputedStyle(document.body).backgroundColor.match(/[0-9]+/g).slice(0,3).every(n=>Number(n)<80))") == "true")
+            }
+            try await readerSnapshot(web,name:"epub-theme-"+theme.rawValue+"-synthetic")
+        }
+        store.monetEnabled = monetEnabled
+        controller.updateSettings()
+        window.level = .normal
+        window.makeKeyAndOrderFront(nil)
+        window.toggleFullScreen(nil)
+        try await until { window.styleMask.contains(.fullScreen) }
+        try await pause(1200)
+        #expect(controller.illustrationWebView === web)
+        #expect(store.error == nil)
+        #expect(try await readerJavaScript(web,"String(window.Luma.readingContext().visibleText.length > 0)") == "true")
+        try await readerSnapshot(web,name:"epub-fullscreen-content-synthetic")
+        window.toggleFullScreen(nil)
+        try await until { !window.styleMask.contains(.fullScreen) }
+        try await pause(1200)
+        #expect(controller.illustrationWebView === web)
+        #expect(store.error == nil)
+        print("ReaderFixture keyboardChrome=true themedReading=true loadedFullscreen=true")
         print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
     }

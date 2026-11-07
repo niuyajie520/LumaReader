@@ -77,7 +77,7 @@ jobs:
           if p.exists():
               items=json.loads(p.read_text()) or []
               Path('ci-safe/gitleaks-summary.json').write_text(json.dumps({'findingCount':len(items),'rules':sorted({x['RuleID'] for x in items})}))
-          Path('ci-safe/gui-status.txt').write_text('Native GUI / XCUITest / M4 Air performance: NOT RUN. Build success alone is not launch success.\n')
+          Path('ci-safe/gui-status.txt').write_text('Synthetic native reader acceptance: see tests.log and test-completion.log. Physical mouse/trackpad, XCUITest, VoiceOver and M4 Air performance: NOT RUN.\n')
           PY
           python3 - <<'PROGRESS'
           import json, os, subprocess
@@ -87,7 +87,7 @@ jobs:
               'runID':os.environ['GITHUB_RUN_ID'],
               'native':'${{ steps.native.outcome }}',
               'package':'${{ steps.package.outcome }}',
-              'GUI':'NOT RUN','M4AirPerformance':'NOT RUN',
+              'GUI':'See test-completion.log; physical input NOT RUN','M4AirPerformance':'NOT RUN',
               'next':'Publish approved assets only after this job succeeds'}))
           PROGRESS
           python3 Scripts/privacy-gate.py ci-safe > ci-raw/artifact-privacy.json
