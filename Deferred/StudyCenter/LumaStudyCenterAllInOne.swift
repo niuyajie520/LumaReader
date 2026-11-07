@@ -950,6 +950,8 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var selectedVoiceIdentifier: String?
     public var preferredAccent: String // "en-GB" or "en-US"
     public var preferredSpeechRate: Float // 0.35 ... 0.65 (1.0x normalized = 0.5)
+    public var speechRepeatCount:Int? = nil
+    public var speechInterval:Double? = nil
     public var dictationSession: DictationSessionStateMachine? = nil
     public var dictationLogs: [DictationAttemptLog]
     public var stubbornWords: [StubbornWordRecord]
@@ -1141,19 +1143,23 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
     @MainActor private lazy var synthesizer = AVSpeechSynthesizer()
     #endif
 
+    @MainActor public var repeatCount = 1
+    @MainActor public var repeatInterval = 0.5
+
     @MainActor
     public func speak(text: String, voice: TTSVoiceDescriptor, requestedRate: Float) {
         #if canImport(AVFAudio)
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
-        let utterance = AVSpeechUtterance(string: text)
-        guard let installed = AVSpeechSynthesisVoice(identifier: voice.id),
-              installed.gender == .female || Self.knownFemaleVoiceNames.contains(where: { installed.name.localizedCaseInsensitiveContains($0) }) else { return }
-        utterance.voice = installed
-        utterance.rate = effectivePlaybackRate(for: voice, userMultiplier: requestedRate)
-        utterance.pitchMultiplier = 1.0
-        synthesizer.speak(utterance)
+        guard let installed = AVSpeechSynthesisVoice(identifier:voice.id) else { return }
+        for index in 0..<min(5,max(1,repeatCount)) {
+            let utterance = AVSpeechUtterance(string:text)
+            utterance.voice = installed
+            utterance.rate = effectivePlaybackRate(for:voice,userMultiplier:requestedRate)
+            utterance.postUtteranceDelay = index < repeatCount-1 ? min(5,max(0,repeatInterval)) : 0
+            synthesizer.speak(utterance)
+        }
         #endif
     }
 
