@@ -5,7 +5,11 @@ import ZIPFoundation
 @testable import LumaReader
 
 @MainActor @Suite(.serialized) struct ImmersiveReaderTests {
-    private func pause(_ ms:Int) async throws { try await Task.sleep(for:.milliseconds(ms)) }
+    private func pump() { _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.002)) }
+    private func pause(_ ms:Int) async throws {
+        let deadline = Date().addingTimeInterval(Double(ms)/1000)
+        while Date() < deadline { pump(); try await Task.sleep(for:.milliseconds(10)) }
+    }
     private func until(_ condition:()->Bool) async throws {
         for _ in 0..<1500 {
             if condition() { return }
@@ -53,8 +57,9 @@ import ZIPFoundation
         window.isReleasedWhenClosed = false; window.contentView = hosting
         defer { window.close(); store.reader = nil; store.ai.flushHistory() }
         window.makeKeyAndOrderFront(nil)
+        hosting.layoutSubtreeIfNeeded()
         store.open(book)
-        try await until { controller.presentationReady && controller.illustrationWebView != nil }
+        try await until { hosting.layoutSubtreeIfNeeded(); return controller.presentationReady && controller.illustrationWebView != nil }
         try await pause(1000)
         let web = try #require(controller.illustrationWebView)
         let size = web.bounds.size
