@@ -1,0 +1,22 @@
+name: Study center Swift 6 compile and tests
+
+on:
+  pull_request:
+    paths:
+      - 'Deferred/StudyCenter/**'
+      - '.github/workflows/study-center-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  study-kit:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compile independent study center and run real tests
+        run: swift test --package-path Deferred/StudyCenter
