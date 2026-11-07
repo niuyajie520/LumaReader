@@ -27,6 +27,11 @@ public struct LumaStudyCenterHostView: View {
                 if let session = saved.dictationSession { dictationMachine = session }
             } catch { storageError = "学习记录读取失败，原文件已保留：\(error.localizedDescription)" }
         }
+        func storeDraft(_ draft:WritingExamDraftState) {
+            storeSnapshot.activeWritingDrafts=storeSnapshot.activeWritingDrafts.filter{$0.value.id != draft.id}
+            storeSnapshot.activeWritingDrafts[draft.id.uuidString]=draft
+            save()
+        }
         func save() {
             guard let persistence else { return }
             storeSnapshot.dictationSession = dictationMachine
@@ -64,6 +69,7 @@ public struct LumaStudyCenterHostView: View {
         @Published var selectedDeck = "vocab_daily"
         @Published var practiceSeconds = 3600
         @Published var speechSettingsShown = false
+        @Published var evaluatingSubmission:UUID?
         @Published var statsScope: StudyStatisticsScope = .all
         @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
     }
@@ -75,12 +81,15 @@ public struct LumaStudyCenterHostView: View {
     private var allWords:[VocabularyWord] {Self.builtInVocabularyWords + (vm.storeSnapshot.importedWords ?? [])}
 
     private var ttsEngine:MacOSSpeechSynthesisManager { vm.speech }
+    private let evaluateWriting:(@MainActor (WritingSubmissionRecord,Task1QuestionItem) async throws->IELTSFourCriteriaEstimate)?
 
-    public init(mode: Binding<String>, storageDirectory:URL? = nil) {
+    public init(mode: Binding<String>, storageDirectory:URL? = nil,evaluateWriting:(@MainActor (WritingSubmissionRecord,Task1QuestionItem) async throws->IELTSFourCriteriaEstimate)? = nil) {
         self._vm = StateObject(wrappedValue:HostStateModel(storageDirectory:storageDirectory))
         self._mode = mode
+        self.evaluateWriting=evaluateWriting
     }
 
+    private var isPractice:Bool {mode.contains("模拟机考") || mode=="学习_听力_今日计划"}
     public var body: some View {
         ZStack {
             appearance.paper.ignoresSafeArea()
@@ -108,6 +117,7 @@ public struct LumaStudyCenterHostView: View {
                 }
                 Spacer()
             }.buttonStyle(.borderless).padding(.horizontal,32).padding(.vertical,10)
+                .padding(.top,isPractice ? 26:0)
             if let error = vm.storageError { Text(error).foregroundStyle(.red).textSelection(.enabled).padding() }
             switch mode {
             case "学习": studyHome
@@ -134,8 +144,7 @@ public struct LumaStudyCenterHostView: View {
                     question: vm.selectedExamQuestion,
                     draft: $vm.currentDraft,
                     onAutoSave: { updated in
-                        vm.storeSnapshot.activeWritingDrafts[updated.questionID] = updated
-                        vm.save()
+                        vm.storeDraft(updated)
                     },
                     onSubmitExam: { submittedDraft in
                         submitWritingExam(submittedDraft)
@@ -184,8 +193,7 @@ public struct LumaStudyCenterHostView: View {
                 if (mode == "学习_模拟机考" || mode == "学习_写作_模拟机考"), !vm.currentDraft.isPaused, vm.currentDraft.remainingSeconds > 0 {
                     let used = min(seconds,vm.currentDraft.remainingSeconds)
                     vm.currentDraft.remainingSeconds -= used; vm.currentDraft.elapsedSeconds += used
-                    vm.storeSnapshot.activeWritingDrafts[vm.currentDraft.questionID] = vm.currentDraft
-                    vm.save()
+                    vm.storeDraft(vm.currentDraft)
                     if vm.currentDraft.remainingSeconds == 0 { submitWritingExam(vm.currentDraft) }
                 }
             }
@@ -194,9 +202,6 @@ public struct LumaStudyCenterHostView: View {
 
     private func launchExam(for chosen: Task1QuestionItem, singleTask: Bool) {
         vm.selectedExamQuestion = chosen
-        if let saved = vm.storeSnapshot.activeWritingDrafts[chosen.id] {
-            vm.currentDraft = saved
-        } else {
             vm.currentDraft = WritingExamDraftState(
                 id: UUID(),
                 questionID: chosen.id,
@@ -211,11 +216,12 @@ public struct LumaStudyCenterHostView: View {
                 lastSavedAt: Date(),
                 containsLegacyNonEnglishNotice: false
             )
-        }
+        vm.storeDraft(vm.currentDraft)
         mode = "学习_写作_模拟机考"
     }
 
     private func submitWritingExam(_ submittedDraft: WritingExamDraftState) {
+        guard !vm.storeSnapshot.writingSubmissions.contains(where:{$0.draftSessionID==submittedDraft.id}) else {mode="学习_写作_历史作文";return}
         let policy = ExamEnglishInputPolicy()
         let p1Words = policy.countIELTSWords(in: submittedDraft.part1EssayText)
         let p2Words = policy.countIELTSWords(in: submittedDraft.part2EssayText)
@@ -233,8 +239,7 @@ public struct LumaStudyCenterHostView: View {
             dateString: Self.todayDateString(),
             aiEvaluation: nil
         )
-        vm.storeSnapshot.activeWritingDrafts[submittedDraft.questionID] = submittedDraft
-        vm.save() // Original answer is durable before submission/evaluation.
+        vm.storeDraft(submittedDraft) // Original answer is durable before submission/evaluation.
         vm.storeSnapshot.writingSubmissions.insert(record, at: 0)
         vm.save()
         mode = "学习_写作_评分反馈"
@@ -464,7 +469,7 @@ public struct LumaStudyCenterHostView: View {
             Text("历史作文与 AI 评分反馈")
                 .font(.system(size: 30, weight: .bold, design: .serif))
                 .foregroundStyle(appearance.ink)
-            Text("作文已保存在本机。尚未配置 AI 评分，当前状态为待评分。")
+            Text("作文先保存到本机。评分需主动发送至已配置的 AI 服务，结果仅供练习参考。")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.yellow.opacity(0.9))
 
@@ -491,6 +496,31 @@ public struct LumaStudyCenterHostView: View {
                                     }
                                 }
                                 Text(sub.part1EssayText + "\n\n" + sub.part2EssayText).textSelection(.enabled)
+                                if let evaluateWriting,let question=Self.builtInPracticeQuestions.first(where:{$0.id==sub.questionID}) {
+                                    Button(vm.evaluatingSubmission==sub.id ? "评估中…":"发送此作文至已配置 AI 评估") {
+                                        vm.evaluatingSubmission=sub.id
+                                        Task {
+                                            defer{vm.evaluatingSubmission=nil}
+                                            do {
+                                                let evaluation=try await evaluateWriting(sub,question)
+                                                if let index=vm.storeSnapshot.writingSubmissions.firstIndex(where:{$0.id==sub.id}) {
+                                                    vm.storeSnapshot.writingSubmissions[index].aiEvaluation=evaluation;vm.save()
+                                                }
+                                            } catch {vm.storageError="评分未完成，原作文已保留：\(error.localizedDescription)"}
+                                        }
+                                    }.disabled(vm.evaluatingSubmission != nil)
+                                }
+                                if let evaluation=sub.aiEvaluation {
+                                    Text(String(format:"TA/TR %.1f · CC %.1f · LR %.1f · GRA %.1f",evaluation.taskAchievementOrResponse,evaluation.coherenceAndCohesion,evaluation.lexicalResource,evaluation.grammaticalRangeAndAccuracy)).font(.caption)
+                                    Text("AI 练习估分，非官方成绩。").font(.caption).foregroundStyle(.secondary)
+                                    ForEach(Array(evaluation.sentenceCorrections.enumerated()),id:\.offset) {_,correction in
+                                        VStack(alignment:.leading,spacing:5) {
+                                            Text(correction.originalSentence).foregroundStyle(.secondary)
+                                            Text(correction.correctedSentence)
+                                            Text(correction.explanationZH).font(.callout)
+                                        }.textSelection(.enabled).padding(.vertical,6)
+                                    }
+                                }
                                 Text("提交日期：\(sub.dateString) · Part 1 字数：\(sub.part1WordCount) · Part 2 字数：\(sub.part2WordCount) · 用时：\(sub.durationSeconds / 60) 分钟")
                                     .font(.system(size: 12))
                                     .foregroundStyle(appearance.ink.opacity(0.7))

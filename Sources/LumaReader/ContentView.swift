@@ -9,6 +9,8 @@ struct ContentView: View {
         _controller = State(initialValue:controller ?? ReaderController())
     }
     @State private var studyVisible = false
+    @State private var studyPreviousVisibility:NavigationSplitViewVisibility = .all
+    @State private var studyPreviousAI = false
     @State private var studyMode = "学习"
     @Bindable var store: LibraryStore
     @Environment(\.undoManager) private var undo
@@ -136,6 +138,17 @@ struct ContentView: View {
 
     private var lumaReaderChrome: some View {
         lumaNavigation
+        .onChange(of:studyMode) { oldMode,mode in
+            guard studyVisible else{return}
+            let wasPractice=oldMode.contains("模拟机考") || oldMode=="学习_听力_今日计划"
+            let nowPractice=mode.contains("模拟机考") || mode=="学习_听力_今日计划"
+            if nowPractice && !wasPractice {
+                studyPreviousVisibility=columnVisibility;studyPreviousAI=store.aiPanelVisible
+                columnVisibility = .detailOnly;store.aiPanelVisible=false
+            } else if wasPractice && !nowPractice {
+                columnVisibility=studyPreviousVisibility;store.aiPanelVisible=studyPreviousAI
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
             store.returnToLibrary(); studyMode = notice.userInfo?["mode"] as? String ?? "学习"; studyVisible = true
         }
@@ -203,6 +216,7 @@ struct ContentView: View {
         .onChange(of:store.visualMotionLevel) { _,_ in controller.updateSettings() }
     }
 
+    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || studyMode=="学习_听力_今日计划")}
     private var lumaNavigation: some View {
         HStack(spacing:0) {
             sidebar
@@ -218,15 +232,16 @@ struct ContentView: View {
             ZStack(alignment:.topTrailing) {
             primaryContent
                 .environment(\.lumaSurfacePolish,true)
-                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-(store.immersive && store.selectedBook == nil ? 0:64)))
+                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-((store.immersive && store.selectedBook == nil) || studyPractice ? 0:64)))
                 .clipped()
-                .padding(.top,store.immersive && store.selectedBook == nil ? 0:64)
+                .padding(.top,(store.immersive && store.selectedBook == nil) || studyPractice ? 0:64)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
                 .animation(nil,value:aiWidth)
                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? AIPanelMotion.opening:AIPanelMotion.closing),value:store.aiPanelVisible)
         appHeader(availableWidth:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0))
             .padding(.trailing,store.aiPanelVisible ? aiWidth+16:0)
-            .allowsHitTesting(readerChromeVisible)
+            .opacity(studyPractice ? 0:1)
+            .allowsHitTesting(readerChromeVisible && !studyPractice)
             .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
             AIChatView(store:store,onCollapse:{ store.aiPanelVisible = false })
                 .frame(width:aiWidth)

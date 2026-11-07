@@ -86,6 +86,8 @@ actor SpeechAudioCache {
             await Task.yield()
         }
         try Task.checkCancellation()
+        if let data=values[key] {order.removeAll{$0==key};order.append(key);return Result(data:data,cacheHit:true,milliseconds:Self.ms(start.duration(to:.now)))}
+        if let pending=inFlight[key] {return Result(data:try await pending.value,cacheHit:false,milliseconds:Self.ms(start.duration(to:.now)))}
         guard let base=URL(string:key.endpoint) else { throw SpeechServiceError.invalidEndpoint }
         let session=self.session
         let task=Task<Data,Error> {

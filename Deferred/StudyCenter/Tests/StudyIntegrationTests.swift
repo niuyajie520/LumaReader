@@ -43,4 +43,18 @@ struct StudyIntegrationTests {
         #expect(recovered.preferredAccent == "en-US")
         #expect(try FileManager.default.contentsOfDirectory(atPath:dir.appendingPathComponent("backups").path).contains { $0.hasPrefix("damaged-") })
     }
+    @MainActor @Test func differentSessionsForSameQuestionNeverOverwriteAnotherDraft()throws {
+        let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer{try? FileManager.default.removeItem(at:dir)}
+        let model=LumaStudyCenterHostView.HostStateModel(storageDirectory:dir)
+        func draft(_ text:String)->WritingExamDraftState {
+            .init(id:UUID(),questionID:"same-question",examTitle:"Fixture",activePart:.part1,part1EssayText:text,part2EssayText:"",remainingSeconds:1200,elapsedSeconds:0,isPaused:false,isSingleTaskMode:true,lastSavedAt:Date(timeIntervalSince1970:100),containsLegacyNonEnglishNotice:false)
+        }
+        let first=draft("original draft"),second=draft("new draft")
+        model.storeDraft(first);model.storeDraft(second)
+        let restored=try StudyPersistenceManager(storageDirectory:dir).loadAndMigrateIfNeeded()
+        #expect(restored.activeWritingDrafts.count==2)
+        #expect(Set(restored.activeWritingDrafts.values.map(\.part1EssayText))==["original draft","new draft"])
+    }
+
 }

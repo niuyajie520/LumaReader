@@ -89,6 +89,9 @@ jobs:
           assert '1 test' in log and 'passed' in log,'Missing test completion'
           Path('speech-evidence/playback.json').write_text(json.dumps({'method':'production Swift cache and AVAudioPlayer; real generated WAV','cacheHit':True,'playerPrepareAndSubmitMS':float(match[1]),'physicalSoundLatency':'NOT MEASURED','within300MSTarget':float(match[1])<300},indent=2))
           PY
+      - name: Measure installed Apple system speech
+        if: matrix.model == 'vits-piper-en_US-lessac-medium'
+        run: swift Scripts/StudySpeech/apple-voice-benchmark.swift speech-evidence/apple-speech.json
       - name: Upload numeric model measurements
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

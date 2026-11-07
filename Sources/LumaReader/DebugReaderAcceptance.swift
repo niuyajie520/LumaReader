@@ -352,6 +352,12 @@ import ZIPFoundation
         NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力_今日计划"])
         try await pause(700)
         try screenshot(hosting,name:"study-dictation-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_Task1题库"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-writing-shelf-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_模拟机考"])
+        try await pause(1500)
+        try screenshot(hosting,name:"study-writing-exam-synthetic")
         print("StudyFixture mainAppMounted=true isolatedStorage=true")
         phase = "complete"
     }
