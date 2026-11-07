@@ -75,7 +75,7 @@ jobs:
           from pathlib import Path
           text=(Path(os.environ['RUNNER_TEMP'])/'study-real-playback.log').read_text()
           for line in text.splitlines():
-              if any(marker in line for marker in ['error:', 'recorded an issue', 'Expectation failed', 'SpeechPlaybackProbe', 'Test run', 'failed after']):
+              if any(marker in line for marker in ['error:', 'recorded an issue', 'Expectation failed', 'SpeechPlaybackProbe', 'SpeechValidationProbe', 'Test run', 'failed after']):
                   print(re.sub(r'/Users/[^\s:]+','[runner-path]',line))
           DIAGNOSTIC
             exit 1
@@ -87,7 +87,9 @@ jobs:
           match=re.search(r'SpeechPlaybackProbe cacheHit=true playerSubmissionMS=([0-9.]+) realModel=true',log)
           assert match,'Missing actual production cache/player evidence'
           assert '1 test' in log and 'passed' in log,'Missing test completion'
-          Path('speech-evidence/playback.json').write_text(json.dumps({'method':'production Swift cache and AVAudioPlayer; real generated WAV','cacheHit':True,'playerPrepareAndSubmitMS':float(match[1]),'physicalSoundLatency':'NOT MEASURED','within300MSTarget':float(match[1])<300},indent=2))
+          validation=re.search(r'SpeechValidationProbe playerSubmissionMS=([0-9.]+)',log)
+          assert validation, 'Missing actual first-audition evidence'
+          Path('speech-evidence/playback.json').write_text(json.dumps({'firstAuditionSubmitMS':float(validation[1]),'method':'production Swift cache and AVAudioPlayer; real generated WAV','cacheHit':True,'playerPrepareAndSubmitMS':float(match[1]),'physicalSoundLatency':'NOT MEASURED','within300MSTarget':float(match[1])<300},indent=2))
           PY
       - name: Measure installed Apple system speech
         if: matrix.model == 'vits-piper-en_US-lessac-medium'

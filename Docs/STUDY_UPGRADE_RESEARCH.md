@@ -57,7 +57,7 @@ The service adapter accepts HTTPS remote endpoints or loopback HTTP only. The se
 - Production Swift uses exact-input memory-only LRU keys (endpoint, model, voice, word, rate, credential), shared in-flight requests and at most two active fetches.
 - Low power/balanced/high-quality profiles allow 16/48/96 MiB raw audio cache and zero/two/four-word look-ahead. Quality stays with the explicitly selected model; profiles do not pretend to change arbitrary remote GPU settings.
 - A separate audio actor owns at most five prepared AVAudioPlayer instances. Decode/preparation does not block SwiftUI. Cancellation IDs prevent stale playback after rapid navigation or engine changes.
-- Prepared audio is prewarmed along with upcoming generated words. An observed 331 ms preparation in an earlier benchmark was not waived; player prewarming was added while retaining the 300 ms test.
+- Service verification plays a real hello audition before enabling the engine; first-audition submission is reported separately from subsequent cached playback. Players pause on navigation to retain prepared resources and are bounded/evicted normally. Prepared audio is prewarmed along with upcoming generated words. An observed 331 ms preparation in an earlier benchmark was not waived; player prewarming was added while retaining the 300 ms test.
 
 ## Reproducible acceptance
 

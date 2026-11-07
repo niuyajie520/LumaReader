@@ -93,6 +93,7 @@ struct SpeechPipelinePlaybackTests {
         await pipeline.connect(settings)
         #expect(pipeline.isConnected)
         let verified=await pipeline.verify(settings);#expect(verified)
+        print("SpeechValidationProbe playerSubmissionMS=\(pipeline.lastValidationPlayerMS)")
         pipeline.play(text:"hello",next:[],settings:settings,speed:1,repeats:1,interval:0)
         let deadline=ContinuousClock.now.advanced(by:.seconds(20))
         while pipeline.playbackEvidence.isEmpty && pipeline.errorMessage==nil && ContinuousClock.now<deadline {try await Task.sleep(for:.milliseconds(20))}

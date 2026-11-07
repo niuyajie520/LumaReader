@@ -48,14 +48,14 @@ struct SpeechSettingsPanel:View {
                             ForEach(audio.models,id:\.self){Text($0).tag($0)}
                         }
                         TextField("模型声线 ID",text:$settings.voice)
-                        Button("验证音频并启用该引擎") {
+                        Button("试听并验证启用该引擎") {
                             busy=true
                             let candidate=settings
                             Task {
                                 let valid=await audio.verify(candidate)
                                 guard settings==candidate else {notice="配置已更改，请重新验证。";busy=false;return}
                                 settings.enabled=valid
-                                notice=valid ? "音频验证通过，已启用。":"验证失败，继续使用 Apple 语音。"
+                                notice=valid ? "已播放试听，音频验证通过，已启用。":"验证失败，继续使用 Apple 语音。"
                                 busy=false
                             }
                         }.disabled(busy || settings.model.isEmpty)

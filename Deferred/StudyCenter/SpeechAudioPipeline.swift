@@ -119,7 +119,7 @@ private actor SpeechPlaybackDevice {
     private var order:[SpeechAudioCache.Key]=[]
     private var activeID:UUID?
     private var activeKey:SpeechAudioCache.Key?
-    func begin(_ id:UUID) {if let key=activeKey{players[key]?.stop()};activeID=id;activeKey=nil}
+    func begin(_ id:UUID) {if let key=activeKey{players[key]?.pause()};activeID=id;activeKey=nil}
     func prepare(_ key:SpeechAudioCache.Key,data:Data,limit:Int)throws {
         if players[key]==nil {
             let player=try AVAudioPlayer(data:data)
@@ -138,7 +138,7 @@ private actor SpeechPlaybackDevice {
         guard player.play() else{throw SpeechServiceError.emptyAudio}
     }
     func isPlaying(_ id:UUID)->Bool {activeID==id && activeKey.flatMap{players[$0]?.isPlaying} == true}
-    func stop(_ id:UUID) {guard activeID==id else{return};if let key=activeKey{players[key]?.stop()};activeID=nil;activeKey=nil}
+    func stop(_ id:UUID) {guard activeID==id else{return};if let key=activeKey{players[key]?.pause()};activeID=nil;activeKey=nil}
 }
 
 @MainActor final class SpeechAudioPipeline:ObservableObject {
@@ -149,6 +149,7 @@ private actor SpeechPlaybackDevice {
     private let cache:SpeechAudioCache
     private let session:URLSession
     init(session:URLSession=URLSession(configuration:.ephemeral)) {self.session=session;self.cache=SpeechAudioCache(session:session)}
+    @Published private(set) var lastValidationPlayerMS:Double=0
     @Published private(set) var lastCacheHit=false
     @Published private(set) var lastPlayerSubmissionMS:Double=0
     private let device=SpeechPlaybackDevice()
@@ -174,6 +175,12 @@ private actor SpeechPlaybackDevice {
         do {
             let result=try await cache.fetch(validationKey)
             try await device.prepare(validationKey,data:result.data,limit:settings.profile.lookAhead+1)
+            try Task.checkCancellation()
+            let validationID=UUID();activePlaybackID=validationID
+            await device.begin(validationID)
+            let began=ContinuousClock.now
+            try await device.play(validationKey,id:validationID)
+            lastValidationPlayerMS=SpeechAudioCache.ms(began.duration(to:.now))
             errorMessage=nil;return true
         } catch {await cache.discard(validationKey);errorMessage=error.localizedDescription;return false}
     }
