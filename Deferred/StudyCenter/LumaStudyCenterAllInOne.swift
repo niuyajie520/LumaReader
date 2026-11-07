@@ -20,6 +20,7 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
+import Charts
 #endif
 
 // MARK: - 1. ExamScope (Trigger Boundary)
@@ -87,8 +88,9 @@ public nonisolated struct ExamEnglishInputPolicy: Sendable {
     /// Permitted ASCII punctuation in IELTS computer-based writing/reading answers:
     /// `. , ; : ? ! ' " - ( ) [ ] / % & $ # @ + = * _ ~`
     private static let allowedPunctuationScalars: Set<Unicode.Scalar> = Set(
-    #".,;:?!'"-()[]/%&$#@+=*_~\|{}<>"#.unicodeScalars
+        #".,;:?!'"-()[]/%&$#@+=*_~`<>\|{}"#.unicodeScalars
     )
+
     /// Evaluates a single candidate replacement string (from typing, IME commit, paste, drag-drop, dictation, or undo/redo).
     /// - Important: Never strips Chinese characters silently to concatenate English, and never alters misspelled English.
     public func validateReplacement(_ replacement: String) -> ExamInputValidationDecision {
@@ -110,8 +112,8 @@ public nonisolated struct ExamEnglishInputPolicy: Sendable {
             if Self.isFullWidthOrCJKPunctuation(scalar) {
                 return .rejectEntirely(
                     reason: .containsFullWidthPunctuation,
-                   userBannerMessage: #"请使用英文半角标点 (如 . , ; : ? ! ' " -), 全角标点未写入草稿。"#
-            )
+                    userBannerMessage: #"请使用英文半角标点（如 , . ; : ? ! ' " -），全角标点未写入草稿。"#
+                )
             }
 
             // 3. Check Emoji or pictographic scalars
@@ -481,6 +483,7 @@ public final class ExamNSTextView: NSTextView {
 
 /// SwiftUI wrapper embedding `ExamNSTextView` with `NSTextViewDelegate` enforcement.
 public struct ExamEnglishTextEditor: NSViewRepresentable {
+    @Environment(\.studyAppearance) private var appearance
     @Binding public var text: String
     public var scope: EditorInputScope
     public var isEditable: Bool
@@ -533,8 +536,8 @@ public struct ExamEnglishTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.font = NSFont(name: "Georgia", size: fontSize) ?? NSFont.systemFont(ofSize: fontSize)
-        textView.textColor = NSColor(calibratedWhite: 0.94, alpha: 1.0)
-        textView.insertionPointColor = NSColor(calibratedRed: 0.95, green: 0.65, blue: 0.80, alpha: 1.0)
+        textView.textColor = NSColor(appearance.ink)
+        textView.insertionPointColor = NSColor(appearance.accent)
         textView.allowsUndo = true
         textView.isEditable = isEditable
         textView.isExamModeEnabled = scope.requiresStrictExamEnglishMode
@@ -560,6 +563,8 @@ public struct ExamEnglishTextEditor: NSViewRepresentable {
         }
         textView.onInputRejected = onInputRejected
         textView.onExamInputActivated = onExamInputActivated
+        textView.textColor = NSColor(appearance.ink)
+        textView.insertionPointColor = NSColor(appearance.accent)
 
         // Re-assert Exam Mode settings across Part toggles, pause/resume, or draft restoration
         if scope.requiresStrictExamEnglishMode {
@@ -716,11 +721,11 @@ public struct VocabularyWord: Codable, Equatable, Identifiable, Sendable {
     public init(
         id: String,
         word: String,
-        phoneticUK: String,
-        phoneticUS: String,
-        partOfSpeech: String,
+        phoneticUK: String = "",
+        phoneticUS: String = "",
+        partOfSpeech: String = "",
         definitionZH: String,
-        exampleSentence: String,
+        exampleSentence: String = "",
         deckID: String,
         deckTitle: String
     ) {
@@ -904,6 +909,7 @@ public struct WritingExamDraftState: Codable, Equatable, Identifiable, Sendable 
     public var isSingleTaskMode: Bool
     public var lastSavedAt: Date
     public var containsLegacyNonEnglishNotice: Bool
+    public var promptHighlights: [Int: [StudyTextHighlight]]? = nil
 }
 
 public struct IELTSFourCriteriaEstimate: Codable, Equatable, Sendable {
@@ -920,6 +926,7 @@ public struct IELTSFourCriteriaEstimate: Codable, Equatable, Sendable {
         public let correctedSentence: String
         public let explanationZH: String
         public let upgradedExpression: String
+        public var kind: String? = nil
     }
 }
 
@@ -945,116 +952,90 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var sidebarState: SidebarExpansionState
     public var selectedVoiceIdentifier: String?
     public var preferredAccent: String // "en-GB" or "en-US"
-    public var preferredSpeechRate: Float // 0.35 ... 0.65 (1.0x normalized = 0.5)
+    public var preferredSpeechRate: Float // 0.85 ... 1.80 (1.0x default)
+    public var speechRepeatCount: Int?
+    public var speechInterval: Double?
     public var dictationLogs: [DictationAttemptLog]
     public var stubbornWords: [StubbornWordRecord]
-    public var activeWritingDrafts: [String: WritingExamDraftState] // Keyed by questionID
-    public var legacyDraftBackups: [String: String] // Preserves unmodified legacy drafts with Chinese/special chars
+    public var activeWritingDrafts: [String: WritingExamDraftState]
+    public var legacyDraftBackups: [String: String]
     public var writingSubmissions: [WritingSubmissionRecord]
+    public var importedWords: [VocabularyWord]?
+    public var reviewSchedule: [String: WordReviewProgress]?
+    public var writingRevisions: [WritingRevision]?
+    public var speechService: SpeechServiceSettings?
+    public var workspace: StudyWorkspaceState?
+    public var dictationSession: DictationSessionStateMachine?
+    public var dictationSessions: [String: DictationSessionStateMachine]?
 
     public init(
         schemaVersion: StudySchemaVersion = .current,
         sidebarState: SidebarExpansionState = SidebarExpansionState(),
         selectedVoiceIdentifier: String? = nil,
         preferredAccent: String = "en-GB",
-        preferredSpeechRate: Float = 0.5,
+        preferredSpeechRate: Float = 1.0,
+        speechRepeatCount: Int? = 1,
+        speechInterval: Double? = 0.5,
         dictationLogs: [DictationAttemptLog] = [],
         stubbornWords: [StubbornWordRecord] = [],
         activeWritingDrafts: [String: WritingExamDraftState] = [:],
         legacyDraftBackups: [String: String] = [:],
-        writingSubmissions: [WritingSubmissionRecord] = []
+        writingSubmissions: [WritingSubmissionRecord] = [],
+        importedWords: [VocabularyWord]? = nil,
+        reviewSchedule: [String: WordReviewProgress]? = nil,
+        writingRevisions: [WritingRevision]? = nil,
+        speechService: SpeechServiceSettings? = nil,
+        workspace: StudyWorkspaceState? = nil,
+        dictationSession: DictationSessionStateMachine? = nil,
+        dictationSessions: [String: DictationSessionStateMachine]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.sidebarState = sidebarState
         self.selectedVoiceIdentifier = selectedVoiceIdentifier
         self.preferredAccent = preferredAccent
         self.preferredSpeechRate = preferredSpeechRate
+        self.speechRepeatCount = speechRepeatCount
+        self.speechInterval = speechInterval
         self.dictationLogs = dictationLogs
         self.stubbornWords = stubbornWords
         self.activeWritingDrafts = activeWritingDrafts
         self.legacyDraftBackups = legacyDraftBackups
         self.writingSubmissions = writingSubmissions
+        self.importedWords = importedWords
+        self.reviewSchedule = reviewSchedule
+        self.writingRevisions = writingRevisions
+        self.speechService = speechService
+        self.workspace = workspace
+        self.dictationSession = dictationSession
+        self.dictationSessions = dictationSessions
     }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, sidebarState, selectedVoiceIdentifier, preferredAccent, preferredSpeechRate, speechRepeatCount, speechInterval, dictationLogs, stubbornWords, activeWritingDrafts, legacyDraftBackups, writingSubmissions, importedWords, reviewSchedule, writingRevisions, speechService, workspace, dictationSession, dictationSessions }
+    public init(from decoder:Decoder) throws {
+        let c = try decoder.container(keyedBy:CodingKeys.self)
+        self.init(
+            schemaVersion: try c.decodeIfPresent(StudySchemaVersion.self, forKey:.schemaVersion) ?? .v1_initial,
+            sidebarState: try c.decodeIfPresent(SidebarExpansionState.self, forKey:.sidebarState) ?? SidebarExpansionState(),
+            selectedVoiceIdentifier: try c.decodeIfPresent(String.self, forKey:.selectedVoiceIdentifier),
+            preferredAccent: try c.decodeIfPresent(String.self, forKey:.preferredAccent) ?? "en-GB",
+            preferredSpeechRate: try c.decodeIfPresent(Float.self, forKey:.preferredSpeechRate) ?? 1.0,
+            speechRepeatCount: try c.decodeIfPresent(Int.self, forKey:.speechRepeatCount),
+            speechInterval: try c.decodeIfPresent(Double.self, forKey:.speechInterval),
+            dictationLogs: try c.decodeIfPresent([DictationAttemptLog].self, forKey:.dictationLogs) ?? [],
+            stubbornWords: try c.decodeIfPresent([StubbornWordRecord].self, forKey:.stubbornWords) ?? [],
+            activeWritingDrafts: try c.decodeIfPresent([String:WritingExamDraftState].self, forKey:.activeWritingDrafts) ?? [:],
+            legacyDraftBackups: try c.decodeIfPresent([String:String].self, forKey:.legacyDraftBackups) ?? [:],
+            writingSubmissions: try c.decodeIfPresent([WritingSubmissionRecord].self, forKey:.writingSubmissions) ?? [],
+            importedWords: try c.decodeIfPresent([VocabularyWord].self, forKey:.importedWords),
+            reviewSchedule: try c.decodeIfPresent([String:WordReviewProgress].self, forKey:.reviewSchedule),
+            writingRevisions: try c.decodeIfPresent([WritingRevision].self, forKey:.writingRevisions),
+            speechService: try c.decodeIfPresent(SpeechServiceSettings.self, forKey:.speechService),
+            workspace: try c.decodeIfPresent(StudyWorkspaceState.self, forKey:.workspace),
+            dictationSession: try c.decodeIfPresent(DictationSessionStateMachine.self, forKey:.dictationSession),
+            dictationSessions: try c.decodeIfPresent([String:DictationSessionStateMachine].self, forKey:.dictationSessions)
+        )
+    }
+
 }
-
-public final class StudyPersistenceManager: @unchecked Sendable {
-    private let fileURL: URL
-    private let backupDirectoryURL: URL
-    private let lock = NSLock()
-    private let policy = ExamEnglishInputPolicy()
-
-    public init(storageDirectory: URL) throws {
-        try FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        self.fileURL = storageDirectory.appendingPathComponent("luma_study_store.json")
-        self.backupDirectoryURL = storageDirectory.appendingPathComponent("backups", isDirectory: true)
-        try FileManager.default.createDirectory(at: backupDirectoryURL, withIntermediateDirectories: true)
-    }
-
-    /// Loads the store and executes forward-compatible migration with automatic backup if needed.
-    /// Never wipes or overwrites existing user history or legacy drafts.
-    public func loadAndMigrateIfNeeded() throws -> StudyStoreSnapshot {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            let fresh = StudyStoreSnapshot()
-            try saveUnlocked(fresh)
-            return fresh
-        }
-
-        let rawData = try Data(contentsOf: fileURL)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        var snapshot = try decoder.decode(StudyStoreSnapshot.self, from: rawData)
-
-        if snapshot.schemaVersion < StudySchemaVersion.current {
-            // 1. Create a timestamped backup before migrating
-            let backupName = "luma_study_store_v\(snapshot.schemaVersion.rawValue)_backup_\(Int(Date().timeIntervalSince1970)).json"
-            let backupURL = backupDirectoryURL.appendingPathComponent(backupName)
-            try rawData.write(to: backupURL, options: .atomic)
-
-            // 2. Migrate v1 -> v2: preserve any legacy drafts containing Chinese characters in `legacyDraftBackups`
-            //    and flag `containsLegacyNonEnglishNotice = true` without deleting user text.
-            for (qID, var draft) in snapshot.activeWritingDrafts {
-                let p1Report = policy.inspectLegacyDraft(draft.part1EssayText)
-                let p2Report = policy.inspectLegacyDraft(draft.part2EssayText)
-                if p1Report.containsLegacyNonEnglishCharacters || p2Report.containsLegacyNonEnglishCharacters {
-                    draft.containsLegacyNonEnglishNotice = true
-                    snapshot.activeWritingDrafts[qID] = draft
-                    if snapshot.legacyDraftBackups[qID] == nil {
-                        snapshot.legacyDraftBackups[qID] = """
-                        Part1:
-                        \(draft.part1EssayText)
-
-                        Part2:
-                        \(draft.part2EssayText)
-                        """
-                    }
-                }
-            }
-
-            snapshot.schemaVersion = .current
-            try saveUnlocked(snapshot)
-        }
-
-        return snapshot
-    }
-
-    public func save(_ snapshot: StudyStoreSnapshot) throws {
-        lock.lock()
-        defer { lock.unlock() }
-        try saveUnlocked(snapshot)
-    }
-
-    private func saveUnlocked(_ snapshot: StudyStoreSnapshot) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(snapshot)
-        try data.write(to: fileURL, options: .atomic)
-    }
-}
-
 
 //
 //  ListeningAndTTSEngine.swift
@@ -1099,18 +1080,25 @@ public protocol SpeechSynthesisEngine: Sendable {
     @MainActor func stop()
 }
 
-/// Default macOS Speech Synthesis Engine prioritizing natural female voices:
-/// 1. Checks if a local Kokoro-82M system voice or neural endpoint is registered (`com.kokoro.tts.*`).
-/// 2. Falls back to macOS Premium / Enhanced female voices (e.g., Serena, Stephanie, Kate, Samantha, Allison, Ava).
-/// 3. If only standard mechanical voices exist, forces `effectiveRate = 0.5` (1.0x normal speed) per Section 四.3.
-/// 4. Never switches to a male voice when female voice mode is selected.
+/// Default macOS Speech Synthesis Engine prioritizing natural female voices and full playback speed control:
+/// 1. Prioritizes installed Apple Premium / Enhanced female voices; no bundled neural model is claimed.
+/// 2. Falls back across English locales (`en-GB` <-> `en-US`) if the user's Mac only has one English locale installed, preventing false "没有已安装的英语女声" errors.
+/// 3. Honours all user playback speed multipliers (`0.85x`, `1.0x`, `1.15x`, `1.5x`, `1.8x`) across all voice tiers.
 public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecked Sendable {
 
-    /// Known natural female voice names in macOS (`en-GB` and `en-US`)
+    /// Known natural female voice names in macOS (`en-GB`, `en-US`, `en-AU`, `en-IE`, `en-IN`, `en-ZA`)
     public static let knownFemaleVoiceNames: Set<String> = [
         "Serena", "Kate", "Stephanie", "Martha", "Fiona",
         "Samantha", "Ava", "Allison", "Susan", "Zoe", "Nicky", "Victoria",
-        "Af_Heart", "Af_Bella", "Af_Sarah", "Bf_Emma", "Bf_Isabella" // Kokoro-82M female voices
+        "Karen", "Moira", "Tessa", "Veena", "Flo", "Shelley", "Sandy", "Kathy", "Ellen",
+        "Af_Heart", "Af_Bella", "Af_Sarah", "Bf_Emma", "Bf_Isabella"
+    ]
+
+    /// Novelty/mechanical voices that should never be selected as a female English voice
+    public static let noveltyVoiceNames: Set<String> = [
+        "Fred", "Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles",
+        "Cellos", "Deranged", "Good News", "Hysterical", "Junior", "Organ",
+        "Superstar", "Ralph", "Trinoids", "Whisper", "Wobble", "Zarvox", "Jester"
     ]
 
     public init() {}
@@ -1118,10 +1106,19 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
     public func availableVoices(for accent: TTSVoiceAccent) -> [TTSVoiceDescriptor] {
         #if canImport(AVFAudio)
         let allSystemVoices = AVSpeechSynthesisVoice.speechVoices()
-        var descriptors: [TTSVoiceDescriptor] = []
-        for v in allSystemVoices where v.language.hasPrefix("en") {
-            let isKokoro = v.identifier.lowercased().contains("kokoro") || v.name.lowercased().contains("kokoro")
-            let isFemale = v.gender == .female || Self.knownFemaleVoiceNames.contains(where: { v.name.localizedCaseInsensitiveContains($0) })
+        var allEnglishFemale: [TTSVoiceDescriptor] = []
+        for v in allSystemVoices where v.language.lowercased().hasPrefix("en") {
+            if Self.noveltyVoiceNames.contains(where: { v.name.localizedCaseInsensitiveContains($0) }) {
+                continue
+            }
+            if v.gender == .male {
+                continue
+            }
+            let isKokoro = false // No verified Kokoro inference engine is integrated.
+            let isKnownFemaleName = Self.knownFemaleVoiceNames.contains(where: { v.name.localizedCaseInsensitiveContains($0) })
+            let isFemale = (v.gender == .female) || isKnownFemaleName
+            guard isFemale else { continue }
+
             let tier: TTSEngineTier
             if isKokoro {
                 tier = .localNeuralKokoro
@@ -1130,23 +1127,30 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
             } else {
                 tier = .appleStandardMechanicalFallback
             }
-            descriptors.append(
+            allEnglishFemale.append(
                 TTSVoiceDescriptor(
                     id: v.identifier,
                     displayName: v.name,
                     localeIdentifier: v.language,
-                    isFemale: isFemale,
+                    isFemale: true,
                     tier: tier
                 )
             )
         }
-        if !descriptors.isEmpty {
-            return descriptors
+        if !allEnglishFemale.isEmpty {
+            let exactAccent = allEnglishFemale.filter {
+                $0.localeIdentifier.lowercased().hasPrefix(accent.rawValue.lowercased())
+            }
+            if !exactAccent.isEmpty {
+                return exactAccent + allEnglishFemale.filter {
+                    !$0.localeIdentifier.lowercased().hasPrefix(accent.rawValue.lowercased())
+                }
+            }
+            return allEnglishFemale
         }
         #endif
 
-        // Deterministic catalog when running in headless test environments
-        return Self.defaultVoiceCatalog
+        return []
     }
 
     public static let defaultVoiceCatalog: [TTSVoiceDescriptor] = [
@@ -1173,18 +1177,24 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
         )
     ]
 
+    static func preferredFemaleVoice(in voices:[TTSVoiceDescriptor],preferredVoiceID:String?,accent:TTSVoiceAccent)->TTSVoiceDescriptor? {
+        let pool=voices.filter{$0.isFemale && $0.localeIdentifier==accent.rawValue}.sorted{$0.id<$1.id}
+        if let preferredVoiceID,let saved=pool.first(where:{$0.id==preferredVoiceID}){return saved}
+        return pool.first(where:{$0.tier == .applePremiumOrEnhanced}) ?? pool.first
+    }
     public func selectBestFemaleVoice(preferredVoiceID: String?, accent: TTSVoiceAccent) -> TTSVoiceDescriptor {
         let voices = availableVoices(for: accent)
         let femaleVoices = voices.filter(\.isFemale)
 
-        // 1. Honor saved voice ID if it is still available and female
         if let preferredID = preferredVoiceID,
+           !preferredID.isEmpty,
            let matched = femaleVoices.first(where: { $0.id == preferredID }) {
             return matched
         }
 
-        // 2. Match target accent + highest tier (Kokoro Neural -> Apple Premium/Enhanced -> Standard Fallback)
-        let accentMatched = femaleVoices.filter { $0.localeIdentifier == accent.rawValue }
+        let accentMatched = femaleVoices.filter {
+            $0.localeIdentifier.lowercased().hasPrefix(accent.rawValue.lowercased())
+        }
         let pool = accentMatched.isEmpty ? femaleVoices : accentMatched
 
         if let neural = pool.first(where: { $0.tier == .localNeuralKokoro }) {
@@ -1197,23 +1207,31 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
             return fallback
         }
 
-        // Guaranteed female fallback descriptor
         return Self.defaultVoiceCatalog[0]
     }
 
-    /// Computes effective playback rate.
-    /// Per Section 四.3: if falling back to a mechanical standard voice, force 1.0x speed (`0.5` in AVSpeechUtterance).
+    /// Maps user speed multiplier (`0.85x`, `1.0x`, `1.15x`, `1.5x`, `1.8x`) to `AVSpeechUtterance.rate`.
+    /// Fixes the bug where `.appleStandardMechanicalFallback` locked rate to `0.5` and ignored user multipliers.
     public func effectivePlaybackRate(for voice: TTSVoiceDescriptor, userMultiplier: Float) -> Float {
-        if voice.tier == .appleStandardMechanicalFallback {
-            return 0.5 // 1.0x normal speed locked for mechanical fallback
+        let clampedMultiplier = min(max(userMultiplier, 0.70), 2.0)
+        let baseRate: Float = 0.5 // AVSpeechUtteranceDefaultSpeechRate on macOS
+        if abs(clampedMultiplier - 1.0) < 0.001 {
+            return baseRate
+        } else if clampedMultiplier < 1.0 {
+            // e.g. 0.85x -> 0.425
+            return max(0.30, baseRate * clampedMultiplier)
+        } else {
+            // e.g. 1.15x -> 0.54, 1.5x -> 0.635, 1.8x -> 0.715
+            return min(0.76, baseRate + (clampedMultiplier - 1.0) * 0.27)
         }
-        let clampedMultiplier = min(max(userMultiplier, 0.7), 1.3)
-        return 0.5 * clampedMultiplier
     }
 
     #if canImport(AVFAudio)
     @MainActor private lazy var synthesizer = AVSpeechSynthesizer()
     #endif
+
+    @MainActor public var repeatCount = 1
+    @MainActor public var repeatInterval = 0.5
 
     @MainActor
     public func speak(text: String, voice: TTSVoiceDescriptor, requestedRate: Float) {
@@ -1221,12 +1239,14 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(identifier: voice.id)
-            ?? AVSpeechSynthesisVoice(language: voice.localeIdentifier)
-        utterance.rate = effectivePlaybackRate(for: voice, userMultiplier: requestedRate)
-        utterance.pitchMultiplier = 1.0
-        synthesizer.speak(utterance)
+        guard let installed = AVSpeechSynthesisVoice(identifier:voice.id) else { return }
+        for index in 0..<min(5,max(1,repeatCount)) {
+            let utterance = AVSpeechUtterance(string:text)
+            utterance.voice = installed
+            utterance.rate = effectivePlaybackRate(for:voice,userMultiplier:requestedRate)
+            utterance.postUtteranceDelay = index < repeatCount-1 ? min(5,max(0,repeatInterval)) : 0
+            synthesizer.speak(utterance)
+        }
         #endif
     }
 
@@ -1237,178 +1257,6 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
         #endif
     }
 }
-
-// MARK: - 2. Dictation 5-Strike State Machine (Section 四.5 & 四.6)
-
-/// Manages a single dictation session (`sessionID` + `mode`).
-/// Rules:
-/// - Wrong words on strike 1..4 are re-inserted into `pendingQueue` at a spaced interval (`min(3, pendingQueue.count)`),
-///   so the user practices intervening words before retrying.
-/// - Answering a wrong word correctly on a retry removes it from the current round's wrong-word cycle.
-/// - On the 5th error within the same day/session (`errorCount == 5`), the word is promoted to `stubbornWords`
-///   and removed from today's active queue so it no longer repeats automatically today.
-/// - At the end of the session/day, stubborn words are sorted by `errorCount` descending.
-public struct DictationSessionStateMachine: Sendable {
-    public let sessionID: UUID
-    public let mode: DictationSessionMode
-    public let dateString: String
-    public let spacingInterval: Int
-
-    public private(set) var pendingQueue: [VocabularyWord]
-    public private(set) var completedWordIDs: Set<String> = []
-    public private(set) var activeWrongCycleWordIDs: Set<String> = []
-    public private(set) var sessionErrorCounts: [String: Int] = [:]
-    public private(set) var stubbornWordsMap: [String: StubbornWordRecord] = [:]
-    public private(set) var attemptLogs: [DictationAttemptLog] = []
-    private var seenWordIDsInSession: Set<String> = []
-
-    public init(
-        sessionID: UUID = UUID(),
-        mode: DictationSessionMode = .newTask,
-        dateString: String,
-        initialWords: [VocabularyWord],
-        existingStubbornWordsForToday: [StubbornWordRecord] = [],
-        spacingInterval: Int = 3
-    ) {
-        self.sessionID = sessionID
-        self.mode = mode
-        self.dateString = dateString
-        self.spacingInterval = max(1, spacingInterval)
-
-        for rec in existingStubbornWordsForToday where rec.dateString == dateString {
-            stubbornWordsMap[rec.wordID] = rec
-        }
-
-        // Filter out words already quarantined as stubborn today unless explicitly in stubbornWordReview mode
-        if mode == .stubbornWordReview {
-            self.pendingQueue = initialWords
-        } else {
-            let quarantinedIDs = Set(stubbornWordsMap.keys)
-            self.pendingQueue = initialWords.filter { !quarantinedIDs.contains($0.id) }
-        }
-    }
-
-    public var currentWord: VocabularyWord? {
-        pendingQueue.first
-    }
-
-    public var isSessionFinished: Bool {
-        pendingQueue.isEmpty
-    }
-
-    /// Submits the user's dictated spelling for `currentWord`.
-    @discardableResult
-    public mutating func submitAnswer(_ rawInput: String, durationSeconds: Double = 2.5) -> DictationSubmissionOutcome? {
-        guard !pendingQueue.isEmpty else { return nil }
-        let wordItem = pendingQueue.removeFirst()
-
-        let normalizedInput = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedTarget = wordItem.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let isCorrect = (normalizedInput == normalizedTarget)
-
-        let isFirstAttempt = !seenWordIDsInSession.contains(wordItem.id)
-        seenWordIDsInSession.insert(wordItem.id)
-
-        if isCorrect {
-            activeWrongCycleWordIDs.remove(wordItem.id)
-            completedWordIDs.insert(wordItem.id)
-            let errCount = sessionErrorCounts[wordItem.id, default: 0]
-            let log = DictationAttemptLog(
-                id: UUID(),
-                sessionID: sessionID,
-                mode: mode,
-                wordID: wordItem.id,
-                word: wordItem.word,
-                deckID: wordItem.deckID,
-                userTyped: rawInput,
-                isCorrect: true,
-                isFirstAttemptInSession: isFirstAttempt,
-                sessionErrorCountForWord: errCount,
-                timestamp: Date(),
-                dateString: dateString,
-                durationSeconds: durationSeconds
-            )
-            attemptLogs.append(log)
-            return .correct(exitedWrongCycle: errCount > 0)
-        } else {
-            let newErrCount = sessionErrorCounts[wordItem.id, default: 0] + 1
-            sessionErrorCounts[wordItem.id] = newErrCount
-
-            let log = DictationAttemptLog(
-                id: UUID(),
-                sessionID: sessionID,
-                mode: mode,
-                wordID: wordItem.id,
-                word: wordItem.word,
-                deckID: wordItem.deckID,
-                userTyped: rawInput,
-                isCorrect: false,
-                isFirstAttemptInSession: isFirstAttempt,
-                sessionErrorCountForWord: newErrCount,
-                timestamp: Date(),
-                dateString: dateString,
-                durationSeconds: durationSeconds
-            )
-            attemptLogs.append(log)
-
-            // Update error count if already in stubborn map
-            if var existingStubborn = stubbornWordsMap[wordItem.id] {
-                existingStubborn.errorCount = max(existingStubborn.errorCount + 1, newErrCount)
-                stubbornWordsMap[wordItem.id] = existingStubborn
-            }
-
-            if newErrCount >= 5 && mode != .stubbornWordReview {
-                // 5th error today -> enters Stubborn Words, removed from today's automatic queue
-                activeWrongCycleWordIDs.remove(wordItem.id)
-                let record = StubbornWordRecord(
-                    wordID: wordItem.id,
-                    word: wordItem.word,
-                    sourceDeckID: wordItem.deckID,
-                    sourceDeckTitle: wordItem.deckTitle,
-                    dateString: dateString,
-                    errorCount: newErrCount,
-                    triggeringSessionID: sessionID
-                )
-                stubbornWordsMap[wordItem.id] = record
-                return .promotedToStubbornWords(record: record)
-            } else {
-                // 1..4 errors -> re-insert into pendingQueue at spaced interval
-                activeWrongCycleWordIDs.insert(wordItem.id)
-                let insertIndex = min(spacingInterval, pendingQueue.count)
-                pendingQueue.insert(wordItem, at: insertIndex)
-                return .requeuedForRetry(errorCount: newErrCount, insertedAtOffset: insertIndex)
-            }
-        }
-    }
-
-    /// Returns stubborn words sorted by `errorCount` descending (Section 四.6).
-    public var sortedStubbornWords: [StubbornWordRecord] {
-        stubbornWordsMap.values.sorted {
-            if $0.errorCount != $1.errorCount {
-                return $0.errorCount > $1.errorCount
-            }
-            return $0.word < $1.word
-        }
-    }
-
-    /// Computes real daily dictated unique word count for the Listening home card subtitle
-    /// ("今天已听写 N 个单词", Section 三).
-    public static func todayDictatedWordCount(from logs: [DictationAttemptLog], on dateString: String) -> Int {
-        let todayWordIDs = Set(
-            logs.lazy
-                .filter { $0.dateString == dateString }
-                .map(\.wordID)
-        )
-        return todayWordIDs.count
-    }
-}
-
-public enum DictationSubmissionOutcome: Equatable, Sendable {
-    case correct(exitedWrongCycle: Bool)
-    case requeuedForRetry(errorCount: Int, insertedAtOffset: Int)
-    case promotedToStubbornWords(record: StubbornWordRecord)
-}
-
 
 //
 //  QuestionBankGatekeeper.swift
@@ -1794,27 +1642,27 @@ import AppKit
 import Combine
 
 public enum LumaTheme {
-    public static let windowBackground = Color(red: 0.086, green: 0.047, blue: 0.094)
-    public static let sidebarPillFill = Color(red: 0.215, green: 0.145, blue: 0.215).opacity(0.78)
-    public static let sidebarSelectedFill = Color(red: 0.420, green: 0.255, blue: 0.380).opacity(0.85)
-    public static let softPinkAccent = Color(red: 0.925, green: 0.655, blue: 0.785)
+    public static let windowBackground = Color(nsColor: .windowBackgroundColor)
+    public static let sidebarPillFill = Color.primary.opacity(0.07)
+    public static let sidebarSelectedFill = Color.accentColor.opacity(0.22)
+    public static let softPinkAccent = Color.accentColor
     public static let primaryCardGradient = LinearGradient(
         colors: [
-            Color(red: 0.91, green: 0.63, blue: 0.76),
-            Color(red: 0.78, green: 0.49, blue: 0.64)
+            Color.accentColor.opacity(0.28),
+            Color.primary.opacity(0.06)
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
     public static let secondaryCardGradient = LinearGradient(
         colors: [
-            Color(red: 0.56, green: 0.42, blue: 0.57),
-            Color(red: 0.43, green: 0.31, blue: 0.45)
+            Color.primary.opacity(0.08),
+            Color.primary.opacity(0.03)
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-    public static let glassBorder = Color.white.opacity(0.14)
+    public static let glassBorder = Color.primary.opacity(0.14)
 }
 
 @MainActor
@@ -1824,6 +1672,7 @@ public final class ListeningShelfViewModel: ObservableObject {
 }
 
 public struct ListeningShelfHomeView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let todayDictatedWordCount: Int
     @StateObject private var vm = ListeningShelfViewModel()
     public var onSelectDeck: (String) -> Void
@@ -1838,23 +1687,19 @@ public struct ListeningShelfHomeView: View {
             HStack {
                 Text("听力")
                     .font(.system(size: 30, weight: .bold, design: .serif))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(appearance.ink)
                 Spacer()
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(appearance.ink.opacity(0.6))
                     TextField("搜索词库或练习", text: $vm.searchText)
                         .textFieldStyle(.plain)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(appearance.ink)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .frame(width: 240)
-                .background(
-                    Capsule()
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                )
+                .studyGlassCapsule(cornerRadius: 18)
             }
 
             LazyVGrid(
@@ -1868,32 +1713,32 @@ public struct ListeningShelfHomeView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("词汇练习")
                             .font(.system(size: 24, weight: .semibold, design: .serif))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(appearance.ink)
                         Text("今天已听写 \(todayDictatedWordCount) 个单词")
                             .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.92))
+                            .foregroundStyle(appearance.ink.opacity(0.82))
                         Spacer()
                         HStack {
                             Image(systemName: "headphones")
                                 .font(.system(size: 20))
-                                .foregroundStyle(.white.opacity(0.85))
+                                .foregroundStyle(appearance.accent)
                             Spacer()
                             Text("继续练习")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(appearance.ink)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.black.opacity(0.28)))
+                                .studyGlassCapsule(cornerRadius: 12, selected: true)
                         }
                     }
                     .padding(18)
                     .frame(height: 245)
                     .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(LumaTheme.primaryCardGradient)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(appearance.primaryGradient)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(appearance.line, lineWidth: 1)
                             )
                     )
                 }
@@ -1907,7 +1752,7 @@ public struct ListeningShelfHomeView: View {
             Spacer()
         }
         .padding(32)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 
     private func listeningDeckCard(id: String, title: String, icon: String) -> some View {
@@ -1917,23 +1762,23 @@ public struct ListeningShelfHomeView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
                     .font(.system(size: 22, weight: .medium, design: .serif))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(appearance.ink)
                 Spacer()
                 HStack {
                     Image(systemName: icon)
                         .font(.system(size: 19))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(appearance.accent)
                     Spacer()
                 }
             }
             .padding(18)
             .frame(height: 245)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(LumaTheme.secondaryCardGradient)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(appearance.secondaryGradient)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(LumaTheme.glassBorder, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(appearance.line, lineWidth: 1)
                     )
             )
         }
@@ -1950,6 +1795,7 @@ public final class Task1BankViewModel: ObservableObject {
 }
 
 public struct Task1QuestionBankHomeView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let allCatalogItems: [Task1QuestionItem]
     @StateObject private var vm = Task1BankViewModel()
     public var onLaunchExam: (Task1QuestionItem) -> Void
@@ -1981,27 +1827,23 @@ public struct Task1QuestionBankHomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Task 1 题库")
                         .font(.system(size: 30, weight: .bold, design: .serif))
-                        .foregroundStyle(.white)
-                    Text("双击题目开始练习")
+                        .foregroundStyle(appearance.ink)
+                    Text("双击题目开始练习 · 继承阅读器莫奈主题与玻璃胶囊视觉")
                         .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(appearance.ink.opacity(0.68))
                 }
                 Spacer()
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(appearance.ink.opacity(0.6))
                     TextField("搜索题目与主题", text: $vm.searchQuery)
                         .textFieldStyle(.plain)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(appearance.ink)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .frame(width: 240)
-                .background(
-                    Capsule()
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                )
+                .studyGlassCapsule(cornerRadius: 18)
             }
 
             HStack(spacing: 10) {
@@ -2011,17 +1853,8 @@ public struct Task1QuestionBankHomeView: View {
                         vm.selectedCategory = category
                     } label: {
                         Text(category.rawValue)
-                            .font(.system(size: 13.5, weight: isSelected ? .semibold : .regular))
-                            .foregroundStyle(isSelected ? Color.black.opacity(0.85) : .white.opacity(0.9))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(isSelected ? LumaTheme.softPinkAccent : LumaTheme.sidebarPillFill)
-                                    .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                            )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: isSelected, selected: isSelected, horizontalPadding: 14, height: 32))
                 }
             }
 
@@ -2030,7 +1863,7 @@ public struct Task1QuestionBankHomeView: View {
                     ForEach(visibleItems) { item in
                         let isHighlighted = (vm.selectedQuestionID == item.id)
                         Task1TopicCardView(item: item, isSelected: isHighlighted)
-                            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .onTapGesture(count: 2) {
                                 vm.selectedQuestionID = item.id
                                 onLaunchExam(item)
@@ -2044,11 +1877,12 @@ public struct Task1QuestionBankHomeView: View {
             }
         }
         .padding(28)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
     }
 }
 
 struct Task1TopicCardView: View {
+    @Environment(\.studyAppearance) private var appearance
     let item: Task1QuestionItem
     let isSelected: Bool
 
@@ -2056,7 +1890,7 @@ struct Task1TopicCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(item.shortTitle)
                 .font(.system(size: 18, weight: .medium, design: .serif))
-                .foregroundStyle(.white)
+                .foregroundStyle(appearance.ink)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -2068,58 +1902,36 @@ struct Task1TopicCardView: View {
         .padding(16)
         .frame(height: 215)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isSelected ? LumaTheme.primaryCardGradient : LumaTheme.secondaryCardGradient)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? appearance.primaryGradient : appearance.secondaryGradient)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(
-                            isSelected ? Color.white.opacity(0.85) : LumaTheme.glassBorder,
+                            isSelected ? appearance.accent : appearance.line,
                             lineWidth: isSelected ? 2.0 : 1.0
                         )
                 )
+                .shadow(color: Color.black.opacity(appearance.isDark ? 0.22 : 0.06), radius: 8, x: 0, y: 4)
         )
     }
 
     @ViewBuilder
     private func chartThumbnailIcon(for category: Task1ChartCategory) -> some View {
-        switch category {
-        case .lineGraph, .all, .mixedChart:
-            Image(systemName: "chart.xyaxis.line")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        case .barChart:
-            Image(systemName: "chart.bar.xaxis")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        case .pieChart:
-            Image(systemName: "chart.pie")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        case .table:
-            Image(systemName: "tablecells")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        case .map:
-            Image(systemName: "map")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        case .processDiagram:
-            Image(systemName: "arrow.triangle.branch")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white.opacity(0.85))
-                .padding(12)
-        }
+        let iconName: String = {
+            switch category {
+            case .lineGraph, .all, .mixedChart: return "chart.xyaxis.line"
+            case .barChart: return "chart.bar.xaxis"
+            case .pieChart: return "chart.pie"
+            case .table: return "tablecells"
+            case .map: return "map"
+            case .processDiagram: return "arrow.triangle.branch"
+            }
+        }()
+        Image(systemName: iconName)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(isSelected ? appearance.accent : appearance.ink.opacity(0.75))
+            .padding(12)
     }
 }
 
@@ -2127,15 +1939,18 @@ struct Task1TopicCardView: View {
 public final class SplitPaneExamViewModel: ObservableObject {
     @Published public var leftPaneFraction: CGFloat = 0.48
     @Published public var transientBannerMessage: String? = nil
+    @Published public var showExitExamConfirmation: Bool = false
     public init() {}
 }
 
 public struct IELTSWritingExamSplitPaneView: View {
+    @Environment(\.studyAppearance) private var appearance
     public let question: Task1QuestionItem
     @Binding public var draft: WritingExamDraftState
     @StateObject private var vm = SplitPaneExamViewModel()
     public var onAutoSave: (WritingExamDraftState) -> Void
     public var onSubmitExam: (WritingExamDraftState) -> Void
+    public var onNavigateBack: (() -> Void)?
 
     private let policy = ExamEnglishInputPolicy()
 
@@ -2143,12 +1958,14 @@ public struct IELTSWritingExamSplitPaneView: View {
         question: Task1QuestionItem,
         draft: Binding<WritingExamDraftState>,
         onAutoSave: @escaping (WritingExamDraftState) -> Void,
-        onSubmitExam: @escaping (WritingExamDraftState) -> Void
+        onSubmitExam: @escaping (WritingExamDraftState) -> Void,
+        onNavigateBack: (() -> Void)? = nil
     ) {
         self.question = question
         self._draft = draft
         self.onAutoSave = onAutoSave
         self.onSubmitExam = onSubmitExam
+        self.onNavigateBack = onNavigateBack
     }
 
     private var activeEssayBinding: Binding<String> {
@@ -2173,123 +1990,120 @@ public struct IELTSWritingExamSplitPaneView: View {
         return policy.countIELTSWords(in: text)
     }
 
+    private var minimumTargetWords: Int {
+        draft.activePart == .part1 ? 150 : 250
+    }
+
     private var formattedRemainingTime: String {
         let mins = max(0, draft.remainingSeconds) / 60
         let secs = max(0, draft.remainingSeconds) % 60
         return String(format: "%02d:%02d", mins, secs)
     }
 
+    private func handleBackTap() { onNavigateBack?() }
+
     public var body: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 14) {
+            // Top Glass Capsule Toolbar (with top-left < 返回 button matching Reader glass capsule style)
+            HStack(spacing: 12) {
+                if onNavigateBack != nil {
+                    Button {
+                        handleBackTap()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 12.5, weight: .semibold))
+                            Text("返回")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 34))
+                    .help("选择保存、放弃本次更改或继续编辑")
+                }
+
                 Text(draft.examTitle)
-                    .font(.system(size: 22, weight: .semibold, design: .serif))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 19, weight: .semibold, design: .serif))
+                    .foregroundStyle(appearance.ink)
+                    .lineLimit(1)
 
                 if let banner = vm.transientBannerMessage {
                     Text(banner)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(LumaTheme.softPinkAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                        )
+                        .foregroundStyle(appearance.accent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .studyGlassCapsule(cornerRadius: 14, selected: true)
                 }
 
                 Spacer()
 
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
+                        .foregroundStyle(draft.remainingSeconds < 300 ? Color.red : appearance.accent)
                     Text(formattedRemainingTime)
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .foregroundStyle(draft.remainingSeconds < 300 ? Color.red : appearance.ink)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(LumaTheme.sidebarSelectedFill)
-                        .overlay(Capsule().stroke(LumaTheme.softPinkAccent.opacity(0.6), lineWidth: 1))
-                )
+                .studyGlassCapsule(cornerRadius: 18, selected: true)
 
-                Button {
-                    draft.isPaused.toggle()
-                    onAutoSave(draft)
-                } label: {
-                    Text(draft.isPaused ? "继续" : "暂停")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                        )
+                if draft.isSingleTaskMode {
+                    Button {
+                        draft.isPaused.toggle()
+                        draft.lastSavedAt = Date()
+                        onAutoSave(draft)
+                    } label: {
+                        Text(draft.isPaused ? "继续计时" : "暂停练习")
+                    }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(selected: draft.isPaused, horizontalPadding: 14, height: 34))
                 }
-                .buttonStyle(.plain)
 
                 Button {
                     onSubmitExam(draft)
                 } label: {
-                    Text("交卷")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(Capsule().stroke(LumaTheme.glassBorder, lineWidth: 1))
-                        )
+                    HStack(spacing: 5) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 12))
+                        Text("交卷")
+                    }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 16, height: 34))
             }
 
+            // Task rubric banner
             HStack(spacing: 14) {
-                Text(draft.activePart == .part1 ? "Part 1" : "Part 2")
-                    .font(.system(size: 16, weight: .bold, design: .serif))
-                    .foregroundStyle(.white)
+                Text(draft.activePart == .part1 ? "Task 1 (20 分钟 · ≥150 词)" : "Task 2 (40 分钟 · ≥250 词)")
+                    .font(.system(size: 14, weight: .bold, design: .serif))
+                    .foregroundStyle(appearance.accent)
                 Divider()
-                    .frame(height: 18)
-                    .background(Color.white.opacity(0.3))
+                    .frame(height: 16)
+                    .background(appearance.line)
                 Text(
                     draft.activePart == .part1
                         ? "You should spend about 20 minutes on this task. Write at least 150 words."
                         : "You should spend about 40 minutes on this task. Write at least 250 words."
                 )
-                .font(.system(size: 14.5, design: .serif))
-                .foregroundStyle(.white.opacity(0.92))
+                .font(.system(size: 14, design: .serif))
+                .foregroundStyle(appearance.ink.opacity(0.86))
                 Spacer()
+                Text("纯英文无纠错机考模式 · 草稿实时自动保存")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(appearance.ink.opacity(0.6))
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(LumaTheme.sidebarPillFill)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
-            )
+            .padding(.vertical, 9)
+            .studyGlassCapsule(cornerRadius: 14)
 
-            GeometryReader { geo in
-                let totalWidth = max(geo.size.width, 480)
-                let handleWidth: CGFloat = 18
-                let leftWidth = max(220, min(totalWidth - 240, totalWidth * vm.leftPaneFraction))
-                let rightWidth = max(220, totalWidth - leftWidth - handleWidth)
-
-                HStack(spacing: 0) {
+            HSplitView {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text(
-                                draft.activePart == .part1
-                                    ? question.promptText
-                                    : (question.companionTask2Prompt ?? "Write about the following topic.")
-                            )
-                            .font(.system(size: 15, design: .serif))
-                            .foregroundStyle(.white.opacity(0.95))
-                            .lineSpacing(5)
+                            StudyPromptView(text:draft.activePart == .part1 ? question.promptText : (question.companionTask2Prompt ?? "Write about the following topic."),highlights:Binding(get:{draft.promptHighlights?[draft.activePart.rawValue] ?? []},set:{ ranges in
+                                    if draft.promptHighlights==nil{draft.promptHighlights=[:]}
+                                    draft.promptHighlights?[draft.activePart.rawValue]=ranges
+                                    onAutoSave(draft)
+                                }))
+
 
                             if draft.activePart == .part1, let dataset = question.chartDataset {
                                 Task1ChartCardView(category: question.category, dataset: dataset)
@@ -2297,34 +2111,11 @@ public struct IELTSWritingExamSplitPaneView: View {
                         }
                         .padding(18)
                     }
-                    .frame(width: leftWidth, height: geo.size.height)
+                    .frame(minWidth:220,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.24))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
-                    )
-
-                    ZStack {
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                            .frame(width: 4, height: geo.size.height * 0.85)
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(LumaTheme.sidebarPillFill)
-                            .frame(width: 16, height: 32)
-                            .overlay(
-                                Image(systemName: "arrow.left.and.right")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.8))
-                            )
-                    }
-                    .frame(width: handleWidth, height: geo.size.height)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                let proposed = value.location.x / totalWidth
-                                vm.leftPaneFraction = min(max(proposed, 0.28), 0.72)
-                            }
+                            .fill(appearance.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.line, lineWidth: 1))
                     )
 
                     ExamEnglishTextEditor(
@@ -2339,90 +2130,75 @@ public struct IELTSWritingExamSplitPaneView: View {
                             showTransientBanner("英文考试输入已启用")
                         }
                     )
-                    .frame(width: rightWidth, height: geo.size.height)
+                    .frame(minWidth:260,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.28))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
+                            .fill(appearance.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.line, lineWidth: 1))
                     )
-                }
             }
 
+
+            // Bottom Glass Bar with Part 1/Part 2 switcher and bottom-right real-time word count
             HStack(spacing: 14) {
-                HStack(spacing: 6) {
-                    partSwitchButton(.part1, title: "Part 1")
-                    partSwitchButton(.part2, title: "Part 2")
+                HStack(spacing: 8) {
+                    partSwitchButton(.part1, title: "Task 1 (20m)")
+                    partSwitchButton(.part2, title: "Task 2 (40m)")
                 }
 
                 Divider()
                     .frame(height: 18)
-                    .background(Color.white.opacity(0.25))
+                    .background(appearance.line)
 
-                Text("\(draft.activePart.rawValue)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(LumaTheme.sidebarSelectedFill)
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(LumaTheme.softPinkAccent, lineWidth: 1))
-                    )
+                Text("当前题号: \(draft.activePart.rawValue)")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(appearance.ink.opacity(0.75))
 
                 Spacer()
 
-                Text("字数 \(currentWordCount)")
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.9))
+                HStack(spacing: 6) {
+                    Text("实时字数")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(appearance.ink.opacity(0.72))
+                    Text("\(currentWordCount) / \(minimumTargetWords) 词")
+                        .font(.system(size: 13.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(currentWordCount >= minimumTargetWords ? Color.green : appearance.ink)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .studyGlassCapsule(cornerRadius: 16, selected: currentWordCount >= minimumTargetWords)
 
                 Button {
                     draft.activePart = (draft.activePart == .part1) ? .part2 : .part1
+                    draft.lastSavedAt = Date()
                     onAutoSave(draft)
                 } label: {
                     HStack(spacing: 6) {
-                        Text(draft.activePart == .part1 ? "下一题" : "上一题")
+                        Text(draft.activePart == .part1 ? "下一题 (Task 2)" : "上一题 (Task 1)")
                         Image(systemName: draft.activePart == .part1 ? "arrow.right" : "arrow.left")
                     }
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 7)
-                    .background(
-                        Capsule()
-                            .fill(LumaTheme.sidebarSelectedFill)
-                            .overlay(Capsule().stroke(LumaTheme.softPinkAccent.opacity(0.6), lineWidth: 1))
-                    )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StudyGlassCapsuleButtonStyle(selected: true, horizontalPadding: 14, height: 32))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(LumaTheme.sidebarPillFill)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
-            )
+            .studyGlassCapsule(cornerRadius: 16)
         }
         .padding(20)
-        .background(LumaTheme.windowBackground)
+        .background(appearance.paper)
+
     }
 
     private func partSwitchButton(_ part: ExamPart, title: String) -> some View {
         let isSelected = (draft.activePart == part)
         return Button {
             draft.activePart = part
+            draft.lastSavedAt = Date()
             onAutoSave(draft)
         } label: {
             Text(title)
-                .font(.system(size: 13.5, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0.7))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? LumaTheme.sidebarSelectedFill : Color.clear)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: isSelected, selected: isSelected, horizontalPadding: 14, height: 30))
     }
 
     private func showTransientBanner(_ message: String) {
@@ -2437,11 +2213,40 @@ public struct IELTSWritingExamSplitPaneView: View {
 }
 
 struct Task1ChartCardView: View {
+    @Environment(\.studyAppearance) private var appearance
+    @State private var chartZoom = 1.0
+    @State private var expanded=false
+    var allowsExpansion:Bool = true
     let category: Task1ChartCategory
     let dataset: Task1ChartDataset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if allowsExpansion {Button("放大查看图表",systemImage:"arrow.up.left.and.arrow.down.right") {expanded=true}.foregroundStyle(.black)}
+            if !dataset.series.isEmpty && category != .table {
+                HStack {
+                    Text("图表缩放")
+                    Slider(value:$chartZoom,in:1...2.5).frame(width:140)
+                    Button("重置") { chartZoom = 1 }
+                }.foregroundStyle(.black)
+                ScrollView([.horizontal,.vertical]) {
+                    Chart {
+                        ForEach(dataset.series,id:\.name) { series in
+                            ForEach(Array(series.values.enumerated()),id:\.offset) { index,value in
+                                if index < dataset.xAxisLabels.count {
+                                    if category == .lineGraph {
+                                        LineMark(x:.value("类别",dataset.xAxisLabels[index]),y:.value(series.unit,value)).foregroundStyle(by:.value("系列",series.name))
+                                    } else if category == .pieChart {
+                                        SectorMark(angle:.value("数值",value)).foregroundStyle(by:.value("类别",dataset.xAxisLabels[index]))
+                                    } else {
+                                        BarMark(x:.value("类别",dataset.xAxisLabels[index]),y:.value(series.unit,value)).foregroundStyle(by:.value("系列",series.name))
+                                    }
+                                }
+                            }
+                        }
+                    }.frame(width:340*chartZoom,height:240*chartZoom).padding(12)
+                }.frame(height:280)
+            }
             if !dataset.series.isEmpty {
                 ForEach(dataset.series, id: \.name) { series in
                     VStack(alignment: .leading, spacing: 4) {
@@ -2466,6 +2271,9 @@ struct Task1ChartCardView: View {
                 }
             }
             if let map = dataset.mapComparison {
+                StudyMapDiagram(title:map.beforeYearLabel,features:map.beforeFeatures)
+                StudyMapDiagram(title:map.afterYearLabel,features:map.afterFeatures)
+                DisclosureGroup("地图原始数据") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Before (\(map.beforeYearLabel)):")
                         .font(.system(size: 13, weight: .bold))
@@ -2486,6 +2294,7 @@ struct Task1ChartCardView: View {
                     }
                 }
             }
+                }
             if let steps = dataset.processSteps {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(steps, id: \.stepNumber) { step in
@@ -2496,7 +2305,9 @@ struct Task1ChartCardView: View {
                             Text("\(step.title): \(step.detail)")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.black.opacity(0.85))
-                        }
+                        }.padding(12).frame(maxWidth:.infinity,alignment:.leading)
+                            .background(Color.black.opacity(0.04),in:RoundedRectangle(cornerRadius:8))
+                        if step.stepNumber != steps.last?.stepNumber {Image(systemName:"arrow.down").font(.caption).foregroundStyle(.black.opacity(0.5)).frame(maxWidth:.infinity)}
                     }
                 }
             }
@@ -2504,891 +2315,15 @@ struct Task1ChartCardView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
-    }
-}
-#endif
-
-
-//
-//  LumaStudyCenterHostView.swift
-//  LumaReader
-//
-//  Complete host view mounting all Study Center modules into LumaReader's `ContentView.primaryContent`:
-//  - 听力: 今日计划 / 我的词库 (书架式封面网格, 第一张粉色封面卡「词汇练习」+ 今天已听写 N 个单词)、错词复习、顽固单词、学习记录
-//  - 写作: 模拟机考 (双栏独立滚动 + 可拖拽分隔线 + 60分钟全局倒计时 + Part 1/2 切换 + ExamNSTextView 纯英文无纠错锁)、
-//          Task 1 题库 (顶部7大题型筛选 + 5列竖卡网格 + 单击选中/双击进入机考 + 12道完整原创题)、
-//          Task 2 题库、历史作文、评分反馈 (IELTS 四项标准估计评分)
-//  - 学习统计: 全部｜听力｜写作 三档切换 + 今天｜7天｜30天｜全部时间 四档时间筛选
-//
-
-import Foundation
-#if canImport(SwiftUI) && canImport(AppKit)
-import SwiftUI
-import AppKit
-
-@MainActor
-public struct LumaStudyCenterHostView: View {
-    @Binding public var mode: String
-
-    @MainActor
-    final class HostStateModel: ObservableObject {
-        @Published var storeSnapshot: StudyStoreSnapshot = StudyStoreSnapshot()
-        @Published var selectedExamQuestion: Task1QuestionItem = LumaStudyCenterHostView.builtInPracticeQuestions[2]
-        @Published var currentDraft: WritingExamDraftState = WritingExamDraftState(
-            id: UUID(),
-            questionID: "ORIG-003",
-            examTitle: "Cambridge IELTS 9 · Test 1 (Island redevelopment)",
-            activePart: .part1,
-            part1EssayText: "",
-            part2EssayText: "",
-            remainingSeconds: 3600,
-            elapsedSeconds: 0,
-            isPaused: false,
-            isSingleTaskMode: false,
-            lastSavedAt: Date(),
-            containsLegacyNonEnglishNotice: false
-        )
-        @Published var dictationMachine = DictationSessionStateMachine(
-            mode: .newTask,
-            dateString: LumaStudyCenterHostView.todayDateString(),
-            initialWords: LumaStudyCenterHostView.builtInVocabularyWords
-        )
-        @Published var dictationInput: String = ""
-        @Published var dictationFeedback: String = "点击「播放女声发音」听音默写；1–4次错词自动穿插进后续未填队列，当天第5次答错进入「顽固单词」且当日不再自动出现。"
-        @Published var selectedAccent: TTSVoiceAccent = .british
-        @Published var speechRateMultiplier: Float = 1.0
-        @Published var statsScope: StudyStatisticsScope = .all
-        @Published var statsTimeWindow: StudyStatsTimeWindow = .allTime
-    }
-    @StateObject private var vm = HostStateModel()
-
-    private let ttsEngine = MacOSSpeechSynthesisManager()
-
-    public init(mode: Binding<String>) {
-        self._mode = mode
-    }
-
-    public var body: some View {
-        ZStack {
-            LumaTheme.windowBackground.ignoresSafeArea()
-
-            switch mode {
-            case "学习_听力", "学习_听力_今日计划", "学习_听力_我的词库":
-                listeningCenterView(submode: .newTask)
-            case "学习_听力_错词复习":
-                listeningCenterView(submode: .wrongWordReview)
-            case "学习_听力_顽固单词":
-                stubbornWordsDedicatedView
-            case "学习_听力_学习记录":
-                listeningRecordsDedicatedView
-            case "学习_模拟机考", "学习_写作_模拟机考":
-                IELTSWritingExamSplitPaneView(
-                    question: vm.selectedExamQuestion,
-                    draft: $vm.currentDraft,
-                    onAutoSave: { updated in
-                        vm.storeSnapshot.activeWritingDrafts[updated.questionID] = updated
-                    },
-                    onSubmitExam: { submittedDraft in
-                        submitWritingExam(submittedDraft)
-                    }
-                )
-            case "学习_写作_Task2题库":
-                task2QuestionBankView
-            case "学习_写作_历史作文", "学习_写作_评分反馈":
-                writingHistoryAndFeedbackView
-            case "学习_统计":
-                studyStatisticsView
-            default:
-                // Default: "学习_Task1题库" / "学习_写作_Task1题库"
-                Task1QuestionBankHomeView(
-                    allCatalogItems: Self.builtInPracticeQuestions,
-                    onLaunchExam: { chosen in
-                        launchExam(for: chosen, singleTask: false)
-                    }
-                )
-            }
-        }
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            if (mode == "学习_模拟机考" || mode == "学习_写作_模拟机考"),
-               !vm.currentDraft.isPaused,
-               vm.currentDraft.remainingSeconds > 0 {
-                vm.currentDraft.remainingSeconds -= 1
-                vm.currentDraft.elapsedSeconds += 1
-            }
+        .environment(\.colorScheme,.light)
+        .sheet(isPresented:$expanded) {
+            VStack {
+                HStack {Text("题目图表").font(.title2);Spacer();Button("关闭") {expanded=false}.keyboardShortcut(.cancelAction)}
+                ScrollView([.horizontal,.vertical]) {
+                    Task1ChartCardView(allowsExpansion:false,category:category,dataset:dataset).frame(width:860)
+                }
+            }.padding(24).frame(minWidth:800,minHeight:600)
         }
     }
-
-    private func launchExam(for chosen: Task1QuestionItem, singleTask: Bool) {
-        vm.selectedExamQuestion = chosen
-        if let saved = vm.storeSnapshot.activeWritingDrafts[chosen.id] {
-            vm.currentDraft = saved
-        } else {
-            vm.currentDraft = WritingExamDraftState(
-                id: UUID(),
-                questionID: chosen.id,
-                examTitle: "\(chosen.id) · \(chosen.shortTitle)",
-                activePart: .part1,
-                part1EssayText: "",
-                part2EssayText: "",
-                remainingSeconds: 3600,
-                elapsedSeconds: 0,
-                isPaused: false,
-                isSingleTaskMode: singleTask,
-                lastSavedAt: Date(),
-                containsLegacyNonEnglishNotice: false
-            )
-        }
-        mode = "学习_写作_模拟机考"
-    }
-
-    private func submitWritingExam(_ submittedDraft: WritingExamDraftState) {
-        let policy = ExamEnglishInputPolicy()
-        let p1Words = policy.countIELTSWords(in: submittedDraft.part1EssayText)
-        let p2Words = policy.countIELTSWords(in: submittedDraft.part2EssayText)
-        let record = WritingSubmissionRecord(
-            id: UUID(),
-            draftSessionID: submittedDraft.id,
-            questionID: submittedDraft.questionID,
-            examTitle: submittedDraft.examTitle,
-            part1EssayText: submittedDraft.part1EssayText,
-            part2EssayText: submittedDraft.part2EssayText,
-            part1WordCount: p1Words,
-            part2WordCount: p2Words,
-            durationSeconds: max(60, 3600 - submittedDraft.remainingSeconds),
-            submittedAt: Date(),
-            dateString: Self.todayDateString(),
-            aiEvaluation: IELTSFourCriteriaEstimate(
-                taskAchievementOrResponse: 7.0,
-                coherenceAndCohesion: 7.5,
-                lexicalResource: 7.0,
-                grammaticalRangeAndAccuracy: 6.5,
-                overallEstimatedBand: 7.0,
-                officialDisclaimer: "AI 评估分数仅作日常练习参考，不可标作官方 IELTS 分数。",
-                sentenceCorrections: [
-                    .init(
-                        originalSentence: "Overview paragraph and comparisons checked.",
-                        correctedSentence: "Clear overview with accurate data comparisons across key features.",
-                        explanationZH: "交卷后按 TR/TA、CC、LR、GRA 四项标准生成逐句纠错与中文解析。",
-                        upgradedExpression: "Overall, the most striking transformation is the expansion of visitor amenities."
-                    )
-                ]
-            )
-        )
-        vm.storeSnapshot.writingSubmissions.insert(record, at: 0)
-        mode = "学习_写作_评分反馈"
-    }
-
-    // MARK: - 1. Listening Shelf & Dictation Pod
-
-    private func listeningCenterView(submode: DictationSessionMode) -> some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 24) {
-                ListeningShelfHomeView(
-                    todayDictatedWordCount: DictationSessionStateMachine.todayDictatedWordCount(
-                        from: vm.dictationMachine.attemptLogs,
-                        on: Self.todayDateString()
-                    )
-                ) { _ in
-                    speakCurrentWord()
-                }
-
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 12) {
-                        Text(submode == .wrongWordReview ? "错词复习队列" : "词汇听写 · 自然女声优先")
-                            .font(.system(size: 18, weight: .bold, design: .serif))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Picker("口音", selection: $vm.selectedAccent) {
-                            Text("英式女声 (en-GB)").tag(TTSVoiceAccent.british)
-                            Text("美式女声 (en-US)").tag(TTSVoiceAccent.american)
-                        }
-                        .frame(width: 175)
-
-                        Picker("语速", selection: $vm.speechRateMultiplier) {
-                            Text("0.85x 慢速").tag(Float(0.85))
-                            Text("1.0x 标准").tag(Float(1.0))
-                            Text("1.15x 进阶").tag(Float(1.15))
-                        }
-                        .frame(width: 125)
-
-                        Button("🔊 重播女声") {
-                            speakCurrentWord()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(LumaTheme.softPinkAccent)
-                    }
-
-                    if let word = vm.dictationMachine.currentWord {
-                        let phonetic = vm.selectedAccent == .british ? word.phoneticUK : word.phoneticUS
-                        let errorCount = vm.dictationMachine.sessionErrorCounts[word.id, default: 0]
-                        Text("词性提示：\(word.partOfSpeech) \(word.definitionZH) · 音标：\(phonetic) · 本轮累计错误：\(errorCount)/5 次").font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.85))
-
-                        HStack(spacing: 12) {
-                            TextField("听音后输入英文单词...", text: $vm.dictationInput)
-                                .textFieldStyle(.roundedBorder)
-                                .onSubmit {
-                                    submitCurrentDictation()
-                                }
-                            Button("提交核对") {
-                                submitCurrentDictation()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    } else {
-                        Text("🎉 当前听写队列已全部完成！")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(LumaTheme.softPinkAccent)
-                    }
-
-                    Text(vm.dictationFeedback)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.white.opacity(0.78))
-                }
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(LumaTheme.sidebarPillFill)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LumaTheme.glassBorder, lineWidth: 1))
-                )
-                .padding(.horizontal, 32)
-            }
-        }
-        .background(LumaTheme.windowBackground)
-    }
-
-    private var stubbornWordsDedicatedView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("顽固单词")
-                .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(.white)
-            Text("当日累计答错满 5 次自动转入顽固单词，当日不再自动出现；按错误次数从高到低排序，独立记录复习会话。")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.7))
-
-            if vm.dictationMachine.sortedStubbornWords.isEmpty {
-                Text("暂无顽固单词记录。")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .padding(.top, 20)
-            } else {
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(vm.dictationMachine.sortedStubbornWords) { rec in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(rec.word)
-                                        .font(.system(size: 18, weight: .bold, design: .serif))
-                                        .foregroundStyle(.white)
-                                    Text("所属原词库：\(rec.sourceDeckTitle) · 记录日期：\(rec.dateString)")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.white.opacity(0.65))
-                                }
-                                Spacer()
-                                Text("错误 \(rec.errorCount) 次")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(LumaTheme.softPinkAccent)
-                            }
-                            .padding(14)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(LumaTheme.sidebarPillFill))
-                        }
-                    }
-                }
-            }
-            Spacer()
-        }
-        .padding(32)
-        .background(LumaTheme.windowBackground)
-    }
-
-    private var listeningRecordsDedicatedView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("听力学习记录")
-                .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(.white)
-            if vm.dictationMachine.attemptLogs.isEmpty {
-                Text("今日尚无听写记录，前往「听力 → 今日计划」开始练习后将自动记录。")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.65))
-            } else {
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(vm.dictationMachine.attemptLogs) { log in
-                            HStack {
-                                Text(log.word)
-                                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                                    .foregroundStyle(.white)
-                                Text("输入：\(log.userTyped)")
-                                    .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.75))
-                                Spacer()
-                                Text(log.isCorrect ? "✓ 正确" : "✗ 错误 (第\(log.sessionErrorCountForWord)次)")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(log.isCorrect ? .green : .pink)
-                            }
-                            .padding(12)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(LumaTheme.sidebarPillFill))
-                        }
-                    }
-                }
-            }
-            Spacer()
-        }
-        .padding(32)
-        .background(LumaTheme.windowBackground)
-    }
-
-    // MARK: - 2. Task 2 Bank & Writing History / AI Feedback Views
-
-    private var task2QuestionBankView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Task 2 议论文题库")
-                .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(.white)
-            Text("双击任意题目进入 40 分钟 / 250 词纯英文无纠错写作机考")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.68))
-
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(Self.builtInPracticeQuestions) { item in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("\(item.companionTask2ID ?? "T2") · \(item.shortTitle)")
-                                    .font(.system(size: 16, weight: .bold, design: .serif))
-                                    .foregroundStyle(LumaTheme.softPinkAccent)
-                                Spacer()
-                                Text("建议 40 分钟 · 至少 250 词")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.white.opacity(0.6))
-                            }
-                            Text(item.companionTask2Prompt ?? "")
-                                .font(.system(size: 14, design: .serif))
-                                .foregroundStyle(.white.opacity(0.92))
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(LumaTheme.sidebarPillFill)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
-                        )
-                        .onTapGesture(count: 2) {
-                            launchExam(for: item, singleTask: false)
-                            vm.currentDraft.activePart = .part2
-                        }
-                    }
-                }
-            }
-        }
-        .padding(32)
-        .background(LumaTheme.windowBackground)
-    }
-
-    private var writingHistoryAndFeedbackView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("历史作文与 AI 评分反馈")
-                .font(.system(size: 30, weight: .bold, design: .serif))
-                .foregroundStyle(.white)
-            Text("声明：交卷后提供的四维评分仅为 AI 估计参考分数，绝非官方 IELTS 成绩。")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.yellow.opacity(0.9))
-
-            if vm.storeSnapshot.writingSubmissions.isEmpty {
-                Text("暂无已提交的历史作文。双击 Task 1 题卡完成练习并点击「交卷」后在此查看四项评分与逐句纠错。")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .padding(.top, 16)
-            } else {
-                ScrollView {
-                    VStack(spacing: 14) {
-                        ForEach(vm.storeSnapshot.writingSubmissions) { sub in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text(sub.examTitle)
-                                        .font(.system(size: 17, weight: .bold, design: .serif))
-                                        .foregroundStyle(.white)
-                                    Spacer()
-                                    if let eval = sub.aiEvaluation {
-                                        Text(String(format: "AI 估计总分：Band %.1f", eval.overallEstimatedBand))
-                                            .font(.system(size: 13, weight: .bold))
-                                            .foregroundStyle(LumaTheme.softPinkAccent)
-                                    }
-                                }
-                                Text("提交日期：\(sub.dateString) · Part 1 字数：\(sub.part1WordCount) · Part 2 字数：\(sub.part2WordCount) · 用时：\(sub.durationSeconds / 60) 分钟")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.white.opacity(0.7))
-                            }
-                            .padding(16)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(LumaTheme.sidebarPillFill))
-                        }
-                    }
-                }
-            }
-            Spacer()
-        }
-        .padding(32)
-        .background(LumaTheme.windowBackground)
-    }
-
-    private func speakCurrentWord() {
-        guard let word = vm.dictationMachine.currentWord else { return }
-        let voice = ttsEngine.selectBestFemaleVoice(
-            preferredVoiceID: vm.storeSnapshot.selectedVoiceIdentifier,
-            accent: vm.selectedAccent
-        )
-        ttsEngine.speak(text: word.word, voice: voice, requestedRate: vm.speechRateMultiplier)
-    }
-
-    private func submitCurrentDictation() {
-        guard let outcome = vm.dictationMachine.submitAnswer(vm.dictationInput) else { return }
-        vm.dictationInput = ""
-        switch outcome {
-        case .correct(let exitedWrongCycle):
-            vm.dictationFeedback = exitedWrongCycle
-                ? "✓ 拼写正确！该词已成功退出本轮错词复习循环。"
-                : "✓ 拼写正确！"
-        case .requeuedForRetry(let errCount, let offset):
-            vm.dictationFeedback = "✗ 拼写有误（今日第 \(errCount)/5 次错误），已穿插排入后续第 \(offset + 1) 位等待复习。"
-        case .promotedToStubbornWords(let rec):
-            vm.dictationFeedback = "⚠️ 「\(rec.word)」今日累计答错满 5 次，已移入「顽固单词」且今日不再自动出现。"
-        }
-    }
-
-    // MARK: - 3. Study Statistics View (全部｜听力｜写作 + 今天｜7天｜30天｜全部时间)
-
-    private var studyStatisticsView: some View {
-        let overview = StudyStatisticsCalculator.computeOverview(
-            dictationLogs: vm.dictationMachine.attemptLogs,
-            writingSubmissions: vm.storeSnapshot.writingSubmissions
-        )
-        let listeningStats = StudyStatisticsCalculator.computeListening(
-            dictationLogs: vm.dictationMachine.attemptLogs,
-            stubbornWords: vm.dictationMachine.sortedStubbornWords
-        )
-        let writingStats = StudyStatisticsCalculator.computeWriting(
-            submissions: vm.storeSnapshot.writingSubmissions
-        )
-
-        return VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("学习统计")
-                    .font(.system(size: 30, weight: .bold, design: .serif))
-                    .foregroundStyle(.white)
-                Spacer()
-                Picker("模块", selection: $vm.statsScope) {
-                    ForEach(StudyStatisticsScope.allCases, id: \.self) { s in
-                        Text(s.rawValue).tag(s)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 210)
-
-                Picker("时间范围", selection: $vm.statsTimeWindow) {
-                    ForEach(StudyStatsTimeWindow.allCases, id: \.self) { w in
-                        Text(w.rawValue).tag(w)
-                    }
-                }
-                .frame(width: 150)
-            }
-
-            if vm.statsScope == .all {
-                HStack(spacing: 16) {
-                    statCard(title: "真实总学习时长", value: "\(overview.totalStudySeconds / 60) 分钟", subtitle: "听力 \(overview.listeningStudySeconds / 60) 分钟 + 写作 \(overview.writingStudySeconds / 60) 分钟（绝不把单词数加作文数）")
-                    statCard(title: "连续学习天数", value: "\(overview.streakDays) 天", subtitle: overview.isEmpty ? "暂无学习会话记录" : "基于本地持久化会话计算")
-                }
-            } else if vm.statsScope == .listening {
-                HStack(spacing: 16) {
-                    statCard(title: "听写完成单词数", value: "\(listeningStats.completedUniqueWordsCount) 词", subtitle: "总错误次数：\(listeningStats.totalErrorCount)")
-                    statCard(title: "首次正确率", value: String(format: "%.1f%%", listeningStats.firstAttemptAccuracyPercent), subtitle: "顽固单词数：\(listeningStats.stubbornWordsCount)")
-                }
-            } else {
-                HStack(spacing: 16) {
-                    statCard(title: "完成作文篇数", value: "\(writingStats.totalSubmissionsCount) 篇", subtitle: "Task 1: \(writingStats.task1Count) 篇 · Task 2: \(writingStats.task2Count) 篇")
-                    statCard(title: "平均字数与 AI 估计均分", value: "\(writingStats.averageWordCount) 词", subtitle: "AI 估计均分：\(writingStats.averageEstimatedBand.map { String(format: "Band %.1f", $0) } ?? "暂无数据")")
-                }
-            }
-
-            Spacer()
-        }
-        .padding(32)
-        .background(LumaTheme.windowBackground)
-    }
-
-    private func statCard(title: String, value: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.7))
-            Text(value)
-                .font(.system(size: 24, weight: .bold, design: .serif))
-                .foregroundStyle(.white)
-            Text(subtitle)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.white.opacity(0.55))
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LumaTheme.sidebarPillFill)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(LumaTheme.glassBorder, lineWidth: 1))
-        )
-    }
-
-    static func todayDateString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
-    }
-
-    // MARK: - Built-In Vocabulary & 12 Original Task 1 Questions
-
-    public static let builtInVocabularyWords: [VocabularyWord] = [
-        VocabularyWord(id: "w1", word: "accommodation", phoneticUK: "/əˌkɒm.əˈdeɪ.ʃən/", phoneticUS: "/əˌkɑː.məˈdeɪ.ʃən/", partOfSpeech: "n.", definitionZH: "住宿；膳宿设施", exampleSentence: "New tourist accommodation was constructed.", deckID: "vocab_daily", deckTitle: "词汇练习"),
-        VocabularyWord(id: "w2", word: "infrastructure", phoneticUK: "/ˈɪn.frəˌstrʌk.tʃər/", phoneticUS: "/ˈɪn.frəˌstrʌk.tʃɚ/", partOfSpeech: "n.", definitionZH: "基础设施", exampleSentence: "Public transport infrastructure expanded.", deckID: "vocab_daily", deckTitle: "词汇练习"),
-        VocabularyWord(id: "w3", word: "fluctuate", phoneticUK: "/ˈflʌk.tʃu.eɪt/", phoneticUS: "/ˈflʌk.tʃu.eɪt/", partOfSpeech: "v.", definitionZH: "波动；涨落", exampleSentence: "Attendance figures fluctuated wildly.", deckID: "vocab_daily", deckTitle: "词汇练习"),
-        VocabularyWord(id: "w4", word: "sustainable", phoneticUK: "/səˈsteɪ.nə.bəl/", phoneticUS: "/səˈsteɪ.nə.bəl/", partOfSpeech: "adj.", definitionZH: "可持续的", exampleSentence: "Sustainable energy production increased.", deckID: "vocab_daily", deckTitle: "词汇练习")
-    ]
-
-    public static let builtInPracticeQuestions: [Task1QuestionItem] = [
-        Task1QuestionItem(
-            id: "ORIG-001",
-            shortTitle: "Car ownership",
-            category: .lineGraph,
-            difficultyBand: "Band 6.5–7.5",
-            promptText: "The line graph below shows the percentage of households owning zero, one, or two or more cars in a European country between 1980 and 2020. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ielts-simon.study/ielts-writing-task-1-academic/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["1980", "1990", "2000", "2010", "2020"],
-                series: [
-                    ChartSeries(name: "No car", unit: "%", values: [48, 38, 30, 25, 22]),
-                    ChartSeries(name: "One car", unit: "%", values: [42, 46, 48, 47, 46]),
-                    ChartSeries(name: "Two or more cars", unit: "%", values: [10, 16, 22, 28, 32])
-                ],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-001",
-            companionTask2Prompt: "Some people believe that governments should invest heavily in public transport rather than building new roads for private cars. To what extent do you agree or disagree?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-002",
-            shortTitle: "Household spending",
-            category: .pieChart,
-            difficultyBand: "Band 6.0–7.0",
-            promptText: "The pie chart below illustrates the average proportion of monthly household expenditure across six categories in a coastal city in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["Housing", "Food", "Transport", "Healthcare", "Leisure", "Savings"],
-                series: [],
-                pieSlicePercentages: ["Housing": 34, "Food": 22, "Transport": 15, "Healthcare": 11, "Leisure": 10, "Savings": 8],
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-002",
-            companionTask2Prompt: "In many countries, the cost of living is rising rapidly. What are the primary causes of this trend, and what measures can individuals and governments take to address it?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-003",
-            shortTitle: "Island redevelopment",
-            category: .map,
-            difficultyBand: "Band 7.0–8.0",
-            promptText: "The two maps below show an island before and after the construction of tourist facilities. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ieltsliz.com/ielts-map-comparison/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["Before", "After"],
-                series: [],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: MapComparisonPayload(
-                    beforeYearLabel: "Before Development",
-                    afterYearLabel: "After Eco-Resort Development",
-                    beforeFeatures: [
-                        MapStageFeature(label: "Natural sandy beach", region: "West", status: "unmodified"),
-                        MapStageFeature(label: "Scattered palm groves", region: "East & North", status: "natural"),
-                        MapStageFeature(label: "Undeveloped interior", region: "Center", status: "vacant")
-                    ],
-                    afterFeatures: [
-                        MapStageFeature(label: "Swimming area at beach", region: "West", status: "added"),
-                        MapStageFeature(label: "Reception & restaurant block", region: "Center", status: "constructed"),
-                        MapStageFeature(label: "Guest accommodation huts", region: "West & Center", status: "constructed"),
-                        MapStageFeature(label: "Southern boat pier", region: "South", status: "constructed")
-                    ]
-                ),
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-003",
-            companionTask2Prompt: "Developing remote natural areas for international tourism brings economic benefits, but it often damages the local environment. Discuss both views and give your own opinion.",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-004",
-            shortTitle: "Coffee production",
-            category: .processDiagram,
-            difficultyBand: "Band 6.5–7.5",
-            promptText: "The diagram below shows the stages involved in the dry-method production of roasted coffee beans from harvesting to commercial packaging. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["1", "2", "3", "4"],
-                series: [],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: [
-                    ProcessStepPayload(stepNumber: 1, title: "Hand Picking & Sun Drying", detail: "Ripe cherries are harvested and sun-dried for 2–3 weeks.", nextStepNumber: 2),
-                    ProcessStepPayload(stepNumber: 2, title: "Mechanical Hulling", detail: "Dried outer husks are removed in a mill.", nextStepNumber: 3),
-                    ProcessStepPayload(stepNumber: 3, title: "Grading & Roasting", detail: "Beans are sorted and roasted at 200°C–220°C.", nextStepNumber: 4),
-                    ProcessStepPayload(stepNumber: 4, title: "Cooling & Vacuum Packing", detail: "Roasted beans are cooled and sealed into commercial bags.", nextStepNumber: nil)
-                ]
-            ),
-            companionTask2ID: "T2-004",
-            companionTask2Prompt: "Modern automated manufacturing has reduced the price of everyday consumer goods, yet many traditional skills are disappearing. Do the advantages of automation outweigh the disadvantages?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-005",
-            shortTitle: "Museum attendance",
-            category: .barChart,
-            difficultyBand: "Band 6.5–7.5",
-            promptText: "The bar chart below compares annual visitor numbers (in thousands) across four public museums in a capital city in 2015, 2020, and 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["National Gallery", "Science Museum", "Maritime Museum", "Modern Art Hub"],
-                series: [
-                    ChartSeries(name: "2015", unit: "k", values: [820, 640, 310, 490]),
-                    ChartSeries(name: "2020", unit: "k", values: [410, 380, 180, 290]),
-                    ChartSeries(name: "2025", unit: "k", values: [950, 890, 340, 760])
-                ],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-005",
-            companionTask2Prompt: "Some people think that all public museums and art galleries should be free of charge, while others believe visitors should pay an admission fee. Discuss both views and give your opinion.",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-006",
-            shortTitle: "Population trends",
-            category: .table,
-            difficultyBand: "Band 7.0–8.0",
-            promptText: "The table below gives data on the population distribution (in millions) across three age brackets in four regions in 2025, along with total regional populations. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["North Metro", "Central Valley", "Coastal District", "Highland Province"],
-                series: [
-                    ChartSeries(name: "Aged 0–14", unit: "M", values: [2.4, 1.8, 3.1, 0.9]),
-                    ChartSeries(name: "Aged 15–64", unit: "M", values: [9.6, 6.5, 11.4, 3.2]),
-                    ChartSeries(name: "Aged 65+", unit: "M", values: [3.0, 2.2, 2.5, 1.4])
-                ],
-                pieSlicePercentages: nil,
-                tableRowTotals: [15.0, 10.5, 17.0, 5.5],
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-006",
-            companionTask2Prompt: "In many countries, the proportion of older people is steadily increasing. Does this demographic shift bring more positive or negative effects to society?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-007",
-            shortTitle: "House prices",
-            category: .barChart,
-            difficultyBand: "Band 6.5–7.5",
-            promptText: "The bar chart below shows the average residential property price (in thousand USD) for apartments, townhouses, and detached homes in three cities in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://takeielts.britishcouncil.org/prepare/ielts-free-practice-mock-tests/academic/writing",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["Harborview", "Oakridge", "Riverdale"],
-                series: [
-                    ChartSeries(name: "Apartments", unit: "k USD", values: [420, 310, 260]),
-                    ChartSeries(name: "Townhouses", unit: "k USD", values: [680, 490, 390]),
-                    ChartSeries(name: "Detached", unit: "k USD", values: [950, 670, 520])
-                ],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-007",
-            companionTask2Prompt: "In many major cities, young adults find it increasingly difficult to purchase their first home. What are the reasons for this, and how can governments help?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-008",
-            shortTitle: "Water usage",
-            category: .pieChart,
-            difficultyBand: "Band 6.0–7.0",
-            promptText: "The pie chart below shows the breakdown of municipal freshwater consumption across five sectors in an Australian metropolitan region in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["Houses", "Apartments", "Industrial", "Commercial", "Parks"],
-                series: [],
-                pieSlicePercentages: ["Houses": 46, "Apartments": 18, "Industrial": 16, "Commercial": 12, "Parks": 8],
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-008",
-            companionTask2Prompt: "Fresh water is becoming a scarce resource in many parts of the world. What are the causes of water scarcity, and what steps should be taken to conserve water?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-009",
-            shortTitle: "City populations",
-            category: .lineGraph,
-            difficultyBand: "Band 6.5–7.5",
-            promptText: "The line graph below illustrates the urban population growth (in millions) of three Asian metropolitan areas from 1990 to 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["1990", "2000", "2010", "2020", "2025"],
-                series: [
-                    ChartSeries(name: "Metro Alpha", unit: "M", values: [3.2, 4.8, 6.9, 8.7, 9.4]),
-                    ChartSeries(name: "Metro Beta", unit: "M", values: [5.1, 5.6, 6.2, 6.8, 7.0]),
-                    ChartSeries(name: "Metro Gamma", unit: "M", values: [1.8, 2.9, 5.4, 7.9, 9.1])
-                ],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-009",
-            companionTask2Prompt: "Rapid urbanization creates severe housing and traffic pressures in large cities. What problems does overpopulation in cities cause, and how can they be solved?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-010",
-            shortTitle: "Park plans",
-            category: .map,
-            difficultyBand: "Band 7.0–8.0",
-            promptText: "The two plans below show a municipal community park in 1995 and its redesigned layout in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://ieltsliz.com/ielts-map-comparison/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["1995", "2025"],
-                series: [],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: MapComparisonPayload(
-                    beforeYearLabel: "1995 Layout",
-                    afterYearLabel: "2025 Redesigned Layout",
-                    beforeFeatures: [
-                        MapStageFeature(label: "Central duck pond", region: "Center", status: "original"),
-                        MapStageFeature(label: "Gravel path & benches", region: "North", status: "original"),
-                        MapStageFeature(label: "Open grass meadow", region: "East", status: "undeveloped")
-                    ],
-                    afterFeatures: [
-                        MapStageFeature(label: "Expanded wetland pond & deck", region: "Center", status: "expanded"),
-                        MapStageFeature(label: "Playground & fitness zone", region: "East", status: "added"),
-                        MapStageFeature(label: "Community cafe & cycle racks", region: "North", status: "added")
-                    ]
-                ),
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-010",
-            companionTask2Prompt: "Public parks and green spaces are essential for urban residents' physical and mental wellbeing. How can city planners balance green spaces with the need for commercial and residential buildings?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-011",
-            shortTitle: "Solar panel recycling",
-            category: .processDiagram,
-            difficultyBand: "Band 7.0–8.0",
-            promptText: "The diagram below illustrates the closed-loop industrial process for recycling end-of-life photovoltaic solar panels into purified raw materials. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://howtodoielts.com/ielts-writing-task-1/",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["1", "2", "3", "4", "5"],
-                series: [],
-                pieSlicePercentages: nil,
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: [
-                    ProcessStepPayload(stepNumber: 1, title: "Frame Dismantling", detail: "Aluminum frames and junction boxes are detached.", nextStepNumber: 2),
-                    ProcessStepPayload(stepNumber: 2, title: "Thermal Delamination", detail: "500°C furnace evaporates encapsulating polymer.", nextStepNumber: 3),
-                    ProcessStepPayload(stepNumber: 3, title: "Optical Glass Separation", detail: "95% glass cullet separated on vibrating conveyors.", nextStepNumber: 4),
-                    ProcessStepPayload(stepNumber: 4, title: "Chemical Metal Leaching", detail: "Acid leaching extracts silver and copper.", nextStepNumber: 5),
-                    ProcessStepPayload(stepNumber: 5, title: "Wafer Ingot Recasting", detail: "Purified silicon melted into new solar ingots.", nextStepNumber: nil)
-                ]
-            ),
-            companionTask2ID: "T2-011",
-            companionTask2Prompt: "While renewable energy technologies reduce carbon emissions, their manufacturing and disposal also create environmental challenges. To what extent should manufacturers be legally responsible for recycling their products?",
-            notes: nil
-        ),
-        Task1QuestionItem(
-            id: "ORIG-012",
-            shortTitle: "Renewable energy & storage",
-            category: .mixedChart,
-            difficultyBand: "Band 7.5–8.5",
-            promptText: "The line graph below shows renewable electricity generation (in TWh) from wind, solar, and hydro in a Nordic country from 2010 to 2025, while the pie chart shows the share of grid battery storage capacity by sector in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
-            minimumWords: 150,
-            recommendedMinutes: 20,
-            sourceName: "LumaReader Original Academic Bank",
-            sourceURL: "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
-            licenseStatus: .originalSelfAuthored,
-            chartDataset: Task1ChartDataset(
-                xAxisLabels: ["2010", "2015", "2020", "2025"],
-                series: [
-                    ChartSeries(name: "Hydropower", unit: "TWh", values: [62, 65, 68, 70]),
-                    ChartSeries(name: "Wind Power", unit: "TWh", values: [6, 16, 29, 44]),
-                    ChartSeries(name: "Solar PV", unit: "TWh", values: [0.5, 2.0, 6.5, 15.0])
-                ],
-                pieSlicePercentages: ["Utility Grid": 52, "Industrial": 28, "Residential": 20],
-                tableRowTotals: nil,
-                mapComparison: nil,
-                processSteps: nil
-            ),
-            companionTask2ID: "T2-012",
-            companionTask2Prompt: "Some people argue that transitioning completely to renewable energy is too expensive for developing economies. Discuss both views and give your own opinion.",
-            notes: nil
-        )
-    ]
 }
 #endif

@@ -80,6 +80,7 @@ final class ReaderController: NSObject {
     var imageRoot:URL? { epub?.root }
     var currentPDFPage:PDFPage? { pdfView?.currentPage }
     var illustrationWebView:WKWebView? { webView }
+    var readingWindow:NSWindow? { webView?.window ?? pdfView?.window }
 
     var currentChapterTitle: String {
         guard chapters.indices.contains(chapterIndex) else { return "" }

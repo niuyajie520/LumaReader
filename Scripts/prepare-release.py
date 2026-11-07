@@ -35,6 +35,25 @@ def create_source_tar_gz(archive, prefix, ref='HEAD'):
             if process.wait() != 0:
                 raise subprocess.CalledProcessError(process.returncode, process.args)
 
+def store_zip_entries(archive):
+    """Keep the ditto bundle entries/metadata; avoid scanning random DEFLATE bytes."""
+    import copy
+    temporary = archive.with_suffix(archive.suffix + '.stored')
+    try:
+        with zipfile.ZipFile(archive) as source, zipfile.ZipFile(temporary, 'w') as target:
+            for entry in source.infolist():
+                target.writestr(copy.copy(entry), source.read(entry), compress_type=zipfile.ZIP_STORED)
+        with zipfile.ZipFile(archive) as source, zipfile.ZipFile(temporary) as target:
+            assert source.namelist() == target.namelist()
+            assert target.testzip() is None
+            for before, after in zip(source.infolist(), target.infolist()):
+                assert source.read(before) == target.read(after)
+                assert before.external_attr == after.external_attr
+                assert before.extra == after.extra and before.comment == after.comment
+        temporary.replace(archive)
+    finally:
+        temporary.unlink(missing_ok=True)
+
 def verify_source_archive(archive, fmt, prefix, tracked):
     if fmt == 'zip':
         with zipfile.ZipFile(archive) as z:
@@ -83,6 +102,7 @@ def main():
         verify_source_archive(archive, fmt, prefix, tracked)
     app_zip = out / f'LumaReader-{version}-macOS26-arm64.zip'
     run('/usr/bin/ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', str(app), str(app_zip))
+    store_zip_entries(app_zip)
     with zipfile.ZipFile(app_zip) as z:
         assert z.testzip() is None
         assert all((n.startswith('Luma Reader.app/') or n.startswith('__MACOSX/')) and

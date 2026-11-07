@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import CoreGraphics
 import WebKit
 import ZIPFoundation
 
@@ -11,6 +12,11 @@ import ZIPFoundation
         guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) else { return nil }
         return UUID(uuidString:String(arg.dropFirst(prefix.count)))
     }
+    static var studyMounted = false
+    static var topControlsVisible = true
+    static var headerState:[Bool] = []
+    private static var fullscreenTransitionFinished = false
+    static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
     private static var phase = "startup"
     private static var failedLine:UInt = 0
@@ -34,12 +40,19 @@ import ZIPFoundation
         started = true
         Task { @MainActor in
             var report:[String:Any] = ["status":"FAIL", "method":"Debug app process with native SwiftUI lifecycle", "physicalInput":"NOT RUN"]
+            let originalCursor = CGEvent(source:nil)?.location
             do {
                 try await run(store:store,controller:controller,root:root(token))
                 report["status"] = "PASS"
             } catch {
                 report["errorCode"] = (error as NSError).code
                 report["failedLine"] = failedLine
+                report["readerReady"] = store.reader?.presentationReady == true
+                report["webPresent"] = store.reader?.illustrationWebView != nil
+                report["sameInitialController"] = store.reader === controller
+                report["bookSelected"] = store.selectedBook != nil
+                report["headerState"] = headerState
+                report["readingWindowIsKey"] = store.reader?.readingWindow === NSApp.keyWindow
             }
             report["phase"] = phase
             report["windowState"] = windowState
@@ -47,6 +60,7 @@ import ZIPFoundation
             if let data = try? JSONSerialization.data(withJSONObject:report,options:.sortedKeys) {
                 try? data.write(to:file,options:.atomic)
             }
+            if let originalCursor { CGWarpMouseCursorPosition(originalCursor) }
             NSApp.terminate(nil)
         }
     }
@@ -82,7 +96,14 @@ import ZIPFoundation
         try FileManager.default.zipItem(at:source,to:file,shouldKeepParent:false)
         return file
     }
-    private static func mouse(_ window:NSWindow,x:CGFloat,y:CGFloat) throws {
+    private static func mouse(_ window:NSWindow,x:CGFloat,y:CGFloat,alignSystemCursor:Bool = true) throws {
+        // Native hover reconciliation also consults the system cursor after
+        // focus/fullscreen changes. Keep it aligned with the delivered event.
+        if alignSystemCursor {
+            let screenPoint = window.convertPoint(toScreen:NSPoint(x:x,y:y))
+            let primaryTop = try require(NSScreen.screens.first).frame.maxY
+            try check(CGWarpMouseCursorPosition(CGPoint(x:screenPoint.x,y:primaryTop-screenPoint.y)) == .success)
+        }
         let event = try require(NSEvent.mouseEvent(with:.mouseMoved,location:NSPoint(x:x,y:y),modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:0,pressure:0))
         NSApp.sendEvent(event)
     }
@@ -95,6 +116,23 @@ import ZIPFoundation
         view.cacheDisplay(in:view.bounds,to:bitmap)
         let data = try require(bitmap.representation(using:.png,properties:[:]))
         try data.write(to:root.appendingPathComponent(name+".png"),options:.atomic)
+    }
+    private static func nativeWindowScreenshot(_ window:NSWindow,name:String) async {
+        guard let folder=evidenceFolder else{return}
+        let target=URL(fileURLWithPath:folder).appendingPathComponent(name+".png")
+        try? FileManager.default.removeItem(at:target)
+        let process=Process();process.executableURL=URL(fileURLWithPath:"/usr/sbin/screencapture")
+        process.arguments=["-x","-l",String(window.windowNumber),target.path]
+        process.standardOutput=FileHandle.nullDevice;process.standardError=FileHandle.nullDevice
+        do {
+            try process.run()
+            let deadline=ContinuousClock.now.advanced(by:.seconds(8))
+            while process.isRunning && ContinuousClock.now<deadline {try await Task.sleep(for:.milliseconds(50))}
+            if process.isRunning {process.terminate();try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE timeout=true");return}
+            if process.terminationStatus==0,let image=NSImage(contentsOf:target),image.size.width>500 {
+                print("StudyWindowCapture status=PASS method=native-window physicalInput=NOT-RUN")
+            } else {try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE method=native-window")}
+        } catch {try? FileManager.default.removeItem(at:target);print("StudyWindowCapture status=UNAVAILABLE method=native-window")}
     }
     private static func webState(_ web:WKWebView) async {
         print("ReaderFixture native window=\(web.window != nil) visible=\(web.window?.isVisible == true) hidden=\(web.isHiddenOrHasHiddenAncestor) loading=\(web.isLoading) fileURL=\(web.url?.isFileURL == true) urlPresent=\(web.url != nil) nonemptyVisibleRect=\(!web.visibleRect.isEmpty)")
@@ -156,28 +194,46 @@ import ZIPFoundation
         try await pause(2000)
         if let web = controller.illustrationWebView { await webState(web) }
         var waits = 0
+        // Resolve the controller mounted by SwiftUI, rather than retaining a
+        // transient onAppear value while the initial window is being rebuilt.
+        var stableSince: ContinuousClock.Instant?
+        var mountedController: ReaderController?
+        var mountedWeb: WKWebView?
         try await until {
             hosting.layoutSubtreeIfNeeded(); waits += 1
-            if waits % 100 == 0 {
-                print("ReaderFixture selected=\(store.selectedBook != nil) sameController=\(store.reader === controller) web=\(controller.illustrationWebView != nil) error=\(store.error != nil) chapters=\(controller.chapters.count) hostSizeValid=\(hosting.bounds.width > 300 && hosting.bounds.height > 300)")
+            guard let active = store.reader, active.presentationReady,
+                  let web = active.illustrationWebView, web.window === window,
+                  !web.bounds.isEmpty else {
+                stableSince = nil
+                return false
             }
-            return controller.presentationReady && controller.illustrationWebView != nil
+            if mountedController !== active || mountedWeb !== web {
+                mountedController = active
+                mountedWeb = web
+                stableSince = .now
+            }
+            if stableSince == nil { stableSince = .now }
+            return stableSince!.duration(to: .now) >= .seconds(1)
         }
-        try await pause(1000)
+        let controller = try require(mountedController)
+        let web = try require(mountedWeb)
+        // From this point onward all existing checks require this exact view.
+        try check(store.reader === controller && controller.illustrationWebView === web)
         phase = "chrome"
-        let web = try require(controller.illustrationWebView)
         let size = web.bounds.size
         try await readerSnapshot(web,name:"epub-rendered-content-synthetic")
         // The entry hint has expired. Quiet reading must not retain native
         // buttons or invisible click targets over the actual book.
         try await pause(550)
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(!topControlsVisible)
         try check(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
         try check(window.standardWindowButton(.zoomButton)?.isHidden == true)
         try screenshot(hosting,name:"reader-hidden-synthetic")
         try mouse(window,x:150,y:window.contentView!.bounds.height-10)
         try await pause(300)
         try check(window.standardWindowButton(.closeButton)?.isHidden == false)
+        try check(topControlsVisible)
         try check(NativeWindowControls.snapshot(window).values.allSatisfy { $0 })
         try screenshot(hosting,name:"reader-top-synthetic")
         try mouse(window,x:150,y:300)
@@ -191,9 +247,12 @@ import ZIPFoundation
         try check(web.bounds.size == size)
         try screenshot(hosting,name:"reader-bottom-synthetic")
         for _ in 0..<20 {
-            try mouse(window,x:150,y:window.contentView!.bounds.height-10)
-            try mouse(window,x:150,y:300)
+            try mouse(window,x:150,y:window.contentView!.bounds.height-10,alignSystemCursor:false)
+            try mouse(window,x:150,y:300,alignSystemCursor:false)
         }
+        // Avoid queuing 40 asynchronous system tracking updates while still
+        // delivering all 40 rapid events through the real native monitor.
+        try mouse(window,x:150,y:300)
         try await pause(1700)
         try check(window.standardWindowButton(.closeButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)
@@ -317,15 +376,26 @@ import ZIPFoundation
         // The zoom button can be disabled by AppKit while immersive chrome is hidden.
         // Test NSWindow's fullscreen action itself, including in that hidden state.
         try check(window.styleMask.contains(.resizable))
+        fullscreenTransitionFinished = false
+        let enteredObserver = NotificationCenter.default.addObserver(forName:NSWindow.didEnterFullScreenNotification,object:window,queue:.main) { _ in
+            MainActor.assumeIsolated { fullscreenTransitionFinished = true }
+        }
+        defer { NotificationCenter.default.removeObserver(enteredObserver) }
         window.toggleFullScreen(nil)
-        do { try await until { window.styleMask.contains(.fullScreen) } }
+        do { try await until { window.styleMask.contains(.fullScreen) && fullscreenTransitionFinished } }
         catch {
             windowState["afterToggleStyleMask"] = window.styleMask.rawValue
             windowState["afterToggleZoomEnabled"] = window.standardWindowButton(.zoomButton)?.isEnabled == true
             windowState["afterToggleWindowKey"] = window.isKeyWindow
             throw error
         }
-        try await pause(1200)
+        let fullscreenWindow = try require(web.window)
+        try mouse(fullscreenWindow,x:150,y:300)
+        try await pause(1700)
+        try check(!topControlsVisible)
+        try check(fullscreenWindow.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(fullscreenWindow.standardWindowButton(.miniaturizeButton)?.isHidden == true)
+        try check(fullscreenWindow.standardWindowButton(.zoomButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)
         try check(store.error == nil)
         try check(try await readerJavaScript(web,"String(window.Luma.readingContext().visibleText.length > 0)") == "true")
@@ -342,6 +412,32 @@ import ZIPFoundation
         print("ReaderFixture keyboardChrome=true themedReading=true loadedFullscreen=true")
         print("ReaderFixture selectionPreserved=true highlightPersisted=true bookmarksPersisted=true")
         print("ReaderFixture twentyPageTurns=true rapidAIToggles=true narrowAI=true sameWebView=true")
+        let workspaceBook=try require(store.selectedBook)
+        phase = "study-entry"
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until { studyMounted }
+        try await pause(700)
+        try screenshot(hosting,name:"study-home-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil)
+        try await until {store.selectedID==workspaceBook.id && controller.presentationReady}
+        try await pause(700)
+        let resumedBook=try require(store.selectedBook)
+        try check(resumedBook.position==workspaceBook.position)
+        try check(abs((resumedBook.readerOffset ?? 0)-(workspaceBook.readerOffset ?? 0))<0.025)
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil)
+        try await until {studyMounted}
+        print("StudyFixture readingWorkspaceRoundTrip=true positionRetained=true")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力_今日计划"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-dictation-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_Task1题库"])
+        try await pause(700)
+        try screenshot(hosting,name:"study-writing-shelf-synthetic")
+        NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_模拟机考"])
+        try await pause(1500)
+        try screenshot(hosting,name:"study-writing-exam-synthetic")
+        await nativeWindowScreenshot(window,name:"study-window-native-synthetic")
+        print("StudyFixture mainAppMounted=true isolatedStorage=true")
         phase = "complete"
     }
 }

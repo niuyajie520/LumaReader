@@ -13,7 +13,7 @@ enum NativeWindowControls {
             window.collectionBehavior.insert(.fullScreenPrimary)
         }
         window.isMovable = true
-        let effectiveVisible = window.styleMask.contains(.fullScreen) ? true : controlsVisible
+        let effectiveVisible = controlsVisible
         let state: VisibilityState
         if let existing = objc_getAssociatedObject(window, &stateKey) as? VisibilityState { state = existing }
         else { state = VisibilityState(); objc_setAssociatedObject(window, &stateKey, state, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
