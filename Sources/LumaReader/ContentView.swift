@@ -181,9 +181,12 @@ struct ContentView: View {
             NativeWindowControls.restore(window,controlsVisible:false,animated:false)
             scheduleChromeHide()
         }
-        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { notice in
+            guard let window = controller.readingWindow, (notice.object as? NSWindow) === window else { return }
             chromeTopHovered = false; chromeHeaderHovered = false
-            chromeKeyboardPinned = false; scheduleChromeHide()
+            chromeKeyboardPinned = false; focusHeaderShown = false
+            NativeWindowControls.restore(window,controlsVisible:false,animated:false)
+            scheduleChromeHide()
         }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
