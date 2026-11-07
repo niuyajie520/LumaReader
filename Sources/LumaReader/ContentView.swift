@@ -172,7 +172,7 @@ struct ContentView: View {
         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:readerChromeVisible,animateControls:!reduceMotion && store.effectiveMotionLevel != .off,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
+        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:true,animateControls:false,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
         .onChange(of:store.immersive) { _,immersive in
             if immersive { visibilityBeforeImmersion = columnVisibility; columnVisibility = .detailOnly; closeReaderPanels(); focusHeaderShown = false }
             else { columnVisibility = visibilityBeforeImmersion }

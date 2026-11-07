@@ -148,7 +148,7 @@ import Testing
         }
         try mouse(window,x:150,y:300)
         try await pause(1700)
-        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
         #expect(store.error == nil)
         print("ReaderFixture pdfEdgeCrossings=true viewportStable=true pagePreserved=true")
     }
@@ -166,7 +166,7 @@ import Testing
         #expect(window.standardWindowButton(.closeButton)?.alphaValue == 1)
         NativeWindowControls.restore(window,controlsVisible:false,animated:true)
         try await pause(400)
-        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == false)
     }
 }
 

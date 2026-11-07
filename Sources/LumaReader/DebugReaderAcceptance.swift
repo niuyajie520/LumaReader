@@ -168,7 +168,7 @@ import ZIPFoundation
         let web = try require(controller.illustrationWebView)
         let size = web.bounds.size
         try await readerSnapshot(web,name:"epub-rendered-content-synthetic")
-        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         try screenshot(hosting,name:"reader-hidden-synthetic")
         try mouse(window,x:150,y:window.contentView!.bounds.height-10)
         try await pause(300)
@@ -177,7 +177,7 @@ import ZIPFoundation
         try screenshot(hosting,name:"reader-top-synthetic")
         try mouse(window,x:150,y:300)
         try await pause(1700)
-        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         try mouse(window,x:150,y:10)
         try await pause(300)
         try check(window.standardWindowButton(.closeButton)?.isHidden == false)
@@ -189,7 +189,7 @@ import ZIPFoundation
             try mouse(window,x:150,y:300)
         }
         try await pause(1700)
-        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         try check(controller.illustrationWebView === web)
         phase = "twenty-page-turns"
         for _ in 0..<20 {
@@ -275,7 +275,7 @@ import ZIPFoundation
         try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         _ = try await readerJavaScript(web,"var p=document.querySelector('#luma-content p');p.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,clientX:100,clientY:100}));p.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,clientX:100,clientY:100}));'ok'")
         try await pause(1600)
-        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == false)
         phase = "themes-and-keyboard"
         let monetEnabled = store.monetEnabled
         store.monetEnabled = false
