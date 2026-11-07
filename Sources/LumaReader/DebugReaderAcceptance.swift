@@ -13,6 +13,7 @@ import ZIPFoundation
     }
     static var studyMounted = false
     static var topControlsVisible = true
+    private static var fullscreenTransitionFinished = false
     static var studyDirectory:URL? { token.map { root($0).appendingPathComponent("study") } }
     private static var started = false
     private static var phase = "startup"
@@ -359,8 +360,13 @@ import ZIPFoundation
         // The zoom button can be disabled by AppKit while immersive chrome is hidden.
         // Test NSWindow's fullscreen action itself, including in that hidden state.
         try check(window.styleMask.contains(.resizable))
+        fullscreenTransitionFinished = false
+        let enteredObserver = NotificationCenter.default.addObserver(forName:NSWindow.didEnterFullScreenNotification,object:window,queue:.main) { _ in
+            MainActor.assumeIsolated { fullscreenTransitionFinished = true }
+        }
+        defer { NotificationCenter.default.removeObserver(enteredObserver) }
         window.toggleFullScreen(nil)
-        do { try await until { window.styleMask.contains(.fullScreen) } }
+        do { try await until { window.styleMask.contains(.fullScreen) && fullscreenTransitionFinished } }
         catch {
             windowState["afterToggleStyleMask"] = window.styleMask.rawValue
             windowState["afterToggleZoomEnabled"] = window.standardWindowButton(.zoomButton)?.isEnabled == true
