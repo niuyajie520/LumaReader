@@ -277,7 +277,7 @@ public nonisolated enum VocabularyImport {
                 return .ambiguous(word: left, meaning: right, reason: "待确认：两侧均为英文，请确认哪一侧为中文释义")
             }
             if containsCJK(left) && containsCJK(right) && !containsLatinLetter(left) && !containsLatinLetter(right) {
-                return .ignored
+                return .ambiguous(word: left, meaning: right, reason: "待确认：未识别到英文词条，请修正或取消勾选")
             }
         }
 
