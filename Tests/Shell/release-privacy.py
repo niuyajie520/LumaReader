@@ -59,9 +59,39 @@ class ReleasePrivacyTests(unittest.TestCase):
             tree = subprocess.check_output(['git', '-C', str(repo), 'write-tree'], text=True).strip()
             for fmt in ['zip', 'tar.gz']:
                 archive = Path(directory) / ('source.' + fmt)
-                subprocess.run(['git', '-C', str(repo), 'archive', f'--format={fmt}',
-                                '--prefix=LumaReader-fixture/', f'--output={archive}', tree], check=True)
+                if fmt == 'tar.gz':
+                    import os
+                    original = Path.cwd()
+                    try:
+                        os.chdir(repo)
+                        release.create_source_tar_gz(archive, 'LumaReader-fixture/', tree)
+                    finally:
+                        os.chdir(original)
+                else:
+                    subprocess.run(['git', '-C', str(repo), 'archive', f'--format={fmt}',
+                                    '--prefix=LumaReader-fixture/', f'--output={archive}', tree], check=True)
                 release.verify_source_archive(archive, fmt, 'LumaReader-fixture/', files)
+
+    def test_stored_tar_still_exposes_private_data_to_privacy_gate(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / 'fixture'
+            repo.mkdir()
+            (repo / 'data.txt').write_bytes(b'private ' + b'person@' + b'private.invalid')
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
+            tree = subprocess.check_output(['git', '-C', str(repo), 'write-tree'], text=True).strip()
+            archive_dir = Path(directory) / 'output'
+            archive_dir.mkdir()
+            original = Path.cwd()
+            try:
+                os.chdir(repo)
+                release.create_source_tar_gz(archive_dir / 'source.tar.gz', 'fixture/', tree)
+            finally:
+                os.chdir(original)
+            result = subprocess.run(['python3', str(ROOT / 'Scripts/privacy-gate.py'), str(archive_dir)], capture_output=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b'email', result.stdout)
 
     def test_tar_traversal_and_links_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
