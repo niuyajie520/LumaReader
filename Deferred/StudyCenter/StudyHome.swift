@@ -193,6 +193,8 @@ public struct LumaStudyCenterHostView: View {
         .onReceive(audio.$errorMessage) { message in if let message { vm.dictationFeedback = message } }
         .task {
             if let service = vm.storeSnapshot.speechService, service.enabled { await audio.connect(service) }
+        }
+        .task {
             var previous = ContinuousClock.now
             while !Task.isCancelled {
                 do { try await Task.sleep(for:.seconds(1)) } catch { return }
