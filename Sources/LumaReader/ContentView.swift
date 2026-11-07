@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var editingGroupID: UUID?
     @State private var groupName = ""
     @State private var groupBookID: UUID?
+    @State private var titlebarInset: CGFloat = 90
     @State private var focusHeaderShown = false
     @State private var chromeTopHovered = false
     @State private var chromeBottomHovered = false
@@ -128,6 +129,13 @@ struct ContentView: View {
             showReaderChromeFromKeyboard()
         }
         .onChange(of:controller.pageTurnPulse) { _,_ in revealReaderChrome(delay:1000) }
+        .onChange(of:controller.hasSelection) { _,_ in scheduleChromeHide() }
+        .onReceive(NotificationCenter.default.publisher(for:NSMenu.didBeginTrackingNotification)) { _ in chromeKeyboardPinned = true }
+        .onReceive(NotificationCenter.default.publisher(for:NSMenu.didEndTrackingNotification)) { _ in chromeKeyboardPinned = false; scheduleChromeHide() }
+        .onReceive(NotificationCenter.default.publisher(for:NSWindow.didResignKeyNotification)) { _ in
+            chromeTopHovered = false; chromeBottomHovered = false; chromeHeaderHovered = false
+            chromeKeyboardPinned = false; scheduleChromeHide()
+        }
         .onChange(of:controller.readingClickPulse) { _,_ in chromeKeyboardPinned = false; scheduleChromeHide() }
         .onChange(of:activeReaderPanel) { _,_ in scheduleChromeHide() }
         .onChange(of:showBookSearch) { _,_ in scheduleChromeHide() }
@@ -155,7 +163,7 @@ struct ContentView: View {
         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark))).frame(width:0,height:0))
+        .background(ReaderWindowChrome(color: NSColor(store.paper(dark:colorScheme == .dark)),controlsVisible:readerChromeVisible,onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } }).frame(width:0,height:0))
         .onChange(of:store.immersive) { _,immersive in
             if immersive { visibilityBeforeImmersion = columnVisibility; columnVisibility = .detailOnly; closeReaderPanels(); focusHeaderShown = false }
             else { columnVisibility = visibilityBeforeImmersion }
@@ -245,12 +253,20 @@ struct ContentView: View {
         .ignoresSafeArea(.container,edges:.top)
     }
 
+    private enum ChromeState { case hidden, hoverVisible, interacting, pageTurnFeedback, selectionActive, modalOpen }
+    private var chromeState:ChromeState {
+        if activeReaderPanel != nil || showBookSearch || showSettings || showCustomization { return .modalOpen }
+        if chromeKeyboardPinned || chromeHeaderHovered { return .interacting }
+        if controller.hasSelection { return .selectionActive }
+        if chromeTopHovered || chromeBottomHovered { return .hoverVisible }
+        return focusHeaderShown ? .pageTurnFeedback:.hidden
+    }
     private var readerChromeVisible:Bool {
-        store.selectedBook == nil || focusHeaderShown || chromeKeyboardPinned || activeReaderPanel != nil || showBookSearch || showSettings || showCustomization
+        store.selectedBook == nil || (chromeState != .hidden && chromeState != .selectionActive)
     }
     private func revealReaderChrome(delay:Int = 1250) {
         chromeHideTask?.cancel()
-        withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = true }
+        withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.20)) { focusHeaderShown = true }
         scheduleChromeHide(delay:delay)
     }
     private func scheduleChromeHide(delay:Int = 1250) {
@@ -258,7 +274,7 @@ struct ContentView: View {
         guard store.selectedBook != nil else { return }
         chromeHideTask = Task { @MainActor in
             do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
-            guard !Task.isCancelled, !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned,
+            guard !Task.isCancelled, !chromeTopHovered, !chromeBottomHovered, !chromeHeaderHovered, !chromeKeyboardPinned, !controller.hasSelection,
                   activeReaderPanel == nil, !showBookSearch, !showSettings, !showCustomization else { return }
             withAnimation(reduceMotion || store.effectiveMotionLevel == .off ? nil:.easeOut(duration:0.14)) { focusHeaderShown = false }
         }
@@ -306,7 +322,7 @@ struct ContentView: View {
     private var appHeader:some View {
         LumaGlassCluster(enabled:glassActive) {
         HStack(spacing:8) {
-            Color.clear.frame(width:columnVisibility == .detailOnly ? 78:0,height:1).allowsHitTesting(false)
+            Color.clear.frame(width:columnVisibility == .detailOnly ? titlebarInset:0,height:1).allowsHitTesting(false)
             if store.selectedBook != nil {
                 HStack(spacing:3) {
                     Button { closeReaderPanels(); store.returnToLibrary() } label: {
@@ -323,7 +339,7 @@ struct ContentView: View {
                     .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) { readerPanelContent.environment(\.lumaSurfacePolish,true) }
                     .opacity(readerChromeVisible ? 1:0).accessibilityHidden(!readerChromeVisible)
             }
-            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false).opacity(store.immersive && !readerChromeVisible ? 0:1)
+            headerTitle.frame(maxWidth:.infinity).allowsHitTesting(false).opacity(readerChromeVisible ? 1:0)
             HStack(spacing:3) { headerActions }.padding(3)
                 .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { store.selectedBook == nil ? $0:nil }
                 .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
@@ -817,29 +833,23 @@ struct ContentView: View {
             }
             .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:controller.hasSelection)
 
-            if book.kind == "pdf" && !store.immersive {
-                HStack(spacing: 12) {
-                    Text(L10n.text(controller.location)).monospacedDigit()
-                    Spacer()
-                    Button { controller.move(-1) } label: { Image(systemName:"chevron.left") }
-                        .buttonStyle(LumaTactileButtonStyle(pressScale: 0.92, cornerRadius: 6, horizontalPadding: 8, verticalPadding: 4))
-                        .disabled(!controller.canGoBack)
-                    if !controller.currentChapterTitle.isEmpty {
-                        Text(controller.currentChapterTitle)
-                            .lineLimit(1)
-                            .padding(.horizontal, 6)
-                    }
-                    Button { controller.move(1) } label: { Image(systemName:"chevron.right") }
-                        .buttonStyle(LumaTactileButtonStyle(pressScale: 0.92, cornerRadius: 6, horizontalPadding: 8, verticalPadding: 4))
-                        .disabled(!controller.canGoForward)
-                    Spacer()
-                    Text(L10n.text("\(book.bookmarks?.count ?? 0) 个书签 · \(book.notes.count) 处批注")).monospacedDigit()
+            // Preserve the PDF viewport height; navigation is now a non-layout overlay.
+            if book.kind == "pdf" && !store.immersive { Color.clear.frame(height:40).allowsHitTesting(false) }
+
+        }
+        .overlay(alignment:.bottom) {
+            if !controller.hasSelection {
+                HStack(spacing:16) {
+                    Button { controller.move(-1) } label: { Image(systemName:"chevron.left").frame(width:36,height:36) }.disabled(!controller.canGoBack)
+                    Text(L10n.text(controller.location)).font(.caption).monospacedDigit().lineLimit(1)
+                    Button { controller.move(1) } label: { Image(systemName:"chevron.right").frame(width:36,height:36) }.disabled(!controller.canGoForward)
                 }
-                .font(store.homeFont(11))
-                .foregroundStyle(muted)
-                .padding(.horizontal,24)
-                .frame(height:40)
-                .background(store.paper(dark:colorScheme == .dark))
+                .buttonStyle(.plain).padding(.horizontal,8)
+                .readerGlass(radius:20,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                .padding(.bottom,6)
+                .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible)
+                .accessibilityHidden(!readerChromeVisible)
+                .onHover { inside in chromeHeaderHovered = inside; if inside { revealReaderChrome() } else { scheduleChromeHide() } }
             }
         }
         .overlay(alignment:.top) {
@@ -1185,15 +1195,24 @@ extension View {
 
 private struct ReaderWindowChrome: NSViewRepresentable {
     let color: NSColor
+    var controlsVisible:Bool
+    var onSafeInset:(CGFloat)->Void
     func makeNSView(context: Context) -> ChromeView { ChromeView() }
-    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.apply() }
+    func updateNSView(_ view: ChromeView, context: Context) { view.color = color; view.controlsVisible = controlsVisible; view.onSafeInset = onSafeInset; view.apply() }
     final class ChromeView: NSView {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        var controlsVisible = true
+        var onSafeInset:(CGFloat)->Void = { _ in }
         var color = NSColor.windowBackgroundColor
         override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); apply() }
         func apply() {
             guard let window else { return }
-            NativeWindowControls.restore(window)
+            NativeWindowControls.restore(window,controlsVisible:controlsVisible)
+            if let content = window.contentView {
+                let maxX = [NSWindow.ButtonType.closeButton,.miniaturizeButton,.zoomButton].compactMap { window.standardWindowButton($0) }.map { $0.convert($0.bounds,to:content).maxX }.max() ?? 78
+                let inset = max(90,maxX+16)
+                DispatchQueue.main.async { [weak self] in self?.onSafeInset(inset) }
+            }
             // Do not reassign styleMask on every SwiftUI update; that rebuilds native window chrome.
             if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
             if window.titleVisibility != .hidden { window.titleVisibility = .hidden }

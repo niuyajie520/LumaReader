@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor enum NativeWindowControls {
-    static func restore(_ window: NSWindow) {
+    static func restore(_ window: NSWindow, controlsVisible:Bool = true) {
         // Let macOS own fullscreen chrome; restore only ordinary window controls.
         guard !window.styleMask.contains(.fullScreen), !window.isMiniaturized else { return }
         let required: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -12,8 +12,8 @@ import AppKit
         window.isMovable = true
         for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             guard let button = window.standardWindowButton(type) else { continue }
-            button.isHidden = false
-            button.alphaValue = 1
+            button.isHidden = !controlsVisible
+            button.alphaValue = controlsVisible ? 1:0
             if window.attachedSheet == nil { button.isEnabled = true }
         }
     }
