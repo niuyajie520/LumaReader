@@ -367,7 +367,12 @@ import ZIPFoundation
             windowState["afterToggleWindowKey"] = window.isKeyWindow
             throw error
         }
-        try await pause(1200)
+        try mouse(window,x:150,y:300)
+        try await pause(1700)
+        try check(!topControlsVisible)
+        try check(window.standardWindowButton(.closeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
+        try check(window.standardWindowButton(.zoomButton)?.isHidden == true)
         try check(controller.illustrationWebView === web)
         try check(store.error == nil)
         try check(try await readerJavaScript(web,"String(window.Luma.readingContext().visibleText.length > 0)") == "true")
