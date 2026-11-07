@@ -111,7 +111,10 @@ public nonisolated struct ExamEnglishInputPolicy: Sendable {
                 return .rejectEntirely(
                     reason: .containsFullWidthPunctuation,
                    userBannerMessage: #"请使用英文半角标点 (如 . , ; : ? ! ' " -), 全角标点未写入草稿。"#
-            )// 3. Check Emoji or pictographic scalars
+            )
+            }
+
+            // 3. Check Emoji or pictographic scalars
             if Self.isEmojiScalar(scalar) {
                 return .rejectEntirely(
                     reason: .containsEmojiOrSymbol,
