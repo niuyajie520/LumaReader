@@ -138,16 +138,22 @@ public struct LumaStudyCenterHostView: View {
         }
         .onDisappear { vm.save(); ttsEngine.stop() }
         .onChange(of:mode) { _,_ in ttsEngine.stop() }
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            if (mode == "学习_模拟机考" || mode == "学习_写作_模拟机考"),
-               !vm.currentDraft.isPaused,
-               vm.currentDraft.remainingSeconds > 0 {
-                vm.currentDraft.remainingSeconds -= 1
-                vm.currentDraft.elapsedSeconds += 1
-                if vm.currentDraft.elapsedSeconds % 5 == 0 {
-                    vm.storeSnapshot.activeWritingDrafts[vm.currentDraft.questionID] = vm.currentDraft; vm.save()
+        .task {
+            var previous = ContinuousClock.now
+            while !Task.isCancelled {
+                do { try await Task.sleep(for:.seconds(1)) } catch { return }
+                let now = ContinuousClock.now
+                let elapsed = previous.duration(to:now)
+                let seconds = Int(elapsed.components.seconds)
+                guard seconds > 0 else { continue }
+                previous = previous.advanced(by:.seconds(seconds))
+                if (mode == "学习_模拟机考" || mode == "学习_写作_模拟机考"), !vm.currentDraft.isPaused, vm.currentDraft.remainingSeconds > 0 {
+                    let used = min(seconds,vm.currentDraft.remainingSeconds)
+                    vm.currentDraft.remainingSeconds -= used; vm.currentDraft.elapsedSeconds += used
+                    vm.storeSnapshot.activeWritingDrafts[vm.currentDraft.questionID] = vm.currentDraft
+                    vm.save()
+                    if vm.currentDraft.remainingSeconds == 0 { submitWritingExam(vm.currentDraft) }
                 }
-                if vm.currentDraft.remainingSeconds == 0 { submitWritingExam(vm.currentDraft) }
             }
         }
     }
@@ -232,6 +238,8 @@ public struct LumaStudyCenterHostView: View {
                             Text("0.85x 慢速").tag(Float(0.85))
                             Text("1.0x 标准").tag(Float(1.0))
                             Text("1.15x 进阶").tag(Float(1.15))
+                            Text("1.5x").tag(Float(1.5))
+                            Text("1.8x").tag(Float(1.8))
                         }
                         .frame(width: 125)
 

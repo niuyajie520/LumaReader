@@ -583,7 +583,6 @@ struct ContentView: View {
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
                     sideRow("正在阅读",symbol:"book",count:store.shelfBooks.filter{$0.progress>0 && !$0.isFinished}.count)
                     sideRow("已读完",symbol:"checkmark.circle",count:store.shelfBooks.filter{$0.isFinished}.count)
-                    sideRow("我的批注",symbol:"highlighter",count:store.shelfBooks.filter{!$0.notes.isEmpty}.count)
                     sideRow("阅读统计",symbol:"chart.bar.xaxis",count:nil)
                 }.padding(.horizontal,10)
                 LumaSidebarSection("分类",key:"collectionSectionExpanded",onAdd:{ beginGroupEdit() },onSearch:{ categorySearchShown.toggle() }) {
@@ -610,12 +609,8 @@ struct ContentView: View {
             }
             LumaSidebarSection("学习",key:"studySectionExpanded",symbol:"graduationcap",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
-                    studyRow("学习主页", mode:"学习", symbol:"square.grid.2x2")
-                    studyRow("词汇听写", mode:"学习_听力", symbol:"headphones")
-                    studyRow("错词复习", mode:"学习_听力_错词复习", symbol:"arrow.clockwise")
-                    studyRow("顽固单词", mode:"学习_听力_顽固单词", symbol:"flag")
-                    studyRow("雅思写作", mode:"学习_写作_Task1题库", symbol:"pencil")
-                    studyRow("历史作文", mode:"学习_写作_历史作文", symbol:"doc.text")
+                    studyRow("听力", mode:"学习_听力", symbol:"headphones")
+                    studyRow("写作", mode:"学习_写作_Task1题库", symbol:"pencil")
                     studyRow("学习统计", mode:"学习_统计", symbol:"chart.bar")
                 }.padding(.horizontal,10)
             }.padding(.top,12)

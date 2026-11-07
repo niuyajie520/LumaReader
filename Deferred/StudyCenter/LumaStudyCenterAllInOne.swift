@@ -1129,7 +1129,7 @@ public final class MacOSSpeechSynthesisManager: SpeechSynthesisEngine, @unchecke
         if voice.tier == .appleStandardMechanicalFallback {
             return 0.5 // 1.0x normal speed locked for mechanical fallback
         }
-        let clampedMultiplier = min(max(userMultiplier, 0.7), 1.3)
+        let clampedMultiplier = min(max(userMultiplier, 0.7), 1.8)
         return 0.5 * clampedMultiplier
     }
 
@@ -2034,23 +2034,11 @@ public struct IELTSWritingExamSplitPaneView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
             )
 
-            GeometryReader { geo in
-                let totalWidth = max(geo.size.width, 480)
-                let handleWidth: CGFloat = 18
-                let leftWidth = max(220, min(totalWidth - 240, totalWidth * vm.leftPaneFraction))
-                let rightWidth = max(220, totalWidth - leftWidth - handleWidth)
-
-                HStack(spacing: 0) {
+            HSplitView {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text(
-                                draft.activePart == .part1
-                                    ? question.promptText
-                                    : (question.companionTask2Prompt ?? "Write about the following topic.")
-                            )
-                            .font(.system(size: 15, design: .serif))
-                            .foregroundStyle(Color.primary.opacity(0.95))
-                            .lineSpacing(5)
+                            StudyPromptView(text:draft.activePart == .part1 ? question.promptText : (question.companionTask2Prompt ?? "Write about the following topic."))
+                                .frame(minHeight:220)
 
                             if draft.activePart == .part1, let dataset = question.chartDataset {
                                 Task1ChartCardView(category: question.category, dataset: dataset)
@@ -2058,34 +2046,11 @@ public struct IELTSWritingExamSplitPaneView: View {
                         }
                         .padding(18)
                     }
-                    .frame(width: leftWidth, height: geo.size.height)
+                    .frame(minWidth:220,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color.black.opacity(0.24))
                             .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
-                    )
-
-                    ZStack {
-                        Capsule()
-                            .fill(Color.white.opacity(0.18))
-                            .frame(width: 4, height: geo.size.height * 0.85)
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(LumaTheme.sidebarPillFill)
-                            .frame(width: 16, height: 32)
-                            .overlay(
-                                Image(systemName: "arrow.left.and.right")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(Color.primary.opacity(0.8))
-                            )
-                    }
-                    .frame(width: handleWidth, height: geo.size.height)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                let proposed = value.location.x / totalWidth
-                                vm.leftPaneFraction = min(max(proposed, 0.28), 0.72)
-                            }
                     )
 
                     ExamEnglishTextEditor(
@@ -2100,13 +2065,12 @@ public struct IELTSWritingExamSplitPaneView: View {
                             showTransientBanner("英文考试输入已启用")
                         }
                     )
-                    .frame(width: rightWidth, height: geo.size.height)
+                    .frame(minWidth:260,maxWidth:.infinity,maxHeight:.infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color.black.opacity(0.28))
                             .overlay(RoundedRectangle(cornerRadius: 10).stroke(LumaTheme.glassBorder, lineWidth: 1))
                     )
-                }
             }
 
             HStack(spacing: 14) {
