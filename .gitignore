@@ -3,3 +3,4 @@ dist/
 Logs/
 .DS_Store
 *.log
+Push-to-GitHub.command

@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in LumaReader does not behave as expected.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please redact personal file paths, book titles and any API keys.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings → About (for example 1.7.3 build 71)
+      placeholder: "1.7.3 (71)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 26.x (Apple silicon)"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a book
+        2. Click …
+        3. Observe …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Theme, window mode, screenshots, Console output. Do not attach book files or keys.
+    validations:
+      required: false

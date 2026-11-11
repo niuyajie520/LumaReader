@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a reading, study or theme improvement.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first — the best feature requests start from a workflow that is currently slow or awkward.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reading / pagination
+        - Directory / bookmarks / notes
+        - Themes and appearance
+        - Dictation
+        - Writing
+        - AI assistant
+        - Cloud sync
+        - Other
+    validations:
+      required: true
