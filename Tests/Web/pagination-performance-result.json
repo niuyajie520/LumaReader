@@ -1,0 +1,50 @@
+{
+  "fixture": {
+    "paragraphs": 600,
+    "turnsPerRun": 12,
+    "runs": 3
+  },
+  "metrics": {
+    "before": [
+      {
+        "scriptMs": 0.737,
+        "layoutMs": 115.398,
+        "layouts": 84,
+        "recalcStyle": 84
+      },
+      {
+        "scriptMs": 0.739,
+        "layoutMs": 108.449,
+        "layouts": 84,
+        "recalcStyle": 84
+      },
+      {
+        "scriptMs": 0.652,
+        "layoutMs": 106.449,
+        "layouts": 84,
+        "recalcStyle": 84
+      }
+    ],
+    "after": [
+      {
+        "scriptMs": 1.2049999999999998,
+        "layoutMs": 2.105,
+        "layouts": 12,
+        "recalcStyle": 12
+      },
+      {
+        "scriptMs": 1.009,
+        "layoutMs": 1.9300000000000002,
+        "layouts": 12,
+        "recalcStyle": 12
+      },
+      {
+        "scriptMs": 1.552,
+        "layoutMs": 2.235,
+        "layouts": 12,
+        "recalcStyle": 12
+      }
+    ]
+  },
+  "limits": "Synthetic Chromium profile; excludes macOS WebKit, PDFKit, native animation, energy and battery."
+}

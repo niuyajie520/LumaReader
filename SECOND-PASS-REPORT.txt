@@ -1,0 +1,61 @@
+LumaReader — 第二轮阻断项复查结果
+本轮是环境/CI补救，不是重做第一轮。应用源码仍以0.9.17为基线，没有重写阅读、AI布局、莫奈、玻璃或动画。
+
+一、GitHub实查
+仓库：niuyajie520/LumaReader，Public，默认main。
+检查时HEAD：cac85619404f0e3efd43dff123c89f4420023a45。
+递归树只有3项：README.md、LumaReader_macOS26_CI.yml、lumareader-macos26.yml。
+Package.swift、Sources、Tests、Scripts、Vendor均缺失；资源也不在仓库。
+.github/workflows不存在。Actions运行总数0，HEAD check-runs总数0，因而没有可下载的CI Artifacts。
+证据：GitHub仓库递归tree / actions/runs / commit check-runs实际GET结果；没有用“未找到Package”单点推测整仓库内容。
+
+二、实际权限尝试
+连接返回账号push权限，但GitHub Create Blob API实际返回403 Resource not accessible by integration。
+未创建blob、branch、commit、PR或workflow；未声称提交成功，没有重试其他写入途径绕过权限。
+这不是macOS runner故障，而是源码缺失 + 连接写入权限阻断。
+
+三、原BLOCKED项本轮状态
+1. 完整源码/CI目录复查：FAIL，已确认线上缺源码和有效workflow；修复准备在此包，线上未改变。
+2. runner选型：PASS（官方runner-images文档核实macos-26为ARM64）；账户是否能成功分配实例仍BLOCKED，因无法提交工作流。
+3. Swift/Xcode/SDK实测、SwiftPM依赖解析：BLOCKED。Linux没有工具链；尝试GitHub补测，但403且线上无源码，无法启动原生job。
+4. Debug/Release build、Swift测试、签名/架构、App打包：BLOCKED。已在正确路径配置phase，尚无实际运行链接/成功日志。
+5. Native App launch：BLOCKED，未运行。当前SwiftPM项目没有Xcode UI-test target；不能把build或open命令返回值当主窗口通过。
+6. XCUITest/GUI、42项UI交互：BLOCKED，没有声称点过任何按钮。需要图形会话与适当的UI test harness/实机操作。
+7. WebKit实际故障注入、crash/hang、诊断导出：BLOCKED，没有原生实例可注入，受控DOM单元测试不替代。
+8. M4 Air16GB CPU/GPU/内存/功耗/热压/Instruments：BLOCKED，需要用户目标机，不把云端机器当M4 Air。
+9. 故障NOT_REPRODUCED：没有可运行的原生实例，不能写“已复现”或“未复现后排除”。
+
+四、第一轮PASS如何处理
+基线：交付的0.9.17源码ZIP，SHA256 6db3251eb55005e44a16cad23aa96b39bf29d66789e553cc31c32331d8681e8b。
+第一轮24项便携PASS保留为其原始范围，不重复执行无关测试；它们没有对应的Git commit，因为源自无.git的压缩包。线上HEAD不包含那些源码，不能借用此HEAD给第一轮背书。
+本包PRIOR-PASS.csv列出每项范围和跳过理由；原生项目从未被提升为PASS。
+只对本轮workflow/privacy/上传脚本及修改过的虚构隐私fixture做必要便携检查。
+
+五、已经准备的最小修复
+- 完整源码、资源、Tests、Vendor与许可证；不含书库/用户数据/旧Logs/旧Audit/Patches/历史验证日志。
+- .github/workflows/macos26-blockers.yml：将根目录配置合并为一个正确路径的workflow；接受有效的.macOS("26.0")，不误报为必须.v26；macos-26 ARM64；固定Action提交SHA。
+- Scripts/ci-native.sh：原生环境门槛、resolve、Debug、Swift tests、Release、ad-hoc签名、ARM64验证、Release ZIP；原始日志留在ci-raw。
+- Scripts/privacy-gate.py：补充个人路径/凭据签名/邮箱过滤和日志脱敏，绝不打印匹配到的值；不能替代成熟Secret Scanner。
+- Gitleaks v8.30.1固定源码版本在CI执行source/history扫描；本地没有Go/Gitleaks，尚未执行，不能声称Gitleaks通过。GitHub Secret Scanning未执行。
+- CI只自动上传经二次门禁的ci-safe文本证据；不自动上传raw logs、crash、dSYM、未经审查的.app/ZIP二进制。Release archive可在runner生成，但外发仍需二进制隐私审查。
+- .gitignore明确屏蔽根目录运行产物和凭据，保留Sources/LumaReader/Diagnostics与ThirdParty/Diagnostics；没有误排除诊断源码。
+- Tests中的引用示例改为明确虚构文本，假凭据仍为测试哨兵；PNG去掉文本/EXIF元数据、不改变像素；生成式最小测试TTF保留。
+- Upload-Source-to-GitHub.command：用用户自己的本机Git认证，上传独立verify/macos26-blockers分支；检查远端HEAD防止覆盖新变更；不force push，不合并main；用虚构提交身份保护本机Git邮箱。
+
+六、隐私门禁
+文件用途：私下交付给用户，内容为拟公开的最小源码快照/CI修复。不是已经公开的提交。
+静态补充扫描：须见PRIVACY-SOURCE.json；每文件审查记录在PRIVACY-FILES.csv。
+已排除：API key/Token/密码/云盘凭据、Keychain、真实私密对话、真实书籍文件、个人路径和旧诊断输出。
+未发现真实秘密；测试哨兵是虚构数据。PNG元数据已清理。第三方代码/许可证保留。
+本次没有发布原生二进制、截图、录屏或崩溃报告。不得把这次补充扫描说成所有历史/二进制/图像语义的完整安全认证。
+本机Git仅初始化并暂存用于清点，没有创建任何伪造旧提交；交付包不含.git。上传脚本日后会创建真实的新快照提交，父提交来自当前公开仓库，不是恢复历史。
+
+七、用户最低操作
+方案A：为当前GitHub连接授予该仓库Contents及Workflows写入权限，然后让我继续真实CI补测。
+方案B：在自己的Mac完整解压此包，双击Upload-Source-to-GitHub.command，确认公开这份源码并按Git提示在本机认证。不要将PAT、密码或Keychain内容发到聊天。脚本上传独立分支后会打开Actions页面。main如已改变，脚本安全停止，需要重新核对。
+上传成功只代表源码上传，必须等待Actions真实完成；若job失败，发送经过隐私检查的sanitized-evidence，保留具体失败phase。
+脚本不要求你把Swift代码粘贴进终端，也不要求删除书库。
+
+即使云端build/test通过，触控板、窗口动画、液态玻璃、实际WebKit白屏、Instruments及M4 Air16GB持续热压力仍需本机复核。
+
+最终验收语句：第一轮已有证据的检查保留结果；第二轮仅针对此前环境阻断项目执行真实macOS26+验证。每次生成、提交或导出文件均先完成隐私审查。没有真实证据的项目不得标记PASS。本轮原生执行仍因403和源码缺失阻断，不代表已通过。

@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Upload-Source-to-GitHub.command",
+    "status": "PASS",
+    "scope": "new shell syntax only",
+    "exit": 0
+  },
+  {
+    "name": "ci-native.sh",
+    "status": "PASS",
+    "scope": "new shell syntax only",
+    "exit": 0
+  },
+  {
+    "name": "Workflow topology and artifact boundary",
+    "status": "PASS",
+    "scope": "YAML parse/static only, NOT actual Actions"
+  },
+  {
+    "name": "Exact workflow source preflight",
+    "status": "PASS",
+    "scope": "executes only preflight on Linux, NOT native build",
+    "exit": 0
+  },
+  {
+    "name": "Changed synthetic privacy fixture",
+    "status": "PASS",
+    "scope": "affected JS handler test only",
+    "exit": 0
+  },
+  {
+    "name": "Privacy fault and redaction scenarios",
+    "status": "PASS",
+    "scope": "synthetic path/token/header/query only; no real secret used"
+  },
+  {
+    "name": "Icon pixel/color chunks unchanged",
+    "status": "PASS",
+    "scope": "PNG chunk comparison; metadata only stripped"
+  },
+  {
+    "name": "Application source baseline",
+    "status": "PASS",
+    "scope": "all Sources files byte-identical to 0.9.17; no native test implied"
+  }
+]

@@ -1,0 +1,6 @@
+Source: https://github.com/material-foundation/material-color-utilities
+Commit: bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+Subdirectory: swift
+License: Apache-2.0; see LICENSE
+Sources and Tests copied without modification.
+Local compatibility change: Package.swift tools-version directive moved to the first line.
