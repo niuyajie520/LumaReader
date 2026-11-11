@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "product": "LumaReader",
+  "version": "1.7.3",
+  "build": "71",
+  "source_id": "20261111",
+  "installer": "Install.command",
+  "required": [
+    "Package.swift",
+    "Package.resolved",
+    "Install.command",
+    "Sources/LumaReader/LumaReaderApp.swift",
+    "Sources/LumaReader/ContentView.swift",
+    "Sources/LumaReader/Resources/Reader.js",
+    "Sources/LumaReader/Resources/Reader.css",
+    "Deferred/StudyCenter/Package.swift",
+    "Deferred/StudyCenter/StudyHome.swift",
+    "Deferred/StudyCenter/Resources/CoraVocabulary/books.json",
+    "Scripts/build-macos.sh",
+    "Scripts/check-app-bundle.py",
+    "CHANGELOG.md",
+    "Deferred/StudyCenter/LumaTextScale.swift",
+    "Scripts/install-neural-voices.sh",
+    "Scripts/setup_kitten.py"
+  ]
+}

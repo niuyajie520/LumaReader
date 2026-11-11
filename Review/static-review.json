@@ -1,0 +1,1071 @@
+{
+  "result": "STATIC_REVIEW_ONLY",
+  "macOS_compilation": "NOT_RUN_NO_MACOS_SWIFT_TOOLCHAIN",
+  "native_UI_tests": "NOT_RUN",
+  "unchanged_source_files": 169,
+  "contrast_ratios": {
+    "primary/background": 16.64,
+    "primary/card": 15.12,
+    "primary/capsule": 12.28,
+    "primary/pause": 12.06,
+    "secondary/background": 7.15,
+    "secondary/card": 6.5,
+    "secondary/capsule": 5.28,
+    "secondary/pause": 5.18,
+    "accent/background": 9.52,
+    "accent/card": 8.65,
+    "accent/capsule": 7.03,
+    "accent/pause": 6.9,
+    "submit background/accent": 9.52
+  },
+  "checks": [
+    {
+      "check": "triggerDictationErrorAnimation body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "submitCurrentDictation body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "speakCurrentWord body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "speakArbitraryWord body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "recentWrongWordStrings body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "dictationStaticStatusLine body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "startSlowReactionDictation body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "buildFirstLetterHint body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "dictationMorePanel body unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "DictationShakeEffect unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "business model unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": ".focused($answerFocused)",
+      "status": "已静态审查"
+    },
+    {
+      "check": ".autocorrectionDisabled()",
+      "status": "已静态审查"
+    },
+    {
+      "check": ".disabled(!listeningDailyTimer.running || kokoro.isSwitching)",
+      "status": "已静态审查"
+    },
+    {
+      "check": ".accessibilityIdentifier(\"study.dictation.answer\")",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Direct binding retained",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Submit handler retained",
+      "status": "已静态审查"
+    },
+    {
+      "check": "All accessibilityIdentifier literals retained",
+      "status": "已静态审查"
+    },
+    {
+      "check": "All keyboardShortcut declarations retained",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Cmd event monitor unchanged",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Protected input effect .overlay(shape.strokeBorder(borderCol, lineWidth: dictationErrorFlash ? 2.4 : 1.4))",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Protected input effect .shadow(color: (dictationErrorFlash ? Color.red : dictAccentPink).opacity(0.16), radius: 14, x: 0, y: 0)",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Protected input effect .modifier(DictationShakeEffect(animatableData: dictationErrorShake))",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: \"上一个\"",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: kokoro.isPreparingAudio",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: \"慢放\"",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: vm.showMeaning",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: showFirstLetterHint",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Action unchanged: \"提交\"",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 1267",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2469",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2691",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2712",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2715",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2725",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2727",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2729",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2732",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2809",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2837",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2866",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2869",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2914",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2915",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2928",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2932",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2937",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2944",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2985",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2989",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 2996",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3029",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3030",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3034",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3044",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3054",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3083",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3112",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3114",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3172",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3179",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3241",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3242",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3250",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3292",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3313",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Edit confined to listening UI at original line 3565",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/DiagnosticsC/ProcessCounters.c",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderImageView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/CloudSyncEngine.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIConversationHistory.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/StudyWritingEvaluation.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReadingJumpHistory.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderEdgeTurnView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Theme.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LibraryStore.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ShelfCategoryDrop.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderController.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/GearSettingsSurface.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIChatView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderKeyboard.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LumaPanel.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderMotionPolicy.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/CustomizationPanel.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/CloudProviderIcon.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/CollectionDisplayOrder.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/StatisticsView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/EPUBLoader.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/MonetTheme.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReadingPosition.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ShelfManagement.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/BookReadingPreferences.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LibraryGroups.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/FontFileSync.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/VisualEffectsPolicy.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LiveTextImage.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AppResources.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIClient.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/StudyCenterScreen.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/BookSearchEngine.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/MonetLiquidGlass.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReadingOutline.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/SurfaceMotion.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIChatStore.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LumaDictionaryLookup.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/PageTurnCover.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ImportedFonts.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/GlassControls.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderChromeMonitor.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LumaThemeScope.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/DebugReaderAcceptance.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LumaAppIcon.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIPanelMotion.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/NativeWindowControls.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReadingStatistics.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReaderFileNavigation.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Models.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AppLanguage.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIKeychain.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/BookMonetFooter.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/PagedWebView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/NoteActions.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/ReadingActivityStore.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/LumaReaderApp.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/AIResizeHandle.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/DiagnosticsC/include/DiagnosticsC.h",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/Reader.css",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/Localizable.xcstrings",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AIChat.html",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/Reader.js",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AIChat.css",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AppStrings.js",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AIHealth.js",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AIChat.js",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Sources/LumaReader/Resources/AppStrings.json",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/UPSTREAM.txt",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Package.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/LICENSE",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/DynamicSchemeProvider.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/Variant.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/ToneDeltaPair.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/MaterialDynamicColors.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/ContrastCurve.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/DynamicScheme.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/DynamicColor/DynamicColor.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Temperature/TemperatureCache.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/QuantizerMap.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/QuantizerWsmeans.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/QuantizerWu.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/Quantizer.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/QuantizerCelebi.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/PointProvider.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Quantize/PointProviderLab.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Hct/ViewingConditions.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Hct/HctSolver.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Hct/Cam16.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Hct/Hct.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Score/Score.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Utils/MathUtils.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Utils/StringUtils.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Utils/ColorUtils.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Blend/Blend.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Contrast/Contrast.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Palettes/TonalPalette.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Palettes/CorePalettes.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Dislike/DislikeAnalyzer.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeNeutral.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeMonochrome.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeContent.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeFidelity.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeRainbow.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeTonalSpot.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeExpressive.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeVibrant.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Sources/MaterialColorUtilities/Scheme/SchemeFruitSalad.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/BlendTests/BlendTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/PalettesTest/TonalPalettesTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeFidelityTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeVibrantTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/DynamicSchemeTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeNeutralTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeFruitSaladTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeRainbowTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeContentTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeTonalSpotTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeMonochromeTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/SchemeTests/SchemeExpressiveTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/ScoreTests/ScoreTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/ContrastTests/ContrastTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/DislikeTests/DislikeAnalyzerTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/TemperatureTests/TemperatureCacheTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/HctTests/ViewingConditionsTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/HctTests/Cam16Tests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/HctTests/HctTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/DynamicColorTests/DynamicColorTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/QuantizeTests/QuantizeCelebiTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/QuantizeTests/QuantizeWsmeansTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/QuantizeTests/QuantizeWuTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/UtilsTests/StringUtilsTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/UtilsTests/ColorUtilsTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Vendor/MaterialColorUtilities/Tests/MaterialColorUtilitiesTests/UtilsTests/MathUtilsTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/VocabularyImportReview.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/StudyReview.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/StudyWorkspace.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/VocabularyImport.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/EmbeddedNeuralSpeechEngine.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/BuiltInIELTSDictionary.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/DictationEngine.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/StudyAppearance.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/SpeechAudioPipeline.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/IELTSOfficialRubricEngine.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/LumaStudyCenterAllInOne.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/StudyPromptView.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/StudyPersistence.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/README.md",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/SpeechVoiceSelectionTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/SmartUpgradeSpeechVoiceSelectionTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/SmartUpgradeStudyWorkspaceTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/StudyLearningRulesTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/StudyIntegrationTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/ImportMeaningAndBundledBooksTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/StudyWorkspaceTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/SpeechAudioPipelineTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/IELTSOfficialRubricAndEmbeddedSpeechTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/NativeWritingReviewTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/StudyFinalEditingTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/NativeWorkspaceTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/SmartUpgradeVocabularyImportTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Tests/ExamEnglishInputPolicyTests.swift",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/Task1QuestionBank.json",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/Part4_Original.txt",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/books.json",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/Part2_Original.txt",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/Part1_Original.txt",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/Part3_Original.txt",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Byte-identical: Deferred/StudyCenter/Resources/CoraVocabulary/English_Cleanup_Audit.tsv",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: readerChromeVisible",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: revealReaderChrome",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: scheduleChromeHide",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: closeReaderPanels",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: readerPanelPresented",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: reading",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: bookmarkNavigation",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader unchanged: notesInspector",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader action retained: Button { closeReaderPanels(); store.returnToLibrary() }",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader action retained: Button { activeReaderPanel = nil; showBookSearch.toggle() }",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader action retained: Button { controller.addBookmark() }",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader action retained: Button { closeReaderPanels(); showSettings = true }",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Reader action retained: Button { store.aiPanelVisible.toggle() }",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA primary/background",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA primary/card",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA primary/capsule",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA primary/pause",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA secondary/background",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA secondary/card",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA secondary/capsule",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA secondary/pause",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA accent/background",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA accent/card",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA accent/capsule",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Opaque text AA accent/pause",
+      "status": "已静态审查"
+    },
+    {
+      "check": "Submit label AA",
+      "status": "已静态审查"
+    }
+  ]
+}

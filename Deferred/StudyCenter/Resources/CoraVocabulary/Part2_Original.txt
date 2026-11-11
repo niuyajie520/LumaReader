@@ -1,0 +1,897 @@
+winding road----弯曲的路
+turning area----转弯区
+aisle----过道
+curve----曲线
+junction----交叉路口
+intersection----交叉路口
+crossroad----十字路口
+a T-road----一个 T 型路
+block----街区；封锁
+complex----综合设施；复杂的
+double doors----双开门
+path----小路；道路；小径
+side path----侧路
+road（main road）----大路
+bend----转弯处；弯曲
+sharp bend----急转弯
+entry----入口
+entrance----入口
+side entrance----侧门
+turning----转弯处
+on the riverbank----在河堤上
+circular----圆形的
+circle----圆形的
+half circle----半圆
+rectangular----长方形的
+rectangle----长方形的
+triangular----三角形的
+triangle----三角形的
+right----右边
+left----左边
+behind----在后面
+beside----在旁边
+below----在下面
+via----通过
+back up----倒退
+lead off （from）----从…岔开
+lead from A to B----从 A 到 B
+branch off from----从…岔开分支
+on the other side from A----A 的另外一边
+on the same side as A----和 A 一边
+far side----远侧
+beyond----那一边更远处
+across----穿过
+cross----穿过
+through----穿过
+past----经过
+adjoin----连接
+go toward----朝向…走
+up towards----朝向
+in front of----在…前面
+opposite to----在…对面
+by the entrance----在门口
+is facing you …----面对着你
+turn right before A----到 A 之前转右
+walk straight down----沿着…直走
+go straight ahead----一直直走
+walk----步行
+go along…until----沿着…走到…为止
+at the end of----在…结尾
+between----在中间
+corner----角落
+on the bend----拐弯处
+boundary----界限
+right next to----正好在…旁边
+right to the end----正好走到结尾
+switch----开关
+knob----球形把手；旋钮
+little square----小方块
+round button----圆形按钮
+temporarily----暂时地
+out of bounds----禁止入内的
+poultry----家禽
+preserve----保护
+rare animals----珍稀动物；稀有动物
+maintain----维护；保养维护
+diversity----多样性；多样性，差异性
+broaden----扩大
+gene pool----基因池
+agricultural development----农业发展
+spectacular----雄伟壮观的
+breed----品种；品种，养育
+goose（geese）----天鹅
+full blossom----盛开
+fisherman----渔夫
+display----展览；展示；陈列
+calendar----日历
+browse----随意翻阅
+wildlife----野生动物；野生生物
+consultation----咨询
+address the concerns----解决关注点
+pedestrian----步行者；行人通道
+only a matter of time----只是时间问题
+jam----交通堵塞；果酱
+bury----埋葬；掩埋
+rates----价格
+extend----延长
+bear the cost----承担费用开头
+delighted----高兴的
+creatures----生物
+variety----品种；种类；多样化的；多样性
+accessible----可进入的；容易获得的；可达到的；容易达到的
+craft----手工艺；工艺
+willow----柳树
+replica----复制品
+daylight hours----白天
+tour----观光
+dye----染色
+illustrated talk----配图演讲
+experts----专家
+insect----昆虫
+ahead----预先
+charge----收费
+turn up----出现
+planting hedges----种植树篱
+pick up litter----捡垃圾
+be torn----撕破开头
+initiative----倡议
+extensive consultation exercise----大量的咨询活动
+open-air pool----露天泳池
+secure----获得；安全的
+internationally renowned architect----国际知名建筑师
+combine… with…----把…和…结合起来
+up-to-the-minute features----最新式的产品特点
+recycling system----循环系统
+the only one of its kind in the world----全世界独一无二的
+local press----当地报刊
+room----空间
+deceptive----导致误解的
+rigorous----严格的严密的；严密的
+capacity----容量
+on schedule----按照预定时间的
+within budget----在预算内
+declare----宣布
+copper mine----铜矿
+machinery----机器
+costume----服装；戏服
+at first hand----一手的
+different stages throughout history----历史不同时期
+navigable----可航行的
+handy place----方便的地方
+load and unload cargo----装卸货物
+tin----锡
+Industrial Revolution----工业革命
+tremendous need----大量需求
+metal----金属
+smelt----精炼
+process----处理；过程
+mine----开采；矿场
+factory furnace----工厂熔炉
+melt----熔化；融化
+ship----船运
+be forced to----被强迫
+emigrate----移居
+disrepair----失修破损
+conserve----保存
+remove----移除；消除；去除
+outline----轮廓；提纲；梗概；大纲
+installation----设备
+set about doing----开始做某事
+reconstruct----重建
+restoration----恢复
+peak----巅峰开头
+negotiate----谈判
+liaised----联络
+precise cost----准确花费
+normal rate----正常价格
+reflect----反应
+rehearsal----排练
+preferences----喜好
+playwright----剧作家开头；剧作家
+podcast----播客
+redevelop----重建；重新开发
+buzzing----嘈杂的
+vibrant----充满生气的
+community----社区
+embarking on----从事，开始
+buy up----全部买下
+narrow----狭窄的
+break the bank----太昂贵
+local produce----当地农产品
+department store----百货公司
+outfit----一套服装
+fibres----纤维
+garments----服装
+judge----评判
+winning entry----获奖作品
+underground car parks----地下停车场
+receipt----收据
+flat rate----统一收费开头
+chairman----会长主席
+regulation----管控；监管
+propose----提议
+summarizing----总结
+heavy traffic----交通繁忙
+overall volume----总量
+that’s concerning us----让我们关心
+lack of visibility----挡住视野
+congestion----堵塞
+drop off children----放下小孩
+pick up children----接上小孩
+top of the list----列表顶部
+lorry----卡车
+fumes----烟气
+proposal----提议；提案
+cover----成本覆盖
+obey----遵守；服从
+charity----慈善事业
+time commitment----时间承诺
+spread----延伸；传播
+not necessarily----不一定
+family commitments----家庭责任
+overwhelmingly----非常地
+positive feedback----正向反馈
+motivated----有动力的
+colleague----同事
+literacy skills----识字技能
+potential customers----潜在客户
+relevant form----相关表格
+be paired with----和…相匹配开头
+premier----第一的
+a whole load of activities----一大堆活动
+ski----滑雪
+flat ground----平面
+steep mountainside----陡峭的山腰
+marked trails----标记的小径
+aerobic exercise----有氧运动；有氧训练
+passenger----乘客
+participant----参与者；参加者
+in teams of two to four----2–4 人一组
+lap----一圈
+course----路线
+main focus----主要目标
+head off to----朝某个方向前进
+miners----矿工
+mountain slope----山坡
+ascent----上坡路
+steep----陡峭的
+summit----峰顶
+hut----临时小屋
+package----包裹
+melted snow----融化的雪
+conserve supplies----节约供给
+stormy----暴风雨的
+not last long----不会持续很久
+fort----堡垒；堡垒=
+fortification----防御工事
+defense----防御
+invaders----侵略者
+King----国王
+rule----统治
+conquer----征服攻克
+nobleman----贵族
+run down----破旧的
+out of wood----由木头制成
+luxurious----奢侈的
+enlarge----扩大
+afford----支付得起；供给
+put…on the market----放在市场上卖
+take over----接管
+amusement parks----游乐场
+retain----保持
+original atmosphere----原先的氛围
+life-like moving wax models----栩栩如生的会动的蜡像
+costumes----服装
+carry on conversations----进行对话
+objects----物体
+extensive----广阔的
+conservatory----暖房开头
+personal touch----个人风格
+incidentally----顺便说一下
+at the last minute----最后一分钟
+supplement----额外服务费用开头；补给品
+transformation----变化
+familiar----熟悉
+feature----特色；以…为特色
+private ownership----私人所有权
+amenity----便利设施
+take possession of----占有
+densely populated residential area----人口密集的居民区
+legal----合法的
+petition----请求
+demonstration----游行示威；示范
+troop exercises----军队演习
+draw up plans----制定计划开头
+toddler----学步的小孩
+campaign----参加竞选；宣传)运动
+warden----看守人
+elderly residents----年长的居民
+motorist----开汽车的人
+have access to----可以使用开头
+manufacturer----制造商
+steel----钢铁；钢
+apprenticeship----学徒制；学徒期
+components----组成部分
+automotive----汽车的
+healthcare----卫生保健
+considerably----相当，非常；相当多地
+refurbishment----重新装修；翻新装修
+layout----布局；版面设计
+is far from ideal----远非理想
+carry out----实施；执行；进行
+department----部门
+observe----观察开头；观察
+commission----授权
+heir----继承人
+permission----许可
+grant----同意
+developer----开发者
+canteen----食堂
+full to capacity----满负荷运转
+on offer----在卖的（商品
+serving point----服务点
+long queue----排长队
+smooth running----平稳运营
+top up electronic payment card online----网上充值电子卡片
+storage----仓储开头
+agenda----议题
+councilor----议员
+state of roads----道路状况
+heavy vehicles----重型车辆
+address----解决
+commuters----通勤者
+pedestrians----行人
+overtaking----超车
+put on hold----推迟
+budget----预算
+rumor----谣言
+car fumes----汽车尾气
+bike racks----自行车架开头
+biscuit----饼干
+hall of residence----学校公寓
+interior architectural features----室内建筑特色
+outstanding----杰出的
+donation box----捐款箱
+amount----金额
+rucksack----帆布背包开头
+microfilm----微电影
+comedy----喜剧
+cartoons----动画片（复；漫画
+comics----连环画；漫画
+actor----演员
+movie----电影
+'muvi----电影
+instrument----乐器
+trumpet----小号
+flut----长笛
+violins----小提琴
+drama----戏剧
+music concert----演唱会
+music festival----音乐节
+background music----背景音乐
+opera----歌剧
+concert hall----音乐厅
+composer----作曲家
+drawing----画；图画
+portrait----肖像；人物画像
+realism----现实主义
+realistic----现实的
+pattern----图案；规律；模式
+graphics----图像
+symbolism----象征主义
+symbols----符号
+image----图像
+exhibition----展览；展览（会
+conference----会议
+culture context----文化背景
+culture awareness----文化意识
+diary----日记
+journal----日记
+entertainment----娱乐；娱乐活动
+leisure----娱乐
+chess----国际象棋
+playground----操场
+stadium----体育场
+fitness center----健身中心
+gym----健身房
+joining fees----入会费
+membership----会员
+competition----竞赛
+baseball----棒球
+cycling----自行车活动
+diving----潜水
+diving mask----潜水面罩
+rescue diver----救援潜水员
+snow boarding----滑雪板
+'tenis----网球
+light up----亮
+switch off----关掉
+turn to maximum----开到最大
+tap----水龙头
+plastic button----塑料按钮
+the heater goes out----加热器熄灭了
+reset the heater----重启加热器
+hold it in for five seconds----长按
+flash----闪烁
+alarm light----警示灯
+instructions----操作指南
+washing powder----洗衣粉
+spare key----备用钥匙
+hook----钩子
+spare bulbs----备用灯泡
+lamp----灯
+waterway----水路
+jewel----珠宝
+space travel----太空旅行
+volcano----火山
+snake----蛇
+opt for----选择
+slide----幻灯片
+ice rink----冰球场
+literal----文字的
+precious stones----珍贵的石头
+debate----争论
+continent----大陆；洲，大陆
+exhibit----展览
+gallery----画廊
+crowd----人群
+donate----捐赠
+one work----一个作品
+social context----社会背景
+ordinary people----普通人
+dig gardens----挖花园
+porcelain----瓷器
+founder----创始人
+will----遗嘱
+be present----出席
+anniversary----周年
+historic building----历史建筑
+be accompanied by live music----现场音乐伴奏
+official----官员
+premiere----戏剧，电影等)首次公演
+multimedia production----多媒体制作
+lighting effects----灯光效果
+electronic music----电子音乐
+be commissioned to----为…创作
+mark----标志
+arouse a lot of interest----引起很多兴趣
+palace----宫殿
+mayor----市长
+lead actor----主演
+low risk of injury----受伤概率低
+enjoyable----快乐的
+fitness level----体能水平
+sociable----社交的；喜欢交际的；好交际的
+fast results----见效快
+motivating----有动力的
+personal trainer----私教
+physical activity----体能活动；体力活动
+be put off----被吓退
+fit a visit to the gym into one’s busy day----在排满的日程里加入去健身房这件事
+be crowded----很拥挤
+difference----差异
+build fitness----强身健体
+indoor pool----室内游泳馆
+solitary----无伴的
+boring----无聊的
+swim lengths----游一圈又一圈
+chance----机会
+challenging----有挑战性的
+flexible----灵活的
+significant costs----大量金钱
+qualification----资质；资格；学历；合格证书
+permanent damage----永久的伤害
+sign up for membership----办会员
+suitable for all abilities----任何人都可以参加
+demand a lot of skills----需要很多技巧
+narrow sections----窄的部分
+ski trail----滑雪道
+first-timer----新手
+regardless of----不管
+ideal----理想的
+technique----技术
+leave this one to experts----把这个留给高手
+scary----害怕；骇人的
+get a general idea of the basics----大体掌握基础技能
+tricky section----难的部分
+shelter----遮盖物；庇护所；庇护；庇护，避难所
+sunshine----阳光
+downhill----下坡的
+beginner----初学者
+swimming possible----可以游泳
+horse riding----骑马
+excursion----短途旅行
+guarantee----保证
+repeat the trip free of charge----免费重来一次
+guided walk----有导游的散步
+sandwich----三明治
+be reasonably fit----相当健康的
+waterproof----雨具
+inclusive----包括一切的
+without the effort----不费力的
+inexperienced----没有经验的
+fantastic views----景色很好
+jewelry----珠宝
+have a dip in the ocean----在海洋里游泳
+cow----奶牛
+rare breeds----稀有品种
+farming tools----农具
+dairy----制酪厂
+barn----牲口棚
+stable----马厩
+shed----棚
+a slice of cake----一块蛋糕
+collection of tools----工具收藏品
+groom----梳理毛发
+pickle----泡菜
+wool----羊毛
+horse-drawn carriage----四轮马车
+cattle----牛；牛（指菜牛或奶牛
+has limited availability----供应量有限
+is no longer available----不再供应
+additional fee----额外付费
+specialist----专家
+basic introduction----基础介绍
+make an extra charge----额外付费
+folk band----民间乐队
+parental support----家长帮助
+pizza----披萨
+bread----面包
+mess----乱七八糟
+restrict----限制
+supervise----看管；监督
+animation----卡通片的制作；动画
+woodland scene----森林场景
+film studies course----电影学习课
+shepherd----牧羊人
+self-explanatory----不说自明的
+butter and cheese----黄油和奶酪
+cheesemaker----奶酪制造者
+staircase----楼梯
+landing----楼梯的平台
+seating----座位
+memory test----记忆测试
+keep your children close to you----保持你的孩子不乱跑
+reception----接待处
+duck----鸭子
+frog----青蛙
+workforce----劳动力
+worksheet----工作表
+workload----工作量
+'wɝklod----工作量
+labor----劳动力
+earn----收入
+wages----工资（复
+welfare----福利
+allowance----补贴
+income----收入
+sick pay----病假津贴
+compensation----补偿
+promotion----晋升；提升，晋升；促销，推销；促进
+career office----就业指导办公室
+phone interviews----电话面试
+interview skills----面试技巧
+dismiss----解散
+reward----报酬奖励；奖赏
+hire----雇佣
+workshop----工作室
+job application----求职申请
+issue----发布
+work placement----实习工作
+recruit----招募；招聘；雇佣
+retired----退休的
+researcher----研究者；调查员
+poor training----训练不力；培训不到位
+incentive----刺激；动力；鼓励；激励
+material rewards----物质奖励
+childcare -ker----儿童看护，儿童照管
+nursery----托儿所，保育室，婴儿卧室，儿童活动室
+share----共享，共用，合用；分配；分担
+maternity leave----产假
+persuade----说服，劝服；说服
+personnel departments----人事部门
+follow the instructions----按照说明操作
+visualize----设想，想象
+repetition----重复；再次发生的事
+make arrangements----做出安排
+time management----时间管理
+prioritizing things----确定事情的优先次序
+straightforward----简单的，易懂的；简单的；正直的；直接了当地
+ambitious----有抱负的，有雄心的；野心勃勃的；宏大的，艰巨的
+patterns----模式；模式规律=
+trends----趋势
+regularities----规律
+postgraduate----研究生
+assess----评价，评定；对…估价；估计…成本；评估
+networking----建立人际关系网
+self-employment----个体经营
+expand our operation----扩大我们的经营
+engine maintenance----发动机维护
+sales----售货的；销售额
+retirement----退休
+mechanical----机械的
+visitors are kept fed and watered----保证客人吃喝
+construction----建造；建设
+retail----零售；零售的；保持
+souvenirs----纪念品
+food stocks----食物储存
+first aid----急救
+breakages----损坏，破损
+staff discounts----员工折扣
+time table----日程表
+injure----受伤
+minor----较小的
+incident----事件
+treatment----处理；治疗，诊治，疗法
+smash a plate----打碎一个盘子
+get things noted----让事情被注意到
+stores of perishables----易腐物质储存
+put in an order----下订单
+flexible working----灵活工作
+working overtime----加班
+trainer----运动鞋
+run through a few company policies----过一下公司政策
+unlimited access----无限制使用
+probationary----试用的
+be eligible for----有资格的
+personal circumstances----个人情况
+statutory public holiday----法定节假日
+take something up----接受这件事
+commitments----投入奉献
+dress code----着装要求
+practical----实用；实际的；实用的
+high heels----高跟鞋
+no packed lunch----禁止自带饭菜
+unhygienic----不卫生的
+overcome physical difficulties----克服身体上的困难
+rediscover----重新发现
+isolation----孤独感；孤独
+past times----过去时光
+dementia----痴呆
+take sb back to their youth----回到年轻时候
+dressmaker----裁缝
+up to one’s standard----达到某人标准
+gains a lot of pleasure----获得很多快乐
+self-esteem----自尊
+express oneself----表达自己
+permanent job----固定工作
+lead a team----领导一个团队
+intensive work----工作强度大
+earn more----挣得更多
+overtime----加班
+rapid promotion----快速升职
+local travel----当地出差
+low-profit margins----低利润
+make one’s way up the career ladder----升职
+month maternity----个月的产检
+in return----回报
+competitive salary----有竞争力的薪资
+rent a small cottage on the estate----在庄园里租一个小房子
+tractor----拖拉机
+staff turnover----员工流动
+feedback----反馈；反馈意见
+value one’s opinions----重视某人的意见
+contribute to----贡献
+staff retention----留住员工
+introduce a scheme----引进一个方案
+talent----人才
+organize training----安排培训
+high achievers----有成就的人
+hotel chain----酒店连锁
+as a reward----作为一个回报
+all-expenses-paid trip----全程免费的旅行
+additional----额外的；另外的
+childcare responsibilities----照顾小孩的责任
+cooperative----合作的
+raise money----筹款
+creativity----创造力；创新
+novel way----新奇的方式
+collection box----收款箱
+litter collection----捡垃圾
+uphill----上坡的
+vacancy----空缺职位
+give clear instructions----给明确指令
+appeal to----吸引某人；吸引；对…有吸引力
+theatrical----戏剧的
+first-aid----急救的
+injury----受伤；伤；伤害
+initially----最初
+priority----优先考虑的事；优先
+original----原创的
+parenting skills----养育方法
+diet----饮食；日常饮食
+a good level of fitness----不错的身体健康情况
+fundraising----筹款
+doubled in number----数量双倍
+strengthened----加强
+temporarily closed----暂时关闭
+lift----电梯
+dressing room----换衣间
+reopen----重新开业
+redevelopment----重新开发
+repaint----重新粉刷
+reoriented----重新确定方向
+access----入口
+space----空间
+new premises----新的房屋或建筑物
+auditorium----观众席
+the leg-room between the rows----两排之间的放腿位
+install air conditioning----安装空调
+stuffy----不通气的
+wheelchair----轮椅
+meet demand----满足需求
+efficient----效率的；效率高的；高效率
+backstage----后台
+be converted into----被改造成
+lighting system----灯光系统
+refurbish----重新装修
+purpose----目的；用途
+reduce----减少
+new management----新的管理方法
+expand----扩张；扩大
+multi-storey----多层的
+refuse----拒绝
+adjoining land----临近的土地
+reopen on a different site----在另外一个地点重新开张
+screen----屏幕
+demolition----拆毁
+redecorated----重新装修
+funding----拨；提供资金下半堂课
+in the not-too-distant future----在不久的未来
+in charge of the area----管理这个地方
+responsibility----责任；职责，责任
+a national body----一个国家团体
+good value for money----物有所值
+range----范围
+employ----雇用
+organic food----有机食品
+vegetarian dishes----素菜
+client----客户
+tuition （----尤指对小组的）教学
+exercise----运动
+mountain biking----山地（自行）车
+customs----风俗
+positive features of …----的积极特征
+lasting----持久的
+like- minded people----志同道合的人
+main draw----主要吸引力
+usual emphasis----通常强调
+a given----一个给定的
+meat- free recipes----无肉食谱
+one-on-one tuition----一对一的辅导
+diet programme----饮食计划
+most popular features----最受欢迎的特点
+is tailored to----是量身定做的
+little interest----几乎没有兴趣
+in their seventies----在他们 70 多岁
+outdated models----过时的型号
+send texts----发短信
+dismissive----不屑一顾的
+order their groceries----订购一些杂物
+come in handy----派上用场
+induction----入职
+react----回应；反应
+positively----积极地
+confidence-building----建立自信
+weekly timetable----周时间表
+review----评估；影评
+approachable----平易近人的
+helping you out----帮助你
+make an effort to----尽力去做
+supervisor----主管
+mentor----导师
+sense of independence----独立感
+relaxed atmosphere----轻松的氛围
+energetic----精力充沛的
+develop confidence----培养信心
+extended family----大家庭〔包括(外)祖父母﹑姑(姨)等在内〕
+parking 〔----车辆等的〕停放
+above-average----在一般水准以上的
+overseas travel----海外旅游
+housing----住房
+physical fitness----身体健康
+recruitment----招聘
+maintenance----维护
+juggle work with other responsibilities----平衡工作和其他责任
+child care----照顾孩子
+a big plus----一大优势
+windy----有风的
+remote----偏远的
+geographical features----地理特征
+easy access to local facilities----方便使用当地设施
+little agriculture value----农业价值不大
+cyclist----骑自行车的人
+good relation----良好的关系
+rural----乡村的
+commute----通勤
+secondary school----中学
+natural features----自然特征
+landscape----景色
+provision----规定
+effort----努力
+achievable----可完成的
+time limit----时限
+sign up----注册
+good intention----好的意愿
+determination----决心
+commitment----承诺
+manageable----易管理的
+treat----犒劳；对待
+setback----挫折
+bound to be----一定会
+decorate----装饰
+deliver----送
+childcare----照顾孩子
+sense of purpose----使命感
+boost----提升；促进
+prospect----前景
+support a family----供养一个家庭
+sensibly----明智地
+wallpaper----墙纸；壁纸
+alongside----与…一起
+babysit----照顾小孩
+cope with----应对
+mental----精神
+physical----身体的
+look favourably on sb----给某人优待
+in that respect----在这方面
+pay extra----额外支付
+get a reduction----得到折扣
+take part in----参加
+three-course meal----一餐三道菜
+unlimited free drinks----无限的免费饮料
+cast members----演职人员
+chat with sb----与某人交谈
+long gowns----长袍
+medieval way----中世纪的方式
+cutlery----餐具
+horseback----马背上的
+knock----击打
+ballroom----舞厅
+no payment----无需付款
+palm tree----棕榈树
+tropical region----热带地区
+let off steam----释放精力
+fund----资金
+year-round----全年的
+irrespective of their age----无论年龄大小
+keep an eye on----照看
+disastrous----灾难性的
+collection----收藏品
+too expensive to replace up to now----太昂贵而至今无法更换
+who staffed it----谁是他的工人
+dolphin----海豚
+penguin----企鹅
+shipwreck----海难
+cliff （----常指海边）悬崖
+isolated spot----偏远的地方
+chopping firewood----砍柴
+hide----躲避
+pop up----突然出现
+spot----发现
+approach----接近；找到；临近；方法，方式；要求；进场（着陆；方法；联系
+kayak----皮艇
+a narrow channel----狭窄的通道
+rock formation----岩层
+extended hours----延长时间
+school sessions----学校课程
+maximum----最大值的
+attend----参加
+per child----每个孩子
+allergy----过敏性反应；过敏症
+up to----多达
+registered with us----在我们这里注册
+regularly----定期地
+substantial----丰盛的
+pasta----意大利面食
+term-time----学期
+reliable----可靠的
+continuous----持续的
+level of commitment----投入程度
+ambition----追求；抱负
+a bit squashed----有点挤
+consideration----考虑
+reliability----可信度
+in our experience----根据我们的经验
+dedication----奉献
+loyal----忠实的
+warning----警告
+correct----正确的；纠正
+peel----剥皮
+toxin----毒素
+edible----可食用的
+poisonous----有毒的
+consume----消耗；吃；吃掉
+similar----相似的
+get confused----感到困惑
+several days old and past their best----过了最好的时期几天
+pale----苍白的
+dull----阴暗的
+squirrels----松鼠
+by no means----绝不；决不
+see the point of----理解……的意义
+on the corner of the park----在公园的拐角处
+on the bend in the path----在小路的转弯处
+lead off from----从……岔开
+across the road from the bank----在银行马路对面
+beyond the marsh----越过沼泽地

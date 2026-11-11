@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<title>LumaReader PageCurl Cylindrical Projection Lab (XBPageCurl / StPageFlip)</title>
+</head>
+<body>
+<script>
+// Cylindrical page curl projection adapted from xissburg/XBPageCurl (MIT License)
+// and Nodlik/StPageFlip (MIT License).
+function curlPoint(x, y, p, dir = 1) {
+  const s = dir < 0 ? -1 : 1;
+  const t = Math.max(0, Math.min(1, Number(p) || 0));
+  if (t <= 0) return { x, y, z: 0 };
+  const u = x * s;
+  const r = 0.18 * Math.sin(t * Math.PI);
+  const axis = 1.0 - 2.0 * t;
+  const d = u - axis;
+  let uOut = u, z = 0;
+  if (d > 0 && r > 1e-9) {
+    if (d <= Math.PI * r) {
+      const theta = d / r;
+      uOut = axis + r * Math.sin(theta);
+      z = r * (1 - Math.cos(theta));
+    } else {
+      uOut = axis - (d - Math.PI * r);
+      z = 2 * r;
+    }
+  }
+  return { x: uOut * s, y, z: Math.max(0, Math.min(0.36, z)) };
+}
+function shader(point) {
+  return point;
+}
+</script>
+</body>
+</html>

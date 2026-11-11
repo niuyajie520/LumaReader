@@ -1,0 +1,968 @@
+altitude----海拔；高度
+levels of acid----酸水平
+herbivore----食草动物
+carnivore----食肉动物
+omnivore----杂食动物
+variation in salinity----盐度变化
+man-made dams----人造水坝
+pesticide----杀虫剂
+cosmetics----化妆品
+circulation----循环
+ozone layer----臭氧层
+sun position----太阳位置
+sunset----日落
+gravity----重力
+occupancy----占用率；居住，占用
+digestion----消化
+irrigation----灌溉；浇灌
+recycling containers----回收容器
+soil conditioner----土壤调节剂；土壤改良剂
+office stationery----办公文具
+limestone----石灰岩
+magnet----磁铁
+soft sediment----软质沉积物
+domestic waste----生活垃圾
+landfill sites----垃圾填埋场
+canal----运河
+seagrass----海草
+shallow waters----浅海
+pollutant :tnt----污染物
+chemical contaminants----化学污染物
+filter----过滤器
+transparency 〔----玻璃﹑塑料等的〕透明（性
+humidity----湿度
+moisture----水分
+evaporation----蒸发
+polar climate----极地气候
+deforestation----砍伐树林；采伐森林；毁林
+logging company----伐木公司
+cloud movements----云的移动
+air pump----气泵
+floodwater----洪水
+hurricane----飓风
+thunderstorm----雷暴
+seal----海豹
+octopus----章鱼
+salmon----鲑鱼，三文鱼
+tuna----金枪鱼
+plankton----浮游生物
+parasites----寄生虫
+hibernation （----动物）冬眠
+ultraviolet radiation levels----紫外线辐射水平
+oil exploration----石油勘探
+oil leaks----漏油
+Mercury----水星；水银
+thermometer----温度计
+insulation----绝缘
+germs----病菌
+virus----病毒
+fungus----真菌
+bacteria----细菌
+chemical signature----化学特征
+contaminated site----污染场地
+identify patterns----识别规律
+south pole----南极
+north pole----南极
+create corridors for migration----创建于迁移的通道
+satellite----人造卫星
+power plants----发电厂
+highly toxic----剧毒
+food availability----食物供应
+waste disposal----废处理过程；垃圾处理
+military tests----军事测试
+exercises----军事测试
+reproduction----繁殖
+breeding----繁殖
+energy-efficient----节能的；高效能的
+erosion----侵蚀，腐蚀；侵蚀
+fertilizer----肥料；化肥
+geographical----地理的，地理位置的
+release oxygen----释放氧气
+parasite----寄生虫
+navigation----导航
+the tide goes out----退潮
+rely heavily on----很大程度上依赖
+infestation----害虫群袭
+harmful----有害的
+originate from----起源于
+reveal----显示
+be pinpointed as----被确定为
+frequently----频繁地
+apart from----除了...外
+network----网络
+a recent phenomenon----最近的一个现象
+town surveyor----城镇测量师
+representative----有代表性的
+stable population----稳定的数量
+rural area----农村地区
+wonder----想知道
+all very engage by----都被...深深吸引
+estimate----估计
+endorse----赞同认可
+usage----使用
+survey----调查
+tick off----用记号勾出
+rarer----更罕见的
+typical----典型的
+norm----正常情况
+exception----例外情况
+countryside----农村
+attractive----吸引力；有吸引力的
+precisely----准确地
+feed on----以..为食；以...为食
+which is the result of----这是…的结果
+legend----传说
+snowy fur----雪白的皮毛
+special power----特殊的力量
+fish streams----有鱼的河流
+cutting down a large number of trees----砍伐了大量的树木
+fracture----使破裂
+hibernation----冬眠
+be declining----衰退中的
+no legal limit----没有法律限制
+fishing----捕鱼
+logging method----伐木方法
+expansion----扩张
+biodiversity----生物多样性
+rich in----含有大量的
+sufficient----充足的
+marine----海产的；海洋
+geographical distribution----地理分布
+locate----指出
+concentration----浓度
+oxygen----氧气
+decline----减少
+migration----迁移
+consumption----消耗；吃；消费
+be recognizable by----通过…来识别
+navigate----导航
+female----雌性的
+tongue----舌头
+landmark----地标
+monogamous----一夫一妻的
+partner----配偶
+hardly----几乎不
+male----雄性的
+develop----开发
+tail----尾巴
+step----步
+avoidance----回避
+disinfectant----消毒剂
+lime----石灰
+absorb----吸收
+iron----铁
+root----根
+bushfire----丛林大火
+ecosystem----生态系统
+germ----细菌
+extracted----萃取的
+secrete----分泌
+solution----溶液
+encourage----促进
+afterward----之后
+harm----伤害
+nutrient----营养物
+dry----干的
+vegetation----植物
+nest----巢；巢穴
+extinction----灭绝
+Portuguese----葡萄牙的
+collect food and water----收集食物和水
+the Dutch----荷兰人
+soft tissue----软组织
+small wing----小翅膀
+sailor----水手
+spice----香料
+colony----殖民地
+meat----肉类
+knee joint----膝关节
+balance----平衡
+skull----头盖骨
+brain----智力
+average in size----平均大小
+pigeon----鸽子
+thick vegetation----茂密的植物
+rat----鼠
+consume their eggs----吃掉它们的蛋
+introduction of agriculture----农业的引进
+crop----农作物
+migrate seasonally----季节性迁移
+hibernate----冬眠
+incapable of----没有能力
+food became abundant again----食物又变得充足了
+feather----羽毛
+shape----形状
+a tribe----一个部落
+ring----环形物
+destinations of …----的目的地
+data----数据
+gather----收集
+atlas----地图集；地图册
+maple----枫树
+sap----树液
+refined sugar----精炼的糖
+maple leaf----枫叶
+best-growing condition----最佳生长条件
+tree trunk----树干
+bucket----桶
+evaporator----蒸发器
+taste----口感
+honey----蜂蜜
+thick----浓的
+golden----金色的
+sweet-tasting liquid----甜味的液体
+bottle----瓶子
+jar----罐子
+contains no preservatives or added ingredients----不含防腐剂或添加剂成分
+alternative----替代物
+sun exposure----暴露在阳光下
+climate----气候
+tree bark----树皮
+scorching hot----滚烫
+diameter----直径
+hole----洞
+a tube----一根管
+boil----煮沸
+fire----火
+steam----蒸汽
+filter out----过滤掉
+cloudy----不透明的
+litre----升
+law----法律
+overpopulation----人口过剩；人口过多（这里指大象数量
+park staff----公园工作人员
+immobilize----使不动
+lung----肺
+monitor----监控；监测
+constantly----不断地
+tracking device----跟踪装置
+tusk----象牙
+reserve----保护区
+competition for food----对食物的竞争
+knocking down----推倒
+family----家族
+helicopter----直升机
+tricky----狡猾的；棘手的
+dose----剂量
+minimize----使减到最小；把…减至最小量[程度]
+stress----压力
+suffocation----窒息
+be placed on their sides----侧着放置
+breathing----呼吸
+feet----脚；脚（复数
+living standard----生活水平
+weapon----武器
+tourism----旅游业
+illegal wildlife trade----非法野生动物贸易；非法野生生物贸易
+advertising campaign----广告活动；广告宣扬；广告宣传活动
+falling sales----销售额下降
+expansion plan----扩张计划
+organization----组织，机构；组织
+increased competition----增加的竞争
+strike----罢工
+multinational company----跨国公司
+investment----投资
+outdated production machinery----过时的生产机器
+attitudes----态度（复数
+plants :nt----工厂
+at the wrong time----错误的时机
+good signs----好的迹象
+high interest rates----高利率
+long-term problems----长期问题
+market share----市场份额
+the root of conflict----冲突的根源
+favorable（favourable） terms----优惠条款
+a new image----一个新的形象
+a bolder move----一个更大胆的行动
+capital----资本
+personal stress----个人压力
+identify different talents----识别不同的人才
+management layers----管理层
+medium-sized company----中等公司
+industries----产业（复数
+staff needs----员工需求
+cooperation----合作
+products----产品（复数
+set new trends----引领新趋势
+break the mold（mould）----打破成规
+highly skilled workers----高技能工人
+recovery----恢复、复原
+stock market----股市
+realistic expectations----切合实际的期望
+profit----利润
+contact----联系人
+misrepresent----误传
+reform----改革
+preference----偏好
+false data----错误的数据
+confidentiality----保密性
+undergraduate----本科生
+postgraduates----研究生
+overseas departments----海外院系
+exclude----排除
+sb. in employment----某人在工作的状态中
+odd cases----奇怪的案例
+pull out----退出
+second round----第二轮
+reassurance----消除恐惧疑虑
+traceable----可追踪的
+consistent----一致的
+context----环境
+consulting experts----咨询专家
+certain circumstances----某些情况
+unwilling----不愿意的
+incomplete----不完整的
+alter----修改
+invalid----无效的
+overlook----忽略；忽视
+impose----强制实行
+physical features----身体特征；物质特征
+capture----占领；捕捉
+utilise----利用
+glamorous----富有魅力的
+pure innovation----纯粹的创新
+be confined to----局限于
+overwhelming majority----绝大多数的
+attempt----尝试
+a wide range of ...business settings----广泛的商业背景
+to name but a few----仅列举几例
+picking their brains----向他们请教
+a rough understanding----粗略的了解
+isolated problems----孤立的问题
+grasp----控制
+be interwoven with----交织在一起
+modification----改变
+ignorance----无知
+invisible----看不见的
+combination----组合
+compromise----损害
+get it right----完成好
+duplicate----复制
+power----权力；力量
+job security----工作保障；工作保证
+discipline----纪律
+economy of scale----规模经济
+project orientated----项目导向
+delegation----代表团
+expertise----专业知识
+central source of power----权力的中央来源
+negative side----消极的一面
+take risk----冒险
+job description----种类
+technical expertise----技术的专业知识
+short life-span----短寿命的
+environmental concerns----环境问题
+work remotely----远程工作
+senior roles----高级职位
+service sector----服务业
+intellectual property----知识产权
+statistical----统计学的
+consumer----消费者
+mergers----兼并
+takeovers----收购
+rapidly expanding economies----迅速扩张的经济体
+customers----顾客
+product lifecycles----产品生命周期
+pollution----污染
+structure of companies----公司的结构
+teams----团队
+flexible hours----灵活的时间
+advances in technology----科技进步
+remote working----远程工作
+leadership----领导
+organisation----组织
+competing requirements----竞争要求
+potential conflicts----潜在冲突
+senior managers----高级管理者
+consultative----咨询的
+collaborative----协作的
+employer----雇主
+self-employed----自主创业
+gain the freedom and control----得到自由和控制权
+prevention----防止
+punishment----惩罚
+ideal version of themselves----理想中的自己
+gain----收益
+obligation----义务
+expectation----预期
+chronic----长期的，习惯性的
+aspiration----强烈的愿望
+highlight----强调
+passionate----热诚的
+definitive vision----明确的愿景
+follow orders----遵循命令
+threaten----威胁
+spy----暗中监视
+particle----颗粒
+caution----谨慎
+has yet to----尚不
+unethical----不道德的
+pollutant----污染物质
+life expectancy----预期寿命
+atom----原子
+molecule----分子
+civilization----文明
+capability----能力
+scenario----情节
+insert----嵌入
+safety test----安全测试
+clear label----明确的标签
+application----应用
+advancement----进步
+breakthrough----突破性进展
+durable----耐用的
+a sugar cube----一块方糖
+solar cell----太阳能电池
+harness----利用
+economical----经济的
+global warming----全球变暖
+contaminant----污染物
+eradication----消除
+minute----分钟
+aging process----老化过程
+measuring cups----量杯
+entrepreneur----企业家
+airlines----航空公司
+hypothesis----假设
+insight----领悟洞悉；深刻的见解
+valuable information----宝贵的信息
+sugar----糖
+flour----面粉
+top seller----最畅销
+come up with----想出了
+portable----便携的
+open-minded----思维开放的
+be watched as----被监视
+first- hand observation----一手观察
+collecting of data----收集数据
+feed back to----反哺
+business value----商业价值
+senior manager----高级管理人员
+collaborate----合作
+industriousness----勤奋
+pioneer----先锋者
+hard work----努力
+excellence----卓越
+reality----现实
+not at all the intention----完全不是本意
+backfire----发生事与愿违的结果
+side effects----副作用
+construct----修建
+stream----溪流
+building blocks----积木
+teamwork----团队合作
+confusion----混乱
+everyone getting in each other's way----每个人都在互相妨碍
+comply with----遵守
+inconsistency----不一致
+rational----理性的
+unnecessary task----不必要的任务
+chocolate bar----巧克力棒
+strive for excellence----追求卓越
+profitable----有利可图的
+first version----第一个版本
+anxiety----焦虑
+have sth. questioned----某事被质疑
+resolve----解决
+workplace----工作场所
+victim----受害人
+unacceptable----不能接受的
+at the opposite extreme----另外一个极端
+physical violence----肢体暴力
+bully----恐吓
+superiority----优越性
+hierarchy----等级制度
+structural----结构上的
+administrators----幕后的管理员
+absence----缺席；缺乏
+miss targets----没有达到目标
+board members----董事会成员
+vision----构想
+suffer----遭受；受损害
+respect----尊重敬佩
+occur----发生
+get out of hand----失控
+external----外部的
+mediator----调解人
+hormone----荷尔蒙
+mental illness----精神病
+general well-being----总体安康状态
+lessen----减轻
+intense forms of exercise----高强度的运动
+dopamine----多巴胺
+studio----工作室
+problem-solving task----解决问题的任务
+mental health problem----心理健康问题
+therapy----疗法
+standard of fitness----健康水平
+workout----体育锻炼
+hip----臀部
+motivation----动力
+collaboration----合作
+aerobic----有氧的
+kickboxing----踢拳
+body fat----体脂
+high-intensity workouts----高强度锻炼
+atmosphere----大气
+air quality----空气质量
+atmospheric components----大气成分
+forestation----森林造林
+carbon dioxide----二氧化碳
+woodland degradation----退化；降级林地
+evaporate v----蒸发
+grassland----草原
+evaporation n----蒸发
+highland----高地
+plateau----高原
+plain----平原
+contamination----污染
+spes----空间，太空
+eclipse----日食，月食
+contaminated land----污染的土地
+incineration plant----焚化厂
+rubbish----垃圾
+west----废弃物
+garbage can----垃圾箱
+sea level----海平面
+island----岛
+nature conservation----自然保护
+drop-off site----垃圾投放处
+plastic collection----回收塑料
+recycling material----回收材料
+green tax----环保税
+soil----土壤
+sewage----污水
+earth----地球
+drainage----排水，污水
+sewer----下水道
+marine ecosystem----海洋生态系统
+planet----星球
+stone----石头
+ston----石头，石料
+marine pollution----海洋汚染
+crack----裂缝，破裂
+ocean currents----洋流
+coastal ecosystems----沿海生态系统
+coastal environments----沿海环境
+caves----洞穴
+kev----洞穴
+erosion of soil----土壤侵蚀
+temperature----温度
+dynamic----动态
+associated----相关联的
+two-dimensional map----二维地图
+density----密度
+earth's surface----地球表面
+cause and consequences----因果关系
+confidential----保密的
+three-dimensional----三维
+a certain degree of distortion----一定程度的扭曲
+how much traffic is----有多少交通流量
+function----功能
+symbolic meaning----象征意义
+disused----废弃的
+exterior----外部的
+huge pad----大垫子
+ceiling----天花板
+adjustment----调节
+acoustics----音响效果
+administration----行政
+physical location----物理位置
+social meaning----社会意义
+metaphor----隐喻；暗喻
+run-down district----破败的地区
+be occupied by sth----被…所占据
+raw materials----原材料
+manufacturing----制造业；生产
+images are projected----图像被投射
+rubber----橡胶
+straight----直的
+curved----弯曲的
+carbon-based substance----碳基物质
+microbes----微生物
+fertile----富饶的
+produce----农产品
+climate change----气候变化
+extremely----极其
+transfer----转移
+fungi----真菌
+fertility----肥力
+variety of plants----植物种类
+cattle farm----养牛场
+leaf----树叶
+branch----树枝
+build up----增加
+cultivate----种植；耕种
+toxic----有毒的
+mental process----心理过程
+expose to----接触
+electricity----电
+ingest----吃下
+acquire this skill----获得这项技能
+contaminate----污染
+expose----暴露
+in a natural setting----在一个自然条件下
+migratory----迁移的
+hunter----猎人
+acquisition of language----学习语言
+gene----基因
+contain----包含
+implement----执行
+perception----认识
+sleep disturbance----睡眠障碍
+sound meter----测声计
+raise awareness----提高意识
+relaxing----轻松的
+town square----城镇广场
+emotional response----情绪反应
+lively----活泼的
+high heel----高跟鞋
+intrusive----打扰的
+culture----文化
+nature of sound----声音的本质
+virtual reality----虚拟现实
+silent----无声的
+adaptability----适应性
+mammal----哺乳动物
+specimen----标本
+hormones----激素
+crow----乌鸦
+cliff----悬崖
+gradual evolution----逐渐进化
+mice----老鼠
+brain size----脑容量大小
+coping with----应对
+frighten----使惊慌
+scare----使惊恐
+wave tails----摇尾巴
+renewable energy----可再生能源
+reservoir----水库
+tide----潮汐
+reverse direction----反向
+silt----淤泥
+fuel----燃料
+run out----耗尽
+tidal----潮汐的
+constant----恒久不变的
+generate----产生
+sediment----沉积物
+ocean floor----海底
+coast----海岸
+dam----水坝
+gate----大门
+gas emission----气体排放
+migration pattern----迁移模式
+charcoal----木炭
+fenced areas----围起来的区域
+water pumps----水泵
+labour----劳动力；劳动
+dry and arid region----干旱又干燥的地区
+rainfall----降雨量
+sustainable way of living----可持续的生活方式
+famers' association----农民协会
+water management----水管理
+livestock breeding----牲畜饲养
+notable----值得注意的
+be fenced off----围起来
+wire----金属丝
+cereals----谷物
+seed----种子
+pump----泵
+put up the posts----树立标识
+preservation----保存
+dig holes----挖洞
+breeding fish----养殖鱼类
+protein----蛋白质
+colonies of bees----蜂群
+phase----阶段
+winding----蜿蜒
+maze----迷宫
+be derived from----来源于
+prayer----祈祷
+ancient carving----古木雕
+symbol----符号
+patient----病人
+spiral----螺旋式
+start point----起点
+twists and turns----一波三折
+synonym----同义词
+puzzle----难题
+a state of confusion----混乱状态
+meditation----冥想
+basket----篮子
+coin----硬币
+physical benefit----身体上的好处
+sense of balance----平衡感
+small-scale studies----小规模研究
+relaxation----放松
+social surveys----社会调查
+population shift----人口迁移
+status of development----发展状况
+minority----少数民族
+sustainable development----可持续发展
+race relations----种族关系
+environmental economic issues----环境经济问题
+lifestyle----生活方式
+human settlements----人类居住
+urban area----城市地区
+human migration----人类迁居
+coastal area----沿海地区
+human population----人口
+language----语言
+human rights----人权
+dialect----方言
+generation----一代
+accent----口音，重音
+public----公众，大众其它
+Others monument----纪念碑
+sound effect----音效
+printing----印刷，印刷术
+entertainment industry----娱乐产业
+ash----灰
+radar----雷达
+distance----距离
+system----系统
+speed----速度
+spid----速度
+hunting----打猎
+tunnel----隧道
+impact----影响
+maintenance(maintain----维修
+carpenter----木匠
+confidence(confident----自信心
+antiseptic----抗菌剂，消毒剂
+prison----监狱
+success----成功
+technology----科技
+spray----喷雾
+benefit----利益，好处
+biography----人物传记
+wax----蜡
+mood protein----情绪蛋白质
+star----星星
+liquid----液体
+solid----液体
+eyesight----视力
+feeding----喂食
+'fi:diŋ----喂养
+embassy----大使馆
+evidence----证据
+length----长度
+strength----力量
+ground----地面
+crisis----危机
+recall----回想起
+location----地点
+degree----程度
+encode----编码
+make the connection----发现联系
+recollection----回忆
+strategic----策略
+store----存储
+frequency----频率
+prompt----提示
+symptoms----症状
+keep the brain active----活跃大脑
+share intimate details----分析私密细节
+sense of self----自我意识
+the ruler----统治者
+cultivation----种植
+potentially dangerous----潜在危险
+destruction----摧毁
+exchange ideas----交流思想
+performed a similar function to----执行的功能与…相似
+social----社会的
+political----政治的
+port----港口
+plantation----种植园
+slaves----奴隶
+peasant----农民
+taxation----征税
+transportation----运输工具
+middle classes----中产阶级
+when it got dark----当要天黑的时候
+forecast----预报
+disaster----灾难
+ceremony----仪式
+phenomena----现象
+calender----日历
+pass on----传递
+weather god----管天气的神
+weather catastrophe----天气灾难
+thunder----雷
+lightning----闪电
+civilisation----文明
+survival----生存
+weather pattern----气候规律
+festival----节日
+rain----雨
+wind----风
+storm----暴风雨
+halo----光晕
+comet----彗星
+wind direction----风向
+trade wind----信风
+electricity and lightning----电和闪电
+telegraph----电报
+expressive----有表现力的
+orchestra----管弦乐队
+disturbing----烦扰的
+breath----呼吸
+sob----哭泣
+laugh----笑
+whistle----口哨
+clarinet----单簧管
+diversity of culture----文化多样性
+Olympics----奥林匹克运动会
+semicircle----半圆形
+human remain----人类遗迹
+sophisticated----高雅的
+supply----供应
+olive oil----橄榄油
+courtyard----庭院
+spring----泉
+marble----大理石
+superior camera----高级摄像机
+inspection----检查
+goods----商品
+cleansing liquid----清洁液
+cargo----货物
+wine----葡萄酒
+wash off----洗掉
+soap----肥皂
+colour----给...染色
+bath----洗澡
+occurrence----发生
+cleansing property----清洁性能
+rinse mud off----洗掉...上的泥
+clay----泥土
+scrape off----刮掉
+tint their hair red----把他们的头发染成红色
+aqueduct----渡槽
+unsanitary----不卫生的
+outbreak----爆发
+perfume----香水
+patent----取得...的专利权
+science----科学
+everyday necessity----日常必需品
+tax----税金下半堂课
+possession----财产
+leading industry----主导产业
+widely available----广泛使用
+greater access to----更容易接触到
+visible----明显的
+persuasive----能说服的
+quantity----数量
+quality----质
+indication----表示
+massive social change----大规模的社会变革
+transform life----改变生活
+most advanced industry----最先进的工业
+knowledgeable----有见识的
+distribution----分配
+goods for sale----出售的商品
+explosion----激增
+persuade people to go shopping----说服人们去购物
+intended for----用来...
+external event----外部事件
+treatment for----治疗...
+triumph----胜利
+appealing----吸引人的
+have access to these idea----可以接触到这些思想
+letter----信
+thought----思想
+virtue----美德
+anger----愤怒
+jealousy----嫉妒
+conscious----神志清醒的
+control----控制
+perspective----观点
+fear----恐惧
+pain----痛苦
+put on a play----上演了一部戏剧
+economist----经济学家
+capitalism----资本主义
+faulty thinking----错误的思想
+use logic----用逻辑
+opportunity----机会
+considerable practice----大量的练习
+pleasure----娱乐
+have a disciplined and principled character----有纪律和有原则的性格
+knit----编织
+needle----针
+yarn----纱线
+spin----纺纱
+sit by the fire----坐在火炉旁
+vanish----消失
+sales figure----销售数字
+numerous benefits for----众多好处
+economic hardship----经济困难
+technological----科技的
+fast-paced life----快节奏生活
+sock----袜子
+glove----手套
+knitting patterns----针织图案
+plastic----塑料
+cotton----棉花
+rough----粗糙的
+sheep----羊
+digital technology----数字技术
+web browser----浏览器
+vocabulary----词汇量
+smartphone----智能手机
+bilingual----双语的
+be contacted entirely in English----完全用英语对话
+drawback----缺点
+tech giant----科技巨头
+tackle----处理
+large sum of money----大笔资金
+app----应用程序
+social media----社交媒体
+sense of identity----身份认同感
+route----途径
+fluent in----在...流利的
+express----表达
+immobilized----使不能动
+monitored constantly----持续监控
+tracking devices----跟踪设备
+tusk 〔----大象等动物的〕长牙
+reserve 〔----野生生物〕保护区
+knock down----击倒
+dose 〔----药物的〕剂量
+be placed on their side----在他们身边
+sew----缝
+lining 〔----尤指服装的〕衬里
+pickpocket----扒手
+hang from----从…悬挂
+knee-length----长[高]及膝部的
+tailor----裁缝
+decorative----装饰用的
+stylish----有风格的
+fabric----织物
+waist----腰
+small possessions----小物品
+layer----表层
+noticeable----明显的
+detract----贬低
+be adapted for----适用于
+social issue----社会问题
+exile----流放
+entertain----款待
+writer----作家
+author----作者
+insight into----洞察
+career----生涯
+leading figure----领军人物
+romantic movement----浪漫主义运动
+literary----文学的
+collection of poetry----诗集
+carving----雕刻
+harbor----海港
+deprived areas----贫困地区
+relative----亲戚
+be bordered by----与……接壤；以……为边界
+tribe----部落
+bark----树皮
+necessity----必需品
+industry----工业；行业
+life----生活；生命

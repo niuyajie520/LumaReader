@@ -1,0 +1,1943 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-06T19:55:00-07:00",
+  "auditSummary": {
+    "discoveredCandidateLeadsCount": 76,
+    "thirdPartyRedistributionApprovedCount": 0,
+    "originalSelfAuthoredPracticeableCount": 12,
+    "totalPracticeableExamsCount": 12,
+    "totalCatalogRecordsCount": 88
+  },
+  "practiceableQuestions": [
+    {
+      "id": "ORIG-001",
+      "shortTitle": "Car ownership",
+      "category": "折线图",
+      "difficultyBand": "Band 6.5–7.5",
+      "promptText": "The line graph below shows the percentage of households owning zero, one, or two or more cars in a European country between 1980 and 2020. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank (Inspired by public topic index)",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "1980",
+          "1990",
+          "2000",
+          "2010",
+          "2020"
+        ],
+        "series": [
+          {
+            "name": "No car",
+            "unit": "%",
+            "values": [
+              48.0,
+              38.0,
+              30.0,
+              25.0,
+              22.0
+            ]
+          },
+          {
+            "name": "One car",
+            "unit": "%",
+            "values": [
+              42.0,
+              46.0,
+              48.0,
+              47.0,
+              46.0
+            ]
+          },
+          {
+            "name": "Two or more cars",
+            "unit": "%",
+            "values": [
+              10.0,
+              16.0,
+              22.0,
+              28.0,
+              32.0
+            ]
+          }
+        ],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-001",
+      "companionTask2Prompt": "Some people believe that governments should invest heavily in public transport rather than building new roads for private cars. To what extent do you agree or disagree?",
+      "notes": "Original dataset & prompt; each year sums to 100% across household car-ownership tiers."
+    },
+    {
+      "id": "ORIG-002",
+      "shortTitle": "Household spending",
+      "category": "饼图",
+      "difficultyBand": "Band 6.0–7.0",
+      "promptText": "The pie chart below illustrates the average proportion of monthly household expenditure across six categories in a coastal city in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Housing",
+          "Food & Groceries",
+          "Transport",
+          "Healthcare",
+          "Leisure",
+          "Savings & Other"
+        ],
+        "series": [],
+        "pieSlicePercentages": {
+          "Housing": 34.0,
+          "Food & Groceries": 22.0,
+          "Transport": 15.0,
+          "Healthcare": 11.0,
+          "Leisure": 10.0,
+          "Savings & Other": 8.0
+        },
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-002",
+      "companionTask2Prompt": "In many countries, the cost of living is rising rapidly. What are the primary causes of this trend, and what measures can individuals and governments take to address it?",
+      "notes": "Original pie chart dataset; slice percentages sum to exactly 100.0%."
+    },
+    {
+      "id": "ORIG-003",
+      "shortTitle": "Island redevelopment",
+      "category": "地图",
+      "difficultyBand": "Band 7.0–8.0",
+      "promptText": "The two maps below show an island before and after the construction of tourist facilities. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://ieltsliz.com/ielts-map-comparison/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Before",
+          "After"
+        ],
+        "series": [],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": {
+          "beforeYearLabel": "Before Development",
+          "afterYearLabel": "After Eco-Resort Development",
+          "beforeFeatures": [
+            {
+              "label": "Natural sandy beach",
+              "region": "West",
+              "status": "unmodified"
+            },
+            {
+              "label": "Scattered palm groves",
+              "region": "East & North",
+              "status": "natural"
+            },
+            {
+              "label": "Open undeveloped interior",
+              "region": "Center",
+              "status": "vacant"
+            }
+          ],
+          "afterFeatures": [
+            {
+              "label": "Designated swimming area at beach",
+              "region": "West",
+              "status": "added"
+            },
+            {
+              "label": "Reception block and restaurant connected by vehicle track",
+              "region": "Center",
+              "status": "constructed"
+            },
+            {
+              "label": "Two clusters of guest huts connected by footpaths",
+              "region": "West & Center",
+              "status": "constructed"
+            },
+            {
+              "label": "Boat pier extending into southern bay",
+              "region": "South",
+              "status": "constructed"
+            },
+            {
+              "label": "Original palm groves preserved",
+              "region": "East",
+              "status": "retained"
+            }
+          ]
+        },
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-003",
+      "companionTask2Prompt": "Developing remote natural areas for international tourism brings economic benefits, but it often damages the local environment. Discuss both views and give your own opinion.",
+      "notes": "Original vector map specification with verified before/after spatial features."
+    },
+    {
+      "id": "ORIG-004",
+      "shortTitle": "Coffee production",
+      "category": "流程图",
+      "difficultyBand": "Band 6.5–7.5",
+      "promptText": "The diagram below shows the stages involved in the dry-method production of roasted coffee beans from harvesting to commercial packaging. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Step 1",
+          "Step 2",
+          "Step 3",
+          "Step 4",
+          "Step 5",
+          "Step 6"
+        ],
+        "series": [],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": [
+          {
+            "stepNumber": 1,
+            "title": "Hand Picking",
+            "detail": "Ripe red coffee cherries are harvested by hand from coffee trees.",
+            "nextStepNumber": 2
+          },
+          {
+            "stepNumber": 2,
+            "title": "Sun Drying & Sorting",
+            "detail": "Cherries are spread on patios under the sun for 2–3 weeks and raked regularly.",
+            "nextStepNumber": 3
+          },
+          {
+            "stepNumber": 3,
+            "title": "Mechanical Hulling",
+            "detail": "Dried outer skins and parchment layers are removed in a milling machine.",
+            "nextStepNumber": 4
+          },
+          {
+            "stepNumber": 4,
+            "title": "Grading & Screening",
+            "detail": "Green beans are sorted by size, weight, and color defects.",
+            "nextStepNumber": 5
+          },
+          {
+            "stepNumber": 5,
+            "title": "Thermal Roasting",
+            "detail": "Beans are roasted at 200°C–220°C in rotating drums to develop aroma.",
+            "nextStepNumber": 6
+          },
+          {
+            "stepNumber": 6,
+            "title": "Cooling, Grinding & Vacuum Packing",
+            "detail": "Roasted beans are air-cooled, optionally ground, and sealed into valve bags.",
+            "nextStepNumber": null
+          }
+        ]
+      },
+      "companionTask2ID": "T2-004",
+      "companionTask2Prompt": "Modern automated manufacturing has reduced the price of everyday consumer goods, yet many traditional skills are disappearing. Do the advantages of automation outweigh the disadvantages?",
+      "notes": "Original 6-step process diagram with verified sequential step connectivity."
+    },
+    {
+      "id": "ORIG-005",
+      "shortTitle": "Museum attendance",
+      "category": "柱状图",
+      "difficultyBand": "Band 6.5–7.5",
+      "promptText": "The bar chart below compares annual visitor numbers (in thousands) across four public museums in a capital city in 2015, 2020, and 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://howtodoielts.com/ielts-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "National Gallery",
+          "Science Museum",
+          "Maritime Museum",
+          "Modern Art Hub"
+        ],
+        "series": [
+          {
+            "name": "2015",
+            "unit": "thousand visitors",
+            "values": [
+              820.0,
+              640.0,
+              310.0,
+              490.0
+            ]
+          },
+          {
+            "name": "2020",
+            "unit": "thousand visitors",
+            "values": [
+              410.0,
+              380.0,
+              180.0,
+              290.0
+            ]
+          },
+          {
+            "name": "2025",
+            "unit": "thousand visitors",
+            "values": [
+              950.0,
+              890.0,
+              340.0,
+              760.0
+            ]
+          }
+        ],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-005",
+      "companionTask2Prompt": "Some people think that all public museums and art galleries should be free of charge, while others believe visitors should pay an admission fee. Discuss both views and give your opinion.",
+      "notes": "Original bar chart dataset with 4 museums across 3 benchmark years."
+    },
+    {
+      "id": "ORIG-006",
+      "shortTitle": "Population trends",
+      "category": "表格",
+      "difficultyBand": "Band 7.0–8.0",
+      "promptText": "The table below gives data on the population distribution (in millions) across three age brackets in four regions in 2025, along with total regional populations. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "North Metro",
+          "Central Valley",
+          "Coastal District",
+          "Highland Province"
+        ],
+        "series": [
+          {
+            "name": "Aged 0–14",
+            "unit": "million",
+            "values": [
+              2.4,
+              1.8,
+              3.1,
+              0.9
+            ]
+          },
+          {
+            "name": "Aged 15–64",
+            "unit": "million",
+            "values": [
+              9.6,
+              6.5,
+              11.4,
+              3.2
+            ]
+          },
+          {
+            "name": "Aged 65+",
+            "unit": "million",
+            "values": [
+              3.0,
+              2.2,
+              2.5,
+              1.4
+            ]
+          }
+        ],
+        "pieSlicePercentages": null,
+        "tableRowTotals": [
+          15.0,
+          10.5,
+          17.0,
+          5.5
+        ],
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-006",
+      "companionTask2Prompt": "In many countries, the proportion of older people is steadily increasing. Does this demographic shift bring more positive or negative effects to society?",
+      "notes": "Original table dataset; row totals (15.0, 10.5, 17.0, 5.5) match exact series sums."
+    },
+    {
+      "id": "ORIG-007",
+      "shortTitle": "House prices",
+      "category": "柱状图",
+      "difficultyBand": "Band 6.5–7.5",
+      "promptText": "The bar chart below shows the average residential property price (in thousand USD) for apartments, townhouses, and detached homes in three cities in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://takeielts.britishcouncil.org/prepare/ielts-free-practice-mock-tests/academic/writing",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Harborview",
+          "Oakridge",
+          "Riverdale"
+        ],
+        "series": [
+          {
+            "name": "Apartments",
+            "unit": "k USD",
+            "values": [
+              420.0,
+              310.0,
+              260.0
+            ]
+          },
+          {
+            "name": "Townhouses",
+            "unit": "k USD",
+            "values": [
+              680.0,
+              490.0,
+              390.0
+            ]
+          },
+          {
+            "name": "Detached Houses",
+            "unit": "k USD",
+            "values": [
+              950.0,
+              670.0,
+              520.0
+            ]
+          }
+        ],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-007",
+      "companionTask2Prompt": "In many major cities, young adults find it increasingly difficult to purchase their first home. What are the reasons for this, and how can governments help?",
+      "notes": "Original bar chart dataset."
+    },
+    {
+      "id": "ORIG-008",
+      "shortTitle": "Water usage",
+      "category": "饼图",
+      "difficultyBand": "Band 6.0–7.0",
+      "promptText": "The pie chart below shows the breakdown of municipal freshwater consumption across five sectors in an Australian metropolitan region in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://howtodoielts.com/ielts-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Residential Houses",
+          "Apartments",
+          "Industrial",
+          "Commercial & Retail",
+          "Public Parks & Municipal"
+        ],
+        "series": [],
+        "pieSlicePercentages": {
+          "Residential Houses": 46.0,
+          "Apartments": 18.0,
+          "Industrial": 16.0,
+          "Commercial & Retail": 12.0,
+          "Public Parks & Municipal": 8.0
+        },
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-008",
+      "companionTask2Prompt": "Fresh water is becoming a scarce resource in many parts of the world. What are the causes of water scarcity, and what steps should be taken to conserve water?",
+      "notes": "Original pie chart dataset; slice percentages sum to exactly 100.0%."
+    },
+    {
+      "id": "ORIG-009",
+      "shortTitle": "City populations",
+      "category": "折线图",
+      "difficultyBand": "Band 6.5–7.5",
+      "promptText": "The line graph below illustrates the urban population growth (in millions) of three Asian metropolitan areas from 1990 to 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://ieltsliz.com/ielts-sample-chart-for-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "1990",
+          "2000",
+          "2010",
+          "2020",
+          "2025"
+        ],
+        "series": [
+          {
+            "name": "Metro Alpha",
+            "unit": "million",
+            "values": [
+              3.2,
+              4.8,
+              6.9,
+              8.7,
+              9.4
+            ]
+          },
+          {
+            "name": "Metro Beta",
+            "unit": "million",
+            "values": [
+              5.1,
+              5.6,
+              6.2,
+              6.8,
+              7.0
+            ]
+          },
+          {
+            "name": "Metro Gamma",
+            "unit": "million",
+            "values": [
+              1.8,
+              2.9,
+              5.4,
+              7.9,
+              9.1
+            ]
+          }
+        ],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-009",
+      "companionTask2Prompt": "Rapid urbanization creates severe housing and traffic pressures in large cities. What problems does overpopulation in cities cause, and how can they be solved?",
+      "notes": "Original chronological line graph dataset."
+    },
+    {
+      "id": "ORIG-010",
+      "shortTitle": "Park plans",
+      "category": "地图",
+      "difficultyBand": "Band 7.0–8.0",
+      "promptText": "The two plans below show a municipal community park in 1995 and its redesigned layout in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://ieltsliz.com/ielts-map-comparison/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "1995",
+          "2025"
+        ],
+        "series": [],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": {
+          "beforeYearLabel": "1995 Layout",
+          "afterYearLabel": "2025 Redesigned Layout",
+          "beforeFeatures": [
+            {
+              "label": "Central duck pond",
+              "region": "Center",
+              "status": "original"
+            },
+            {
+              "label": "Two wooden benches along gravel path",
+              "region": "North",
+              "status": "original"
+            },
+            {
+              "label": "Open grass meadow",
+              "region": "East",
+              "status": "undeveloped"
+            },
+            {
+              "label": "Single gate entrance",
+              "region": "South",
+              "status": "original"
+            }
+          ],
+          "afterFeatures": [
+            {
+              "label": "Expanded wetland pond with wooden viewing deck",
+              "region": "Center",
+              "status": "expanded"
+            },
+            {
+              "label": "Children's playground and outdoor fitness zone",
+              "region": "East",
+              "status": "added"
+            },
+            {
+              "label": "Community cafe and cycle racks near North entrance",
+              "region": "North",
+              "status": "added"
+            },
+            {
+              "label": "Accessible paved loop trail and solar lighting",
+              "region": "All regions",
+              "status": "upgraded"
+            }
+          ]
+        },
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-010",
+      "companionTask2Prompt": "Public parks and green spaces are essential for urban residents' physical and mental wellbeing. How can city planners balance green spaces with the need for commercial and residential buildings?",
+      "notes": "Original municipal park before/after map comparison."
+    },
+    {
+      "id": "ORIG-011",
+      "shortTitle": "Solar panel recycling",
+      "category": "流程图",
+      "difficultyBand": "Band 7.0–8.0",
+      "promptText": "The diagram below illustrates the closed-loop industrial process for recycling end-of-life photovoltaic solar panels into purified raw materials. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://howtodoielts.com/ielts-writing-task-1/",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "Step 1",
+          "Step 2",
+          "Step 3",
+          "Step 4",
+          "Step 5"
+        ],
+        "series": [],
+        "pieSlicePercentages": null,
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": [
+          {
+            "stepNumber": 1,
+            "title": "Collection & Frame Dismantling",
+            "detail": "Used solar panels are collected and aluminum frames plus junction boxes are detached mechanically.",
+            "nextStepNumber": 2
+          },
+          {
+            "stepNumber": 2,
+            "title": "Thermal Delamination",
+            "detail": "Panels pass through a 500°C furnace to evaporate the encapsulating polymer layer.",
+            "nextStepNumber": 3
+          },
+          {
+            "stepNumber": 3,
+            "title": "Optical Glass Separation",
+            "detail": "Clean glass cullet (95% recovery) is separated on vibrating conveyors for glass remanufacturing.",
+            "nextStepNumber": 4
+          },
+          {
+            "stepNumber": 4,
+            "title": "Chemical Etching & Metal Leaching",
+            "detail": "Silicon cells undergo acid leaching to extract silver, copper, and tin.",
+            "nextStepNumber": 5
+          },
+          {
+            "stepNumber": 5,
+            "title": "Wafer Ingot Recasting",
+            "detail": "Purified silicon is melted and cast into new solar-grade ingots for new PV modules.",
+            "nextStepNumber": null
+          }
+        ]
+      },
+      "companionTask2ID": "T2-011",
+      "companionTask2Prompt": "While renewable energy technologies reduce carbon emissions, their manufacturing and disposal also create environmental challenges. To what extent should manufacturers be legally responsible for recycling their products?",
+      "notes": "Original 5-step process diagram."
+    },
+    {
+      "id": "ORIG-012",
+      "shortTitle": "Renewable energy & storage",
+      "category": "组合图",
+      "difficultyBand": "Band 7.5–8.5",
+      "promptText": "The line graph below shows renewable electricity generation (in terawatt-hours) from wind, solar, and hydro in a Nordic country from 2010 to 2025, while the pie chart shows the share of grid battery storage capacity by sector in 2025. Summarise the information by selecting and reporting the main features, and make comparisons where relevant.",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "LumaReader Original Academic Bank",
+      "sourceURL": "https://www.ielts.org/take-a-test/preparation-resources/sample-test-questions/academic-test",
+      "licenseStatus": "original_self_authored",
+      "chartDataset": {
+        "xAxisLabels": [
+          "2010",
+          "2015",
+          "2020",
+          "2025"
+        ],
+        "series": [
+          {
+            "name": "Hydropower",
+            "unit": "TWh",
+            "values": [
+              62.0,
+              65.0,
+              68.0,
+              70.0
+            ]
+          },
+          {
+            "name": "Wind Power",
+            "unit": "TWh",
+            "values": [
+              6.0,
+              16.0,
+              29.0,
+              44.0
+            ]
+          },
+          {
+            "name": "Solar PV",
+            "unit": "TWh",
+            "values": [
+              0.5,
+              2.0,
+              6.5,
+              15.0
+            ]
+          }
+        ],
+        "pieSlicePercentages": {
+          "Utility Grid Reserve": 52.0,
+          "Industrial Microgrids": 28.0,
+          "Residential Home Storage": 20.0
+        },
+        "tableRowTotals": null,
+        "mapComparison": null,
+        "processSteps": null
+      },
+      "companionTask2ID": "T2-012",
+      "companionTask2Prompt": "Some people argue that transitioning completely to renewable energy is too expensive for developing economies. Discuss both views and give your own opinion.",
+      "notes": "Original combined line graph + pie chart dataset; pie slices sum to 100.0%."
+    }
+  ],
+  "candidateIndexRecords": [
+    {
+      "id": "SIM-001",
+      "shortTitle": "Car ownership",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 题目页已公开核对 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 直接题页：https://ielts-simon.study/line-graph/"
+    },
+    {
+      "id": "SIM-002",
+      "shortTitle": "Internet users",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-003",
+      "shortTitle": "Migration",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-004",
+      "shortTitle": "Acid rain emissions",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-005",
+      "shortTitle": "Elderly populations",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-006",
+      "shortTitle": "TV and radio audiences",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-007",
+      "shortTitle": "Children’s sports",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-008",
+      "shortTitle": "Waste",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-009",
+      "shortTitle": "Food and oil",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-010",
+      "shortTitle": "Visitors’ spending",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-011",
+      "shortTitle": "Appliances and housework",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-012",
+      "shortTitle": "City populations",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-013",
+      "shortTitle": "Social centre activities",
+      "category": "折线图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-014",
+      "shortTitle": "Fast food",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-015",
+      "shortTitle": "Museum visitors",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-016",
+      "shortTitle": "Education and science",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-017",
+      "shortTitle": "Consumer goods spending",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-018",
+      "shortTitle": "House prices",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-019",
+      "shortTitle": "Marriage and divorce rates",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-020",
+      "shortTitle": "Transport incidents",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-021",
+      "shortTitle": "Reasons for study",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-022",
+      "shortTitle": "Population age distribution",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-023",
+      "shortTitle": "Further education",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-024",
+      "shortTitle": "Phone calls",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-025",
+      "shortTitle": "Internet and video games",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-026",
+      "shortTitle": "Hospital attendance",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-027",
+      "shortTitle": "Physical activity",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-028",
+      "shortTitle": "Electricity",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-029",
+      "shortTitle": "Household income",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-030",
+      "shortTitle": "Leisure time",
+      "category": "柱状图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-031",
+      "shortTitle": "Hotel survey",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-032",
+      "shortTitle": "Water usage",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-033",
+      "shortTitle": "Comparing diets",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-034",
+      "shortTitle": "Electricity production",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-035",
+      "shortTitle": "Dangerous waste",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-036",
+      "shortTitle": "Tourist attractions",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-037",
+      "shortTitle": "Population ages",
+      "category": "饼图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-038",
+      "shortTitle": "Coffee and banana sales",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-039",
+      "shortTitle": "Poverty and family types",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-040",
+      "shortTitle": "Daily activities",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-041",
+      "shortTitle": "Consumer spending",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-042",
+      "shortTitle": "Waste production",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-043",
+      "shortTitle": "Educational problems",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-044",
+      "shortTitle": "Modes of travel",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-045",
+      "shortTitle": "Languages",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-046",
+      "shortTitle": "New York population",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-047",
+      "shortTitle": "Visits abroad",
+      "category": "表格",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-048",
+      "shortTitle": "Cement production",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-049",
+      "shortTitle": "Recycling office equipment",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-050",
+      "shortTitle": "Weather forecast",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-051",
+      "shortTitle": "Coffee production",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-052",
+      "shortTitle": "Salmon life cycle",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-053",
+      "shortTitle": "Silkworm life cycle",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-054",
+      "shortTitle": "Sugar manufacture",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-055",
+      "shortTitle": "Plastic bottle recycling",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-056",
+      "shortTitle": "Solar panels",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-057",
+      "shortTitle": "Bamboo fabric production",
+      "category": "流程图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-058",
+      "shortTitle": "Town development plans",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-059",
+      "shortTitle": "Art Gallery redevelopment",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-060",
+      "shortTitle": "Park plans",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-061",
+      "shortTitle": "Flood protection methods",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-062",
+      "shortTitle": "School changes",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-063",
+      "shortTitle": "Airport redevelopment",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-064",
+      "shortTitle": "House designs",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-065",
+      "shortTitle": "Hospital changes",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-066",
+      "shortTitle": "Library changes",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-067",
+      "shortTitle": "Island maps",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-068",
+      "shortTitle": "Harbour changes",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-069",
+      "shortTitle": "Farm maps",
+      "category": "地图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-070",
+      "shortTitle": "Water use",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-071",
+      "shortTitle": "Travel",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-072",
+      "shortTitle": "Land degradation",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-073",
+      "shortTitle": "Living alone",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-074",
+      "shortTitle": "Export earnings",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-075",
+      "shortTitle": "Dance classes",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    },
+    {
+      "id": "SIM-076",
+      "shortTitle": "Library charts",
+      "category": "组合图",
+      "difficultyBand": "Pending Audit",
+      "promptText": "",
+      "minimumWords": 150,
+      "recommendedMinutes": 20,
+      "sourceName": "IELTS Simon",
+      "sourceURL": "https://ielts-simon.study/ielts-writing-task-1-academic/",
+      "licenseStatus": "pending_verification",
+      "chartDataset": null,
+      "companionTask2ID": null,
+      "companionTask2Prompt": null,
+      "notes": "Access: 仅核对目录标题；详情未逐题验证 | Chart: 未下载 | Auth: 未确认 | Action: 链接参考／必要时原创题干与自绘图表 | Note: 抽查部分详情页出现会员登录要求"
+    }
+  ]
+}

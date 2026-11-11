@@ -1,0 +1,13 @@
+{
+  "scope": "Synthetic SQLite workload on Linux, not native app performance",
+  "rows": 1200,
+  "saves": 12,
+  "before": {
+    "row_mutations": 28800,
+    "median_ms": 6.201
+  },
+  "after": {
+    "row_mutations": 12,
+    "median_ms": 0.056
+  }
+}

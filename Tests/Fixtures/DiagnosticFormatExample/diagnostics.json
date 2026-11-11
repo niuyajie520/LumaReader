@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Synthetic format fixture; NOT a macOS run, crash or hardware measurement.",
+  "appVersion": "format-test-only",
+  "osVersion": "Not Available",
+  "samples": [],
+  "events": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "time": 0,
+      "code": "aiBootFailed",
+      "isError": true,
+      "fields": {
+        "bridgeReady": 0,
+        "stylesReady": 0
+      }
+    }
+  ],
+  "crashReportsStored": null,
+  "crashCaptureActive": false,
+  "unavailable": {
+    "processGPUPercent": "Not Available",
+    "systemPowerWatts": "Not Available",
+    "webkitAuxiliaryCPU": "Not Available",
+    "debugCPUOverhead": "Not measured",
+    "debugMemoryOverhead": "Not measured"
+  },
+  "generatedAt": 0,
+  "previousTerminationCode": null,
+  "privacy": "Allowlisted events only; synthetic format test, no private content or native measurements."
+}

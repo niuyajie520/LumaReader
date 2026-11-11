@@ -1,0 +1,1262 @@
+diff --git a/Deferred/StudyCenter/LumaDesignTokens.swift b/Deferred/StudyCenter/LumaDesignTokens.swift
+new file mode 100644
+index 0000000..c929bd9
+--- /dev/null
++++ b/Deferred/StudyCenter/LumaDesignTokens.swift
+@@ -0,0 +1,308 @@
++import SwiftUI
++
++// MARK: - Luma 设计 token（阅读中心与学习中心共用）
++//
++// 只描述呈现：时长、缓动、尺寸、状态样式与窗口按钮对齐锚点。
++// 不包含任何学习判断、计时、语音、数据或快捷键逻辑。
++// 本文件属于 LumaReaderStudyKit（macOS 15+，Swift 6 语言模式），主 App 通过 import 使用。
++
++// MARK: - 界面风格：动态 / 静态（设置 › 外观与排版 › 视觉效果 › 界面风格）
++
++/// 两套界面设计共用同一组控件与语义色，只在动效上不同：
++/// - 动态：弹性缩放、指针跟随高光、图标弹跳、选中底色形变、进度环与答对脉冲、错词弹入。
++/// - 静态：无缩放、无弹跳、无形变，状态（颜色、底色、实心图标）直接切换。
++/// 系统“减少动态效果”、App“关闭动画”或省电模式开启时，动态一律按静态处理。
++public enum LumaInterfaceMotionStyle: String, CaseIterable, Identifiable, Sendable {
++    case dynamic
++    case still = "static"
++    public static let storageKey = "luma.ui.motionStyle"
++    public var id: String { rawValue }
++    public var title: String { self == .dynamic ? "动态" : "静态" }
++    public var detail: String {
++        self == .dynamic ? "按钮弹性、指针高光、图标弹跳与选中形变" : "无缩放与弹跳，状态直接切换"
++    }
++}
++
++private struct LumaDynamicMotionKey: EnvironmentKey {
++    // 主 App 会注入经过省电 / 关闭动画判断后的值；未注入的子树（如独立弹窗）退回读取设置本身。
++    static var defaultValue: Bool {
++        UserDefaults.standard.string(forKey: LumaInterfaceMotionStyle.storageKey) != LumaInterfaceMotionStyle.still.rawValue
++    }
++}
++
++public extension EnvironmentValues {
++    /// true = 使用动态设计。仍需与 accessibilityReduceMotion 一起判断。
++    var lumaDynamicMotion: Bool {
++        get { self[LumaDynamicMotionKey.self] }
++        set { self[LumaDynamicMotionKey.self] = newValue }
++    }
++}
++
++/// 动效 token。所有新增动效只从这里取参数；静态设计或“减少动态效果”时一律退化为 nil（静态切换）。
++public enum LumaMotionToken {
++    // 时长（秒）。悬停、按下、状态切换均不超过 250ms。
++    public static let hoverDuration: Double = 0.18
++    public static let pressDuration: Double = 0.14
++    public static let releaseDuration: Double = 0.22
++    public static let stateDuration: Double = 0.22
++    public static let numericDuration: Double = 0.24
++    public static let chipDuration: Double = 0.22
++
++    // 缩放幅度（仅控件，绝不用于正文或输入框）。
++    public static let hoverScale: CGFloat = 1.04
++    public static let pressScale: CGFloat = 0.94
++
++    // 缓动。使用 macOS 14+ 的 smooth / snappy（以感知时长定义，便于控制上限）。
++    public static var hover: Animation { .smooth(duration: hoverDuration) }
++    public static var press: Animation { .snappy(duration: pressDuration) }
++    public static var release: Animation { .snappy(duration: releaseDuration, extraBounce: 0.04) }
++    public static var state: Animation { .smooth(duration: stateDuration) }
++    public static var numeric: Animation { .smooth(duration: numericDuration) }
++    public static var chip: Animation { .smooth(duration: chipDuration) }
++
++    // 动态设计：带回弹的弹簧（以感知时长定义；悬停 / 按下 ≤ 250ms）。
++    public static let dynamicHoverScale: CGFloat = 1.07
++    public static let dynamicPressScale: CGFloat = 0.90
++    public static let sheenOpacity: Double = 0.24
++    public static var dynamicHover: Animation { .spring(duration: 0.24, bounce: 0.32) }
++    public static var dynamicPress: Animation { .spring(duration: 0.14, bounce: 0) }
++    public static var dynamicRelease: Animation { .spring(duration: 0.25, bounce: 0.45) }
++    public static var dynamicState: Animation { .spring(duration: 0.25, bounce: 0.30) }
++    /// 选中底色在相邻按钮之间滑动、进度环填充。状态过渡，不属于悬停/按下。
++    public static var dynamicMorph: Animation { .spring(duration: 0.32, bounce: 0.22) }
++    public static var dynamicChip: Animation { .spring(duration: 0.30, bounce: 0.35) }
++    public static var dynamicSheen: Animation { .smooth(duration: 0.12) }
++
++    // 既有参数（数值与原 MotionTokens 完全一致，仅集中到此处，供主 App 引用）。
++    public static var micro: Animation { .spring(response: 0.22, dampingFraction: 0.82) }
++    public static var floating: Animation { .spring(response: 0.32, dampingFraction: 0.86) }
++    public static var navigation: Animation { .spring(response: 0.42, dampingFraction: 0.88) }
++    public static var aiOpening: Animation { .spring(response: 0.36, dampingFraction: 0.96) }
++    public static var aiClosing: Animation { .spring(response: 0.48, dampingFraction: 0.96) }
++    public static var settingsOpening: Animation { .spring(response: 0.38, dampingFraction: 0.90) }
++    public static var settingsClosing: Animation { .spring(response: 0.46, dampingFraction: 0.90) }
++
++    /// 减少动态效果或动效等级为“关”时返回 nil，调用方因此得到静态切换。
++    public static func resolve(_ animation: Animation, reduceMotion: Bool, enabled: Bool = true) -> Animation? {
++        (reduceMotion || !enabled) ? nil : animation
++    }
++}
++
++/// 控件尺寸 token（单位 pt）。
++public enum LumaControlMetric {
++    // 阅读页顶栏
++    public static let toolbarItemHeight: CGFloat = 40
++    public static let toolbarItemMaxWidth: CGFloat = 44
++    public static let toolbarCapsuleHorizontalPadding: CGFloat = 6
++    public static let toolbarCapsuleVerticalPadding: CGFloat = 4
++    public static let toolbarIconPointSize: CGFloat = 17
++    // 听写页
++    public static let actionHeight: CGFloat = 44
++    public static let actionIconPointSize: CGFloat = 16
++    public static let actionBarPadding: CGFloat = 5
++    public static let actionBarRadius: CGFloat = 27      // (44 + 2×5) ÷ 2
++    public static let actionBarCompactRadius: CGFloat = 22
++    public static let actionBarCompactThreshold: CGFloat = 420
++    public static let backCapsuleHeight: CGFloat = 40
++    public static let chipVisualHeight: CGFloat = 30
++    public static let minimumHitHeight: CGFloat = 40
++    // 状态
++    public static let focusRingWidth: CGFloat = 2
++    public static let focusRingInset: CGFloat = 2
++    public static let hoverFillOpacity: Double = 0.08
++    public static let pressFillOpacity: Double = 0.14
++    public static let selectedFillOpacity: Double = 0.20
++    public static let disabledOpacity: Double = 0.38
++    public static let increasedContrastStroke: CGFloat = 1
++    /// true：自绘强调色焦点环并关闭系统焦点环。若实机上键盘聚焦看不到焦点环，改为 false 即恢复系统焦点环。
++    public static let customFocusRing = true
++}
++
++// MARK: - 统一按钮样式（六种状态）
++
++/// 默认 / 悬停 / 按下 / 聚焦 / 禁用 / 选中。颜色全部由调用方传入既有语义色。
++public struct LumaIconButtonStyle: ButtonStyle {
++    public enum Emphasis: Equatable, Sendable {
++        /// 默认图标按钮
++        case plain
++        /// 激活：前景改为强调色（图标填充由调用方切换），无底色。用于书签等“已存在”状态
++        case active
++        /// 选中：强调色前景 + 强调色淡底（面板打开、提示开启）
++        case selected
++        /// 主按钮：强调色实底
++        case prominent
++    }
++
++    var ink: Color
++    var accent: Color
++    var emphasis: Emphasis
++    var onAccent: Color
++    var baseFill: Color?
++    var baseStroke: Color?
++    var motionEnabled: Bool
++    var selectionNamespace: Namespace.ID?
++
++    /// - selectionNamespace: 同一组互斥按钮共用时，动态设计下选中底色会在按钮之间滑动。
++    public init(ink: Color, accent: Color, emphasis: Emphasis = .plain, onAccent: Color? = nil,
++                baseFill: Color? = nil, baseStroke: Color? = nil, motionEnabled: Bool = true,
++                selectionNamespace: Namespace.ID? = nil) {
++        self.ink = ink
++        self.accent = accent
++        self.emphasis = emphasis
++        self.onAccent = onAccent ?? ink
++        self.baseFill = baseFill
++        self.baseStroke = baseStroke
++        self.motionEnabled = motionEnabled
++        self.selectionNamespace = selectionNamespace
++    }
++
++    public func makeBody(configuration: Configuration) -> some View {
++        LumaIconButtonBody(configuration: configuration, style: self)
++    }
++}
++
++struct LumaIconButtonBody: View {
++    let configuration: ButtonStyleConfiguration
++    let style: LumaIconButtonStyle
++    @State private var hovered = false
++    @State private var pointer: CGPoint?
++    @State private var bounceTick = 0
++    @Environment(\.isEnabled) private var isEnabled
++    @Environment(\.isFocused) private var isFocused
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++    @Environment(\.colorSchemeContrast) private var contrast
++    @Environment(\.lumaDynamicMotion) private var dynamicStyle
++
++    private var pressed: Bool { configuration.isPressed && isEnabled }
++    private var hot: Bool { hovered && isEnabled }
++    /// 动态设计是否生效；静态设计下所有动画为 nil。
++    private var dynamic: Bool { style.motionEnabled && dynamicStyle && !reduceMotion }
++
++    private var selectedFill: Color {
++        style.accent.opacity(LumaControlMetric.selectedFillOpacity + (pressed ? 0.08 : (hot ? 0.04 : 0)))
++    }
++
++    private var stateFill: Color {
++        switch style.emphasis {
++        case .prominent:
++            return style.accent.opacity(pressed ? 0.84 : (hot ? 0.93 : 1))
++        case .selected:
++            return selectedFill
++        case .plain, .active:
++            return style.ink.opacity(pressed ? LumaControlMetric.pressFillOpacity : (hot ? LumaControlMetric.hoverFillOpacity : 0))
++        }
++    }
++
++    private var foreground: Color {
++        switch style.emphasis {
++        case .prominent: return style.onAccent
++        case .selected, .active: return style.accent
++        case .plain: return style.ink
++        }
++    }
++
++    private var scale: CGFloat {
++        guard dynamic else { return 1 }
++        if pressed { return LumaMotionToken.dynamicPressScale }
++        return hot ? LumaMotionToken.dynamicHoverScale : 1
++    }
++
++    private var sheenColor: Color { style.emphasis == .prominent ? style.onAccent : style.accent }
++
++    var body: some View {
++        let shape = Capsule(style: .continuous)
++        configuration.label
++            .foregroundStyle(foreground)
++            // 动态：松手与选中状态变化时图标弹跳一次（事件触发，不循环）。
++            .symbolEffect(.bounce.down, options: .nonRepeating, value: bounceTick)
++            .background {
++                ZStack {
++                    if let base = style.baseFill { shape.fill(base) }
++                    if style.emphasis == .selected, dynamic, let ns = style.selectionNamespace {
++                        // 同组互斥按钮共享这块底色：切换时在按钮之间滑动。
++                        shape.fill(selectedFill).matchedGeometryEffect(id: "luma.selection", in: ns)
++                    } else {
++                        shape.fill(stateFill)
++                    }
++                }
++            }
++            .overlay {
++                // 动态：指针跟随的柔和高光，只在悬停期间存在。
++                if dynamic, hot, let pointer {
++                    GeometryReader { proxy in
++                        RadialGradient(
++                            colors: [sheenColor.opacity(LumaMotionToken.sheenOpacity), sheenColor.opacity(0)],
++                            center: UnitPoint(x: pointer.x / max(1, proxy.size.width), y: pointer.y / max(1, proxy.size.height)),
++                            startRadius: 0,
++                            endRadius: max(proxy.size.width, proxy.size.height) * 0.8
++                        )
++                    }
++                    .clipShape(shape)
++                    .allowsHitTesting(false)
++                    .transition(.opacity)
++                }
++            }
++            .overlay {
++                if let stroke = style.baseStroke {
++                    shape.strokeBorder(stroke, lineWidth: 1)
++                } else if contrast == .increased, style.emphasis == .selected || hot {
++                    // 提高对比度：选中与悬停额外描边，不只依赖淡底。
++                    shape.strokeBorder(foreground.opacity(0.7), lineWidth: LumaControlMetric.increasedContrastStroke)
++                }
++            }
++            .overlay {
++                if isFocused && LumaControlMetric.customFocusRing {
++                    shape.inset(by: LumaControlMetric.focusRingInset)
++                        .strokeBorder(style.emphasis == .prominent ? style.onAccent : style.accent,
++                                      lineWidth: LumaControlMetric.focusRingWidth)
++                        .allowsHitTesting(false)
++                }
++            }
++            .opacity(isEnabled ? 1 : LumaControlMetric.disabledOpacity)
++            .scaleEffect(scale)
++            .contentShape(shape)
++            .focusEffectDisabled(LumaControlMetric.customFocusRing)
++            .onHover { inside in hovered = inside }
++            .onContinuousHover { phase in
++                guard dynamic else { if pointer != nil { pointer = nil }; return }
++                switch phase {
++                case .active(let location): pointer = location
++                case .ended: pointer = nil
++                }
++            }
++            .onChange(of: configuration.isPressed) { wasPressed, isPressed in
++                if dynamic, wasPressed, !isPressed { bounceTick += 1 }
++            }
++            .onChange(of: style.emphasis) { _, _ in
++                if dynamic { bounceTick += 1 }
++            }
++            .animation(dynamic ? LumaMotionToken.dynamicHover : nil, value: hovered)
++            .animation(dynamic ? LumaMotionToken.dynamicSheen : nil, value: pointer)
++            .animation(dynamic ? (configuration.isPressed ? LumaMotionToken.dynamicPress : LumaMotionToken.dynamicRelease) : nil,
++                       value: configuration.isPressed)
++            .animation(dynamic ? LumaMotionToken.dynamicState : nil, value: style.emphasis)
++    }
++}
++
++// MARK: - 红黄绿对齐锚点
++
++/// 顶栏胶囊上报自己的垂直中心（自窗口顶部起算，SwiftUI `.global` 坐标），
++/// 主 App 读取后作为 NativeWindowControls 的对齐目标。多个来源时取第一个非空值。
++public struct LumaWindowControlsAnchorKey: PreferenceKey {
++    public static let defaultValue: CGFloat? = nil
++    public static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
++        if value == nil { value = nextValue() }
++    }
++}
++
++public extension View {
++    /// 把本视图的中心 y 作为红黄绿对齐目标上报。
++    func lumaWindowControlsAnchor(_ enabled: Bool = true) -> some View {
++        background {
++            GeometryReader { proxy in
++                Color.clear.preference(key: LumaWindowControlsAnchorKey.self,
++                                       value: enabled ? proxy.frame(in: .global).midY : nil)
++            }
++        }
++    }
++}
+diff --git a/Deferred/StudyCenter/Package.swift b/Deferred/StudyCenter/Package.swift
+index 4a8cdae..49140f5 100644
+--- a/Deferred/StudyCenter/Package.swift
++++ b/Deferred/StudyCenter/Package.swift
+@@ -18,6 +18,7 @@ let package = Package(
+                 "DictationPracticeLayout.swift",
+                 "EmbeddedNeuralSpeechEngine.swift",
+                 "IELTSOfficialRubricEngine.swift",
++                "LumaDesignTokens.swift",
+                 "LumaStudyCenterAllInOne.swift",
+                 "SpeechAudioPipeline.swift",
+                 "StudyAppearance.swift",
+diff --git a/Deferred/StudyCenter/StudyHome.swift b/Deferred/StudyCenter/StudyHome.swift
+index a4933a8..3137b96 100644
+--- a/Deferred/StudyCenter/StudyHome.swift
++++ b/Deferred/StudyCenter/StudyHome.swift
+@@ -1267,6 +1267,9 @@ public struct LumaStudyCenterHostView: View {
+     @State private var dictationAnswerWidth: CGFloat = 640
+     @State private var dictationAnswerFontSize: CGFloat = 140
+     @State private var dictationAnswerWraps = false
++    @State private var dictationScrollOffsetY: CGFloat = 0
++    @State private var dictationSuccessTick = 0
++    @Environment(\.lumaDynamicMotion) private var lumaDynamicMotion
+     @ScaledMetric(relativeTo: .largeTitle) private var dictationFontCeiling: CGFloat = 140
+     @State private var speechSettingsTab: String = "neural" 
+     @State private var writingExitDestination = "学习_写作_Task1题库"
+@@ -2389,18 +2392,34 @@ public struct LumaStudyCenterHostView: View {
+         dictationErrorFlash ? 1.018 : 1.0
+     }
+ 
+-    // MARK: - 暗莓色主题词汇听写 UI（严格对照 01_听写渲染_五个短错词.png 与 02_听写渲染_长错词与暂停.png）
+-
+-    private var dictBgColor: Color { Color(red: 0x12/255.0, green: 0x0E/255.0, blue: 0x13/255.0) }
+-    private var dictCardColor: Color { Color(red: 0x21/255.0, green: 0x17/255.0, blue: 0x20/255.0) }
+-    private var dictCapsuleColor: Color { Color(red: 0x38/255.0, green: 0x26/255.0, blue: 0x30/255.0) }
+-    private var dictTextPrimary: Color { Color(red: 0xF5/255.0, green: 0xED/255.0, blue: 0xF1/255.0) }
+-    private var dictTextSecondary: Color { Color(red: 0xAF/255.0, green: 0x98/255.0, blue: 0xA4/255.0) }
+-    private var dictAccentPink: Color { Color(red: 0xEF/255.0, green: 0x9F/255.0, blue: 0xC7/255.0) }
+-    private var dictWrongDotPink: Color { Color(red: 0xD8/255.0, green: 0x6C/255.0, blue: 0x96/255.0) }
++    // MARK: - 听写页语义色：跟随当前主题、莫奈取色与玻璃设置
++    // 名称保持不变，取值改为 StudyAppearance（由 LibraryStore 的 ReadingPalette 生成，含莫奈）。
++    // 选用“暗莓 / 玫瑰”主题时即为原暗莓配色；开启莫奈时随封面 / 壁纸取色变化。
++    // 只有暂停用的琥珀色与答错红色是固定的功能色。
++
++    private var dictTheme: StudyAppearance { StudyAppearance.liveOverride ?? appearance }
++    private var dictBgColor: Color { dictTheme.paper }
++    private var dictCardColor: Color { dictTheme.surface }
++    private var dictCapsuleColor: Color { dictTheme.surface }
++    private var dictTextPrimary: Color { dictTheme.ink }
++    // 深色 68% / 浅色 78%：经典主题下次要文字对纸色与表面色均 ≥ 4.5:1（WCAG AA）。
++    private var dictTextSecondary: Color { dictTheme.ink.opacity(dictTheme.isDark ? 0.68 : 0.78) }
++    private var dictAccentPink: Color { dictTheme.accent }
++    private var dictWrongDotPink: Color { dictTheme.accent.opacity(0.82) }
+     private var dictPauseAmber: Color { Color(red: 0xE6/255.0, green: 0xB4/255.0, blue: 0x65/255.0) }
+-    private var dictPauseFill: Color { Color(red: 0x38/255.0, green: 0x2A/255.0, blue: 0x1B/255.0) }
+-    private var dictTrackFill: Color { Color(red: 0x48/255.0, green: 0x2C/255.0, blue: 0x3B/255.0) }
++    private var dictPauseFill: Color { dictPauseAmber.opacity(0.18) }
++    private var dictTrackFill: Color { dictTheme.accent.opacity(0.20) }
++    /// 强调色实底上的文字：按强调色亮度在纸色与墨色之间选，保证对比度。
++    private var dictOnAccent: Color {
++        let rgb = NSColor(dictTheme.accent).usingColorSpace(.sRGB)
++        func lin(_ c: CGFloat) -> CGFloat { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
++        let lum = rgb.map { 0.2126 * lin($0.redComponent) + 0.7152 * lin($0.greenComponent) + 0.0722 * lin($0.blueComponent) } ?? 0.5
++        let lightAccent = lum > 0.36
++        if dictTheme.isDark { return lightAccent ? dictTheme.paper : dictTheme.ink }
++        return lightAccent ? dictTheme.ink : dictTheme.paper
++    }
++    /// 动态设计是否生效（设置中的“界面风格”，并受减少动态效果约束）。
++    private var dictRichMotion: Bool { lumaDynamicMotion && !reduceMotion }
+ 
+     private static func formatSpeedText(_ rate: Float) -> String {
+         if abs(rate - Float(Int(rate))) < 0.01 {
+@@ -2428,26 +2447,22 @@ public struct LumaStudyCenterHostView: View {
+         } label: {
+             HStack(spacing: 6) {
+                 Image(systemName: "chevron.left")
+-                    .font(.system(size: 13.5, weight: .semibold))
++                    .font(.system(size: 14, weight: .semibold))
+                 Text("返回")
+                     .font(.system(size: 14.5, weight: .medium))
+             }
+-            .foregroundStyle(dictTextPrimary)
+             .padding(.horizontal, 16)
+-            .frame(height: 40)
+-            .background(
+-                Capsule(style: .continuous)
+-                    .fill(dictCapsuleColor)
+-            )
+-            .overlay(
+-                Capsule(style: .continuous)
+-                    .strokeBorder(dictAccentPink.opacity(0.42), lineWidth: 1.0)
+-            )
+-            .contentShape(Capsule(style: .continuous))
++            .frame(height: LumaControlMetric.backCapsuleHeight)
+         }
+-        .buttonStyle(StudyFluidPressStyle())
++        .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink,
++                                         baseStroke: dictAccentPink.opacity(0.42),
++                                         motionEnabled: !reduceMotion))
++        // 玻璃材质随设置“液态玻璃效果”开关，色调随主题 / 莫奈。
++        .studyGlassCapsule(cornerRadius: LumaControlMetric.backCapsuleHeight / 2)
+         .fixedSize()
+         .layoutPriority(2)
++        // 红黄绿以本胶囊中心为对齐目标（滚动偏移在 listeningCenterContent 中抵消）。
++        .lumaWindowControlsAnchor()
+         .accessibilityIdentifier("study.dictation.back")
+         .help("保存进度并返回听力词库主页")
+         .accessibilityLabel("返回听力词库")
+@@ -2534,12 +2549,9 @@ public struct LumaStudyCenterHostView: View {
+                 dictationMorePanel
+             }
+         }
+-        .buttonStyle(DictationToolbarClusterButtonStyle())
++        .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, motionEnabled: !reduceMotion))
+         .padding(5)
+-        .background(
+-            Capsule(style: .continuous)
+-                .fill(dictCapsuleColor)
+-        )
++        .studyGlassCapsule(cornerRadius: 25)
+         .overlay(
+             Capsule(style: .continuous)
+                 .strokeBorder(
+@@ -2685,34 +2697,53 @@ public struct LumaStudyCenterHostView: View {
+         }
+     }
+ 
++    /// 进度压缩为一行紧凑文字（取代原通栏进度条）；数据与原卡片完全相同：已完成 / 总数、剩余、今日、百分比。
+     private var dictationProgressCard: some View {
+         let done = vm.dictationMachine.completedWordIDs.count
+         let remaining = vm.dictationMachine.pendingQueue.count
+         let total = max(1, dictationTotalWords)
+         let todayCount = DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString())
+         let pct = min(100.0, max(0.0, Double(done) / Double(total) * 100.0))
++        let line = "已完成 \(done) / \(total) · 剩余 \(remaining) · 今日 \(todayCount) · " + String(format: "%.1f%%", pct)
+ 
+-        return VStack(spacing: 8) {
+-            HStack(spacing: 12) {
+-                Text("已完成 \(done) / \(total) · 剩余 \(remaining) · 今日 \(todayCount)")
+-                Spacer(minLength: 0)
+-                Text(String(format: "%.1f%%", pct))
++        let ratio = min(1.0, max(0.0, Double(done) / Double(total)))
++
++        return HStack(spacing: 6) {
++            // 小进度环：两种设计都显示（状态不只靠动效表达）；动态设计下填充以弹簧推进，答对时轻跳一次。
++            ZStack {
++                Circle().stroke(dictTrackFill, lineWidth: 2.5)
++                Circle().trim(from: 0, to: ratio)
++                    .stroke(dictAccentPink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
++                    .rotationEffect(.degrees(-90))
+             }
+-            .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+-            .foregroundStyle(dictTextSecondary)
+-            GeometryReader { geo in
+-                let ratio = min(1.0, max(0.0, CGFloat(done) / CGFloat(total)))
+-                Capsule().fill(dictTrackFill)
+-                    .overlay(alignment: .leading) {
+-                        Capsule().fill(dictAccentPink)
+-                            .frame(width: geo.size.width * ratio)
+-                    }
++            .frame(width: 14, height: 14)
++            .animation(dictRichMotion ? LumaMotionToken.dynamicMorph : nil, value: ratio)
++            .keyframeAnimator(initialValue: CGFloat(1), trigger: dictationSuccessTick) { ring, scale in
++                ring.scaleEffect(dictRichMotion ? scale : 1)
++            } keyframes: { _ in
++                KeyframeTrack {
++                    SpringKeyframe(1.45, duration: 0.14, spring: .snappy)
++                    SpringKeyframe(1.0, duration: 0.32, spring: .bouncy)
++                }
+             }
+-            .frame(height: 4)
+-            .accessibilityLabel("本轮进度")
+-            .accessibilityValue(String(format: "%.1f%%", pct))
++            .accessibilityHidden(true)
++
++            Text(line)
++                .font(.system(size: 12, weight: .medium).monospacedDigit())
++                .foregroundStyle(dictTextSecondary)
++                .lineLimit(1)
++                .truncationMode(.tail)
++                .contentTransition(dictRichMotion ? .numericText(value: Double(done)) : .identity)
++                .animation(dictRichMotion ? LumaMotionToken.dynamicState : nil, value: done)
+         }
+-        .frame(maxWidth: .infinity)
++        // 答对（完成数增加，只在提交后发生）时触发一次环形轻跳；“上一个”导致的减少不触发。
++        .onChange(of: done) { old, new in
++            if new > old, dictRichMotion { dictationSuccessTick += 1 }
++        }
++        .help(line)
++        .accessibilityElement(children: .ignore)
++        .accessibilityLabel("本轮进度")
++        .accessibilityValue(line)
+     }
+ 
+     /// 收集最近实际出错的最多 5 个英文词汇（未揭晓当前词答案前绝不提前透露当前词）
+@@ -2763,18 +2794,19 @@ public struct LumaStudyCenterHostView: View {
+                     .fixedSize(horizontal: true, vertical: false)
+             }
+             .padding(.horizontal, 16)
+-            .frame(height: 32)
++            .frame(height: LumaControlMetric.chipVisualHeight)
+             .background(
+                 Capsule(style: .continuous)
+                     .fill(dictCapsuleColor)
+             )
+-            .overlay(
+-                Capsule(style: .continuous)
+-                    .strokeBorder(dictTextPrimary.opacity(0.08), lineWidth: 0.8)
+-            )
++            .frame(height: LumaControlMetric.minimumHitHeight)
++            .contentShape(Rectangle())
+         }
+-        .buttonStyle(.plain)
++        .buttonStyle(StudyFluidPressStyle())
+         .fixedSize(horizontal: true, vertical: true)
++        .help("播放 \(word)")
++        .accessibilityLabel("播放错词 \(word)")
++        .transition(dictRichMotion ? .opacity.combined(with: .scale(scale: 0.6, anchor: .leading)) : .identity)
+     }
+ 
+     /// 最近错词行：固定高度（54pt）、永远只有一行，根据当前容器剩余宽度动态测量显示 5 / 3 / 1 个完整胶囊
+@@ -2782,7 +2814,7 @@ public struct LumaStudyCenterHostView: View {
+         let candidates = recentWrongWordStrings
+         return HStack(spacing: 18) {
+             Text("最近错词")
+-                .font(.system(size: 12.5, weight: .medium))
++                .font(.system(size: 12, weight: .medium))
+                 .foregroundStyle(dictTextSecondary)
+                 .fixedSize()
+ 
+@@ -2837,10 +2869,11 @@ public struct LumaStudyCenterHostView: View {
+                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                 }
+             }
+-            .frame(height: 34)
++            .frame(height: LumaControlMetric.minimumHitHeight)
+         }
+         .frame(height: 40)
+         .frame(maxWidth: .infinity)
++        .animation(dictRichMotion ? LumaMotionToken.dynamicChip : nil, value: candidates)
+     }
+ 
+     /// 输入框与底部六按钮之间的一行静态状态文字：
+@@ -3087,23 +3120,27 @@ public struct LumaStudyCenterHostView: View {
+             .fixedSize()
+     }
+ 
++    /// 头部两行：①返回 + 标题/紧凑进度 + 计时·倍速·更多胶囊；②最近错词。原独立进度行与通栏进度条已并入标题下方。
+     private var dictationPracticeHeader: some View {
+-        VStack(spacing: 10) {
++        VStack(spacing: 8) {
+             let layout = dictationAnswerWidth < 560
+                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                 : AnyLayout(HStackLayout(spacing: 12))
+             layout {
+                 HStack(spacing: 12) {
+                     dictationBackButton
+-                    Text(dictationModeTitle)
+-                        .font(.system(size: 18, weight: .semibold))
+-                        .foregroundStyle(dictTextSecondary)
+-                        .lineLimit(1)
++                    VStack(alignment: .leading, spacing: 2) {
++                        Text(dictationModeTitle)
++                            .font(.system(size: 15, weight: .semibold))
++                            .foregroundStyle(dictTextPrimary)
++                            .lineLimit(1)
++                        dictationProgressCard
++                    }
++                    .layoutPriority(1)
+                     Spacer(minLength: 0)
+                 }
+                 dictationTopRightCapsules
+             }
+-            dictationProgressCard
+             dictationRecentWrongWordsCard
+         }
+     }
+@@ -3119,75 +3156,133 @@ public struct LumaStudyCenterHostView: View {
+                     .fixedSize(horizontal: false, vertical: true)
+                     .frame(maxWidth: .infinity, minHeight: 20)
+             }
+-            // Four visual groups, six native Buttons in their original Tab order.
+-            // One identity-preserving Layout switches to two columns in narrow panes.
+-            let layout = dictationAnswerWidth < 680
+-                ? AnyLayout(GridLayoutForDictationActions())
+-                : AnyLayout(HStackLayout(spacing: 10))
++            // One unified action area: the same six native Buttons, actions, shortcuts,
++            // disabled conditions and Tab order. Secondary actions are icon-only with help text.
++            let compact = dictationAnswerWidth < LumaControlMetric.actionBarCompactThreshold
++            let layout = compact
++                ? AnyLayout(VStackLayout(spacing: 6))
++                : AnyLayout(HStackLayout(spacing: 6))
+             layout {
+-                dictationBottomCapsuleButton(
+-                    title: "上一个",
+-                    symbol: "backward.end.fill",
+-                    disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
+-                ) {
+-                    guard let previousDictationWord else { return }
+-                    ttsEngine.stop(); audio.stop(); kokoro.stop()
+-                    vm.dictationMachine.revisitCompletedWord(previousDictationWord)
+-                    vm.dictationInput = ""; vm.showMeaning = false; vm.revealedWordID = nil
+-                    showFirstLetterHint = false
+-                    vm.save(); speakCurrentWord(); answerFocused = true
+-                }
++                HStack(spacing: 2) {
++                    dictationIconAction(
++                        symbol: "backward.end.fill",
++                        label: "上一个",
++                        help: "上一个词",
++                        disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
++                    ) {
++                        guard let previousDictationWord else { return }
++                        ttsEngine.stop(); audio.stop(); kokoro.stop()
++                        vm.dictationMachine.revisitCompletedWord(previousDictationWord)
++                        vm.dictationInput = ""; vm.showMeaning = false; vm.revealedWordID = nil
++                        showFirstLetterHint = false
++                        vm.save(); speakCurrentWord(); answerFocused = true
++                    }
++
++                    dictationActionDivider
+ 
+-                dictationControlGroup {
+-                    dictationInlineButton(
+-                        title: kokoro.isPreparingAudio ? "准备中…" : "重播",
+-                        symbol: "speaker.wave.2.fill"
++                    dictationIconAction(
++                        symbol: kokoro.isPreparingAudio ? "hourglass" : "speaker.wave.2.fill",
++                        label: "重播",
++                        help: kokoro.isPreparingAudio ? "语音准备中… · ⌘R" : "重播 · ⌘R",
++                        value: kokoro.isPreparingAudio ? "准备中" : "",
++                        busy: kokoro.isPreparingAudio
+                     ) {
+                         speakCurrentWord()
+                     }
+                     .keyboardShortcut("r", modifiers: [.command])
+ 
+-                    dictationInlineButton(
+-                        title: "慢放",
+-                        symbol: "tortoise.fill"
++                    dictationIconAction(
++                        symbol: "tortoise.fill",
++                        label: "慢放",
++                        help: "慢放 0.75× · ⇧⌘R"
+                     ) {
+                         speakCurrentWord(overrideRate: 0.75)
+                     }
+                     .keyboardShortcut("r", modifiers: [.command, .shift])
+-                }
+ 
+-                dictationControlGroup {
+-                    dictationInlineButton(
+-                        title: vm.showMeaning ? "隐藏中文" : "显示中文",
++                    dictationActionDivider
++
++                    dictationIconAction(
+                         symbol: "character.bubble",
++                        label: vm.showMeaning ? "隐藏中文" : "显示中文",
++                        help: (vm.showMeaning ? "隐藏中文" : "显示中文") + " · ⌘H",
+                         selected: vm.showMeaning
+                     ) {
+                         vm.showMeaning.toggle()
+                         vm.save()
+                     }
+ 
+-                    dictationInlineButton(
+-                        title: showFirstLetterHint ? "隐藏提示" : "首字母提示",
++                    dictationIconAction(
+                         symbol: "lightbulb",
++                        label: showFirstLetterHint ? "隐藏提示" : "首字母提示",
++                        help: (showFirstLetterHint ? "隐藏提示" : "首字母提示") + " · ⌘/",
+                         selected: showFirstLetterHint
+                     ) {
+                         showFirstLetterHint.toggle()
+                     }
+                 }
+ 
+-                dictationBottomCapsuleButton(
+-                    title: "提交",
+-                    symbol: "return",
+-                    prominent: true,
+-                    disabled: !listeningDailyTimer.running || kokoro.isSwitching
+-                ) {
++                Button {
+                     submitCurrentDictation()
++                } label: {
++                    HStack(spacing: 7) {
++                        Image(systemName: "return").font(.system(size: 14, weight: .semibold))
++                        Text("提交").font(.system(size: 14.5, weight: .semibold))
++                    }
++                    .padding(.horizontal, 20)
++                    .frame(minWidth: 96)
++                    .frame(height: LumaControlMetric.actionHeight)
+                 }
++                .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, emphasis: .prominent,
++                                                 onAccent: dictOnAccent, motionEnabled: !reduceMotion))
++                .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
++                .help("提交答案 · 回车")
++                .accessibilityLabel("提交")
+             }
++            .padding(LumaControlMetric.actionBarPadding)
++            .studyGlassCapsule(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius)
++            .overlay(
++                RoundedRectangle(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius,
++                                 style: .continuous)
++                    .strokeBorder(dictTextSecondary.opacity(0.22), lineWidth: 1)
++            )
++            .fixedSize()
+             .frame(maxWidth: .infinity)
+         }
+     }
+ 
++    private var dictationActionDivider: some View {
++        Rectangle()
++            .fill(dictTextPrimary.opacity(0.14))
++            .frame(width: 1, height: 20)
++            .padding(.horizontal, 4)
++            .accessibilityHidden(true)
++    }
++
++    /// 底部操作区的 44×44 图标按钮：开关类按选中切换 outline → fill，且同时改变颜色与底色。
++    private func dictationIconAction(
++        symbol: String, label: String, help: String, value: String = "",
++        selected: Bool = false, disabled: Bool = false, busy: Bool = false, action: @escaping () -> Void
++    ) -> some View {
++        Button(action: action) {
++            Image(systemName: symbol)
++                .font(.system(size: LumaControlMetric.actionIconPointSize, weight: .semibold))
++                .symbolVariant(selected ? .fill : .none)
++                .contentTransition(dictRichMotion ? .symbolEffect(.replace) : .identity)
++                // 动态：语音准备期间沙漏旋转（准备结束即停止）；静态：只显示沙漏图标。
++                .symbolEffect(.rotate, isActive: busy && dictRichMotion)
++                .frame(width: LumaControlMetric.actionHeight, height: LumaControlMetric.actionHeight)
++        }
++        .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink,
++                                         emphasis: selected ? .selected : .plain,
++                                         motionEnabled: !reduceMotion))
++        .disabled(disabled)
++        .help(help)
++        .accessibilityLabel(label)
++        .accessibilityValue(value)
++        .accessibilityAddTraits(selected ? .isSelected : [])
++    }
++
+     private func listeningCenterContent(submode: DictationSessionMode) -> some View {
+         deckManagement(
+             GeometryReader { viewport in
+@@ -3209,6 +3304,15 @@ public struct LumaStudyCenterHostView: View {
+                     }
+                 }
+                 .scrollBounceBehavior(.basedOnSize)
++                // 返回胶囊随画布滚动；对齐目标按静止位置计算，红黄绿不跟随滚动漂移。
++                .onScrollGeometryChange(for: CGFloat.self) { geometry in
++                    geometry.contentOffset.y + geometry.contentInsets.top
++                } action: { _, offset in
++                    if abs(dictationScrollOffsetY - offset) > 0.5 { dictationScrollOffsetY = offset }
++                }
++                .transformPreference(LumaWindowControlsAnchorKey.self) { [offset = dictationScrollOffsetY] value in
++                    if let center = value { value = center + offset }
++                }
+             }
+             .frame(maxWidth: .infinity, maxHeight: .infinity)
+             .background(dictBgColor.ignoresSafeArea())
+diff --git a/Sources/LumaReader/ContentView.swift b/Sources/LumaReader/ContentView.swift
+index 741b714..b37c982 100644
+--- a/Sources/LumaReader/ContentView.swift
++++ b/Sources/LumaReader/ContentView.swift
+@@ -43,6 +43,15 @@ struct ContentView: View {
+     }
+     @State private var titlebarInset: CGFloat = 88
+     @State private var trafficLightCenterY: CGFloat = 30
++    /// 顶栏胶囊上报的中心 y（窗口顶部起算）；阅读页与听写练习页的红黄绿以它为对齐目标。
++    @State private var windowControlsAnchorY: CGFloat?
++    /// 设置 › 视觉效果 › 界面风格：动态 / 静态。
++    @AppStorage(LumaInterfaceMotionStyle.storageKey) private var interfaceMotionStyle = LumaInterfaceMotionStyle.dynamic.rawValue
++    @Namespace private var readerToolbarSelection
++    /// 动态设计实际生效：设置为动态，且未开启减少动态效果、关闭动画或省电。
++    private var dynamicInterface:Bool {
++        interfaceMotionStyle != LumaInterfaceMotionStyle.still.rawValue && !reduceMotion && store.effectiveMotionLevel != .off
++    }
+     @State private var readerWindowIsFullScreen = false
+     @State private var focusHeaderShown = false
+     // Luma panel interaction grace v5
+@@ -253,6 +262,7 @@ struct ContentView: View {
+             else if store.immersive { store.toggleImmersive() }
+         }
+         .tint(store.accent).accentColor(store.accent)
++        .environment(\.lumaDynamicMotion,dynamicInterface)
+         .toggleStyle(LumaThemeSwitchStyle(accent:store.accent))
+         .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
+         .toolbarBackground(.hidden, for: .windowToolbar)
+@@ -261,6 +271,7 @@ struct ContentView: View {
+                                        onSafeInset:{ value in if abs(titlebarInset-value)>1 { titlebarInset = value } },
+                                        onTrafficLightCenterY:{ cy in if abs(trafficLightCenterY-cy)>0.5 { trafficLightCenterY = cy } },
+                                        readerToolbar:store.selectedBook != nil,
++                                       targetCenterY:trafficLightTarget,
+                                        onFullScreenChanged:{ fullScreen in if readerWindowIsFullScreen != fullScreen { readerWindowIsFullScreen = fullScreen } })
+             .frame(width:0,height:0))
+         .onChange(of:store.immersive) { _,immersive in
+@@ -278,6 +289,17 @@ struct ContentView: View {
+         .onChange(of:store.visualMotionLevel) { _,_ in controller.updateSettings() }
+     }
+ 
++    /// 红黄绿对齐目标（自窗口顶部的中心 y）。优先使用实际顶栏胶囊上报的值；
++    /// 代码推算值仅作备用与核对：阅读页 60÷2=30；听写练习页宽布局 0+16+50÷2=41
++    /// （返回胶囊与 50pt 高的计时胶囊同行居中），窄布局 0+16+40÷2=36；其余页面（含写作模拟机考）保持原 22。
++    private var trafficLightTarget:CGFloat {
++        let reading = store.selectedBook != nil
++        let listeningPractice = !reading && studyVisible && ["学习_听力_今日计划","学习_听力_错词复习"].contains(studyMode)
++        let fallback:CGFloat = reading ? 30 : (listeningPractice ? 41 : 22)
++        // 只接受与推算值相差 16pt 以内的实测值，防止标题栏高度变化反过来推动布局形成循环。
++        guard reading || listeningPractice, let anchor = windowControlsAnchorY, abs(anchor - fallback) <= 16 else { return fallback }
++        return (anchor * 2).rounded() / 2
++    }
+     private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(studyMode))}
+     private var lumaNavigation: some View {
+         HStack(spacing:0) {
+@@ -360,6 +382,9 @@ struct ContentView: View {
+             },onSafeTopInset:{ inset in
+                 if readerSafeTopInset != inset { readerSafeTopInset = inset }
+             }).frame(width:0,height:0))
++            .onPreferenceChange(LumaWindowControlsAnchorKey.self) { value in
++                if windowControlsAnchorY != value { windowControlsAnchorY = value }
++            }
+             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
+                 guard width > 0 else { return }; controller.beginViewportChange(); settleAILayout(delay:140)
+             }
+@@ -492,24 +517,26 @@ struct ContentView: View {
+             if isReadingBook && readerChromeVisible {
+                 HStack(spacing:2) {
+                     Button { closeReaderPanels(); store.returnToLibrary() } label: {
+-                        Image(systemName:"chevron.left")
+-                            .font(.system(size:17,weight:.medium))
+-                            .frame(width:itemWidth,height:itemHeight)
+-                            .contentShape(Rectangle())
+-                    }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
++                        readerToolbarGlyph("chevron.left",itemWidth:itemWidth,itemHeight:itemHeight)
++                    }.buttonStyle(readerToolbarStyle())
++                        .help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
+                     Button { activeReaderPanel = nil; showBookSearch.toggle() } label: {
+-                        Image(systemName:"magnifyingglass")
+-                            .font(.system(size:17,weight:.medium))
+-                            .frame(width:itemWidth,height:itemHeight)
+-                            .contentShape(Rectangle())
+-                    }.anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
++                        readerToolbarGlyph("magnifyingglass",itemWidth:itemWidth,itemHeight:itemHeight)
++                    }.buttonStyle(readerToolbarStyle(showBookSearch ? .selected : .plain,morph:true))
++                        .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+                         .help(L10n.text("在此书中搜索")).accessibilityLabel(L10n.text("在此书中搜索"))
++                        .accessibilityAddTraits(showBookSearch ? .isSelected : [])
+                     readerPanelButton(.contents,symbol:"list.bullet",label:"目录",itemWidth:itemWidth,itemHeight:itemHeight)
+                     readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记",itemWidth:itemWidth,itemHeight:itemHeight)
+                 }
++                // 动态设计：搜索 / 目录 / 笔记的选中底色在按钮之间滑动；静态设计直接切换。
++                .animation(dynamicInterface ? LumaMotionToken.dynamicMorph : nil,value:activeReaderPanel)
++                .animation(dynamicInterface ? LumaMotionToken.dynamicMorph : nil,value:showBookSearch)
+                 .padding(.horizontal,6)
+                 .padding(.vertical,4)
+                 .readerGlass(radius:capsuleRadius,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
++                // 红黄绿以本胶囊中心为对齐目标（60pt 栏内居中，即 30）。
++                .lumaWindowControlsAnchor()
+                 .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) {
+                     readerPanelContent
+                         .modifier(LumaThemeScope(store:store))
+@@ -607,30 +634,28 @@ struct ContentView: View {
+ 
+     private func readerBookmarkAction(itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+         Button { controller.addBookmark() } label: {
+-            Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill")
+-                .font(.system(size:17,weight:.medium))
+-                .frame(width:itemWidth,height:itemHeight)
++            readerToolbarGlyph(controller.currentBookmark == nil ? "bookmark":"bookmark.fill",itemWidth:itemWidth,itemHeight:itemHeight)
+                 .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
+                     icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
+                 } animation: { _ in MotionTokens.micro }
+-        }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
++        }.buttonStyle(readerToolbarStyle(controller.currentBookmark == nil ? .plain : .active))
+             .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
+     }
+     @ViewBuilder private func readerUtilityActions(itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+         Button { closeReaderPanels(); showSettings = true } label: {
+             AnimatedSettingsGlyph(active:showSettings)
+-                .font(.system(size:17,weight:.medium))
++                .font(.system(size:LumaControlMetric.toolbarIconPointSize,weight:.medium))
+                 .frame(width:itemWidth,height:itemHeight)
+                 .clipped()
+                 .contentShape(Rectangle())
+                 .anchorPreference(key:GearAnchorPreference.self,value:.bounds) { $0 }
+-        }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
++        }.buttonStyle(readerToolbarStyle(showSettings ? .selected : .plain))
++            .help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
+         Button { store.aiPanelVisible.toggle() } label: {
+-            Image(systemName:"sparkles")
+-                .font(.system(size:17,weight:.medium))
+-                .frame(width:itemWidth,height:itemHeight)
+-                .contentShape(Rectangle())
+-        }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
++            readerToolbarGlyph("sparkles",itemWidth:itemWidth,itemHeight:itemHeight)
++        }.buttonStyle(readerToolbarStyle(store.aiPanelVisible ? .selected : .plain))
++            .help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
++            .accessibilityAddTraits(store.aiPanelVisible ? .isSelected : [])
+     }
+ 
+     private var readerPanelPresented:Binding<Bool> {
+@@ -727,18 +752,32 @@ struct ContentView: View {
+     }
+ 
+     private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String,itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+-        let pal = store.readingPalette(dark:colorScheme == .dark)
++        let selected = activeReaderPanel == panel
+         return Button {
+             showBookSearch = false
+             activeReaderPanel = activeReaderPanel == panel ? nil:panel
+         } label: {
+-            Image(systemName:symbol)
+-                .font(.system(size:17,weight:.medium))
+-                .frame(width:itemWidth,height:itemHeight)
+-                .background(activeReaderPanel == panel ? pal.accent.opacity(0.22):.clear,in:Capsule())
+-                .contentShape(Rectangle())
++            readerToolbarGlyph(symbol,itemWidth:itemWidth,itemHeight:itemHeight)
+         }
++            .buttonStyle(readerToolbarStyle(selected ? .selected : .plain,morph:true))
+             .help(label).accessibilityLabel(label)
++            .accessibilityAddTraits(selected ? .isSelected : [])
++    }
++    /// 阅读顶栏七键共用的图标规格：17pt / medium、单色渲染、等宽热区（宽 ≤44，高 40）。
++    private func readerToolbarGlyph(_ symbol:String,itemWidth:CGFloat,itemHeight:CGFloat)->some View {
++        Image(systemName:symbol)
++            .font(.system(size:LumaControlMetric.toolbarIconPointSize,weight:.medium))
++            .symbolRenderingMode(.monochrome)
++            .contentTransition(dynamicInterface ? .symbolEffect(.replace) : .identity)
++            .frame(width:itemWidth,height:itemHeight)
++            .contentShape(Rectangle())
++    }
++    /// 阅读顶栏按钮六态样式，颜色只取 ReadingPalette 的 ink / accent。
++    private func readerToolbarStyle(_ emphasis:LumaIconButtonStyle.Emphasis = .plain,morph:Bool = false)->LumaIconButtonStyle {
++        let pal = store.readingPalette(dark:colorScheme == .dark)
++        return LumaIconButtonStyle(ink:pal.ink,accent:pal.accent,emphasis:emphasis,
++                                   motionEnabled:dynamicInterface,
++                                   selectionNamespace:morph ? readerToolbarSelection : nil)
+     }
+     private var readerPanelTitle:String {
+         switch activeReaderPanel { case .contents:return "目录";case .bookmarks:return "书签";case .notes:return "高亮标记和笔记";case nil:return "" }
+@@ -1754,6 +1793,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+     var onSafeInset:(CGFloat)->Void
+     var onTrafficLightCenterY:(CGFloat)->Void = { _ in }
+     var readerToolbar = false
++    var targetCenterY:CGFloat = 22
+     var onFullScreenChanged:(Bool)->Void = { _ in }
+     func makeNSView(context: Context) -> ChromeView { ChromeView() }
+     func updateNSView(_ view: ChromeView, context: Context) {
+@@ -1763,6 +1803,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+         view.onSafeInset = onSafeInset
+         view.onTrafficLightCenterY = onTrafficLightCenterY
+         view.readerToolbar = readerToolbar
++        view.targetCenterY = targetCenterY
+         view.onFullScreenChanged = onFullScreenChanged
+         view.apply()
+     }
+@@ -1773,6 +1814,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+         var onSafeInset:(CGFloat)->Void = { _ in }
+         var onTrafficLightCenterY:(CGFloat)->Void = { _ in }
+         var readerToolbar = false
++        var targetCenterY:CGFloat = 22
+         var onFullScreenChanged:(Bool)->Void = { _ in }
+         var color = NSColor.windowBackgroundColor
+         private var windowObservers: [NSObjectProtocol] = []
+@@ -1797,7 +1839,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+                     let token = NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self, weak window] _ in
+                         MainActor.assumeIsolated {
+                             guard let self, let window else { return }
+-                            NativeWindowControls.alignTrafficLights(window,targetCenterFromTop:self.readerToolbar ? 30 : 22)
++                            NativeWindowControls.alignTrafficLights(window,targetCenterFromTop:self.targetCenterY)
+                             self.reportMetrics(for: window)
+                         }
+                     }
+@@ -1814,7 +1856,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+             let maxX = rects.map(\.maxX).max() ?? 76
+             let inset = max(92, maxX + 18)
+             let midYs = rects.map { content.isFlipped ? $0.midY : (content.bounds.height - $0.midY) }
+-            let avgCenterY = midYs.isEmpty ? (readerToolbar ? 30.0 : 22.0) : (midYs.reduce(0, +) / CGFloat(midYs.count))
++            let avgCenterY = midYs.isEmpty ? targetCenterY : (midYs.reduce(0, +) / CGFloat(midYs.count))
+             let fullScreen = window.styleMask.contains(.fullScreen)
+             DispatchQueue.main.async { [weak self] in
+                 self?.onSafeInset(inset)
+@@ -1837,7 +1879,7 @@ private struct ReaderWindowChrome: NSViewRepresentable {
+             window.isMovableByWindowBackground = false
+             if window.toolbarStyle != .unifiedCompact { window.toolbarStyle = .unifiedCompact }
+             window.toolbar?.showsBaselineSeparator = false
+-            NativeWindowControls.restore(window,controlsVisible:controlsVisible,animated:animateControls,targetCenterFromTop:readerToolbar ? 30 : 22)
++            NativeWindowControls.restore(window,controlsVisible:controlsVisible,animated:animateControls,targetCenterFromTop:targetCenterY)
+             reportMetrics(for: window)
+             WindowControlsProbe.startIfRequested(window)
+         }
+diff --git a/Sources/LumaReader/CustomizationPanel.swift b/Sources/LumaReader/CustomizationPanel.swift
+index ee7a09e..a959a7a 100644
+--- a/Sources/LumaReader/CustomizationPanel.swift
++++ b/Sources/LumaReader/CustomizationPanel.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import LumaReaderStudyKit
+ 
+ struct CustomizationPanel: View {
+     @Environment(\.lumaMuted) private var muted
+@@ -8,6 +9,7 @@ struct CustomizationPanel: View {
+     @Environment(\.dismiss) private var dismiss
+     @Environment(\.colorScheme) private var colorScheme
+     @AppStorage("appIconStyle") private var appIconStyle = "glass"
++    @AppStorage(LumaInterfaceMotionStyle.storageKey) private var interfaceMotionStyle = LumaInterfaceMotionStyle.dynamic.rawValue
+     @Namespace private var sectionMotion
+     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+     @State private var section = "外观"
+@@ -231,6 +233,11 @@ struct CustomizationPanel: View {
+                 Picker(L10n.text("动画强度"),selection:$store.visualMotionLevel) {
+                     ForEach(VisualMotionLevel.allCases) { Text(L10n.text($0.title)).tag($0) }
+                 }
++                Picker(L10n.text("界面风格"),selection:$interfaceMotionStyle) {
++                    ForEach(LumaInterfaceMotionStyle.allCases) { Text(L10n.text($0.title)).tag($0.rawValue) }
++                }
++                Text(L10n.text((LumaInterfaceMotionStyle(rawValue:interfaceMotionStyle) ?? .dynamic).detail))
++                    .font(.caption).foregroundStyle(muted)
+                 Toggle(L10n.text("液态玻璃效果"),isOn:$store.glassEffectsEnabled)
+                 Toggle(L10n.text("书库与阅读轻柔过渡"),isOn:$store.coverTransitions)
+                 PageMotionPicker(store:store)
+diff --git a/Sources/LumaReader/NativeWindowControls.swift b/Sources/LumaReader/NativeWindowControls.swift
+index 22e179b..c072988 100644
+--- a/Sources/LumaReader/NativeWindowControls.swift
++++ b/Sources/LumaReader/NativeWindowControls.swift
+@@ -1,5 +1,6 @@
+ import AppKit
+ import ObjectiveC
++import os
+ 
+ @MainActor
+ enum NativeWindowControls {
+@@ -51,13 +52,24 @@ enum NativeWindowControls {
+     }
+ 
+     private static var aligningWindows = Set<ObjectIdentifier>()
++    /// Last requested target per window, so AppKit titlebar relayouts can be undone.
++    private static var lastTargets: [ObjectIdentifier: CGFloat] = [:]
++    private static var observedWindows: [ObjectIdentifier: [NSObjectProtocol]] = [:]
++    private static var pendingRealign = Set<ObjectIdentifier>()
++    private static var realignStamps: [ObjectIdentifier: [Date]] = [:]
++    private static var readbackRetries: [ObjectIdentifier: Int] = [:]
++    /// Debug/verification: (target, measured) after the latest alignment, in points from the window top.
++    private(set) static var lastMeasurement: [ObjectIdentifier: (target: CGFloat, measured: CGFloat)] = [:]
++    private static let log = Logger(subsystem: "app.luma.personal-reader", category: "WindowControls")
+ 
+-    /// The baseline center is 22pt; the reader requests 30pt (another 8pt down).
+-    /// and slightly right (starting at x = 18pt) to match Safari's compact unified toolbar, while keeping
+-    /// all 3 buttons inside their NSTitlebarView bounds so native click, hover glyphs, and hitTest work 100%.
++    /// Moves the three standard buttons so their vertical center sits `targetCenterFromTop`
++    /// points below the window's top edge (the reader passes 30, dictation practice 36, or the
++    /// live capsule center). Buttons stay inside their native titlebar view, so click,
++    /// hover glyphs and hitTest remain AppKit-owned; x placement (18pt + 20pt spacing) is unchanged.
+     static func alignTrafficLights(_ window: NSWindow, targetCenterFromTop: CGFloat = 22.0) {
+         guard !window.styleMask.contains(.fullScreen) else { return }
+         let winID = ObjectIdentifier(window)
++        lastTargets[winID] = targetCenterFromTop
+         guard !aligningWindows.contains(winID) else { return }
+         aligningWindows.insert(winID)
+         defer { aligningWindows.remove(winID) }
+@@ -68,7 +80,9 @@ enum NativeWindowControls {
+               let titlebarView = firstButton.superview else { return }
+ 
+         let desiredBarHeight: CGFloat = max(38.0, targetCenterFromTop + 16.0)
++        var observedViews: [NSView] = [titlebarView]
+         if let container = titlebarView.superview, let themeFrame = container.superview {
++            observedViews.append(container)
+             var cFrame = container.frame
+             let targetOriginY = themeFrame.isFlipped ? 0.0 : (themeFrame.bounds.height - desiredBarHeight)
+             if abs(cFrame.height - desiredBarHeight) > 0.5 || abs(cFrame.origin.y - targetOriginY) > 0.5 {
+@@ -80,23 +94,113 @@ enum NativeWindowControls {
+                 titlebarView.frame = container.bounds
+             }
+         }
++        observeTitlebarFrames(window, views: observedViews)
+ 
++        // Compute the target in the window frame view's coordinates and convert it into each
++        // button's own superview. The previous code assumed the button superview's top equals
++        // the window top; when AppKit later re-sizes the titlebar container, a bottom-origin
++        // y then lands several points too high (observed ~15pt instead of 22pt).
++        let frameView = window.contentView?.superview
+         let startX: CGFloat = 18.0
+         let spacingX: CGFloat = 20.0
+-        let barHeight = titlebarView.bounds.height
+         for (idx, button) in buttons.enumerated() {
++            guard let host = button.superview else { continue }
+             var bFrame = button.frame
+             let targetX = startX + CGFloat(idx) * spacingX
+-            let targetY = titlebarView.isFlipped
+-                ? (targetCenterFromTop - bFrame.height * 0.5)
+-                : (barHeight - targetCenterFromTop - bFrame.height * 0.5)
+-            if abs(bFrame.origin.x - targetX) > 0.5 || abs(bFrame.origin.y - targetY) > 0.5 {
++            let targetMidY: CGFloat
++            if let frameView {
++                let yInFrame = frameView.isFlipped ? targetCenterFromTop : frameView.bounds.height - targetCenterFromTop
++                targetMidY = host.convert(NSPoint(x: 0, y: yInFrame), from: frameView).y
++            } else {
++                let barHeight = host.bounds.height
++                targetMidY = host.isFlipped ? targetCenterFromTop : barHeight - targetCenterFromTop
++            }
++            let targetY = targetMidY - bFrame.height * 0.5
++            if abs(bFrame.origin.x - targetX) > 0.25 || abs(bFrame.origin.y - targetY) > 0.25 {
+                 bFrame.origin.x = targetX
+                 bFrame.origin.y = targetY
+                 button.frame = bFrame
+             }
+         }
+         titlebarView.updateTrackingAreas()
++
++        // Read back the real frames and compare with the target.
++        guard let measured = measuredCenterFromTop(window) else { return }
++        lastMeasurement[winID] = (targetCenterFromTop, measured)
++        let error = measured - targetCenterFromTop
++        if abs(error) <= 1 {
++            readbackRetries[winID] = 0
++            return
++        }
++        let attempts = readbackRetries[winID, default: 0]
++        let host = String(describing: type(of: titlebarView))
++        let bar = Double(titlebarView.bounds.height)
++        log.debug("traffic lights off by \(Double(error), format: .fixed(precision: 1))pt; target \(Double(targetCenterFromTop), format: .fixed(precision: 1)), measured \(Double(measured), format: .fixed(precision: 1)), host \(host, privacy: .public), bar \(bar, format: .fixed(precision: 1))")
++        guard attempts < 2 else { return }
++        readbackRetries[winID] = attempts + 1
++        scheduleRealign(window)
++    }
++
++    /// Average vertical center of the three buttons, measured from the window's top edge.
++    static func measuredCenterFromTop(_ window: NSWindow) -> CGFloat? {
++        guard let frameView = window.contentView?.superview else { return nil }
++        let centers: [CGFloat] = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { type in
++            guard let button = window.standardWindowButton(type), button.superview != nil else { return nil }
++            let rect = button.convert(button.bounds, to: frameView)
++            return frameView.isFlipped ? rect.midY : frameView.bounds.height - rect.midY
++        }
++        guard !centers.isEmpty else { return nil }
++        return centers.reduce(0, +) / CGFloat(centers.count)
++    }
++
++    /// AppKit may re-layout the titlebar (key changes, toolbar updates, sheet dismissal) without
++    /// a window notification. Re-apply the last requested target after such frame changes.
++    private static func observeTitlebarFrames(_ window: NSWindow, views: [NSView]) {
++        let winID = ObjectIdentifier(window)
++        guard observedWindows[winID] == nil else { return }
++        var tokens: [NSObjectProtocol] = []
++        for view in views {
++            view.postsFrameChangedNotifications = true
++            tokens.append(NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: view, queue: .main) { [weak window] _ in
++                MainActor.assumeIsolated {
++                    guard let window else { return }
++                    scheduleRealign(window)
++                }
++            })
++        }
++        tokens.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
++            MainActor.assumeIsolated {
++                for token in observedWindows[winID] ?? [] { NotificationCenter.default.removeObserver(token) }
++                observedWindows[winID] = nil
++                lastTargets[winID] = nil
++                lastMeasurement[winID] = nil
++                realignStamps[winID] = nil
++                readbackRetries[winID] = nil
++                pendingRealign.remove(winID)
++            }
++        })
++        observedWindows[winID] = tokens
++    }
++
++    private static func scheduleRealign(_ window: NSWindow) {
++        let winID = ObjectIdentifier(window)
++        guard !aligningWindows.contains(winID), !pendingRealign.contains(winID), lastTargets[winID] != nil else { return }
++        // At most 8 corrective passes per second; avoids fighting an AppKit layout loop.
++        let now = Date()
++        let recent = (realignStamps[winID] ?? []).filter { now.timeIntervalSince($0) < 1 }
++        guard recent.count < 8 else {
++            log.debug("traffic-light realign throttled")
++            return
++        }
++        realignStamps[winID] = recent + [now]
++        pendingRealign.insert(winID)
++        DispatchQueue.main.async { [weak window] in
++            MainActor.assumeIsolated {
++                pendingRealign.remove(winID)
++                guard let window, let target = lastTargets[winID] else { return }
++                alignTrafficLights(window, targetCenterFromTop: target)
++            }
++        }
+     }
+ 
+     static func snapshot(_ window: NSWindow) -> [String: Bool] {
+diff --git a/Sources/LumaReader/Resources/AppStrings.js b/Sources/LumaReader/Resources/AppStrings.js
+index 6ba9f04..ed88f0d 100644
+--- a/Sources/LumaReader/Resources/AppStrings.js
++++ b/Sources/LumaReader/Resources/AppStrings.js
+@@ -1 +1 @@
+-window.LumaStrings={"AI 助手":"AI assistant","AI 服务":"AI service","AI 没有返回可显示的内容，请重试。":"AI returned no content. Try again.","AI 界面加载失败：":"Could not load AI interface: ","AI 界面文件缺失。":"AI interface resource is missing.","API 地址":"API URL","API 密钥无效或没有访问权限，请检查设置。":"The API key is invalid or access was denied. Check settings.","API 账户余额不足。":"Insufficient API account balance.","EPUB 包含无效路径。":"The EPUB contains an invalid path.","EPUB 字体":"EPUB font","EPUB 字号":"EPUB font size","EPUB 文件校验失败。":"EPUB validation failed.","EPUB 正文":"EPUB text","EPUB 版心":"EPUB text width","EPUB 的章节路径无效。":"Invalid EPUB chapter path.","EPUB 目录解析失败。":"Could not parse the EPUB contents.","EPUB 缺少书籍目录。":"EPUB contents are missing.","EPUB 路径越界。":"EPUB path is outside its container.","HEX，例如 6E9277":"HEX, e.g. 6E9277","Luma · 图书":"Luma · Books","上一页 / 节":"Previous page / chapter","下一页 / 节":"Next page / chapter","不足 1 分钟":"Less than a minute","专注":"Focus","专注时自动收起 AI":"Collapse AI in Focus mode","专注阅读":"Focused reading","中性":"Neutral","主色":"Accent color","主页字体":"Library font","主页字号":"Library font size","书名":"Title","书库":"Library","书库与阅读轻柔过渡":"Library and reader transitions","书库自定义字体":"Custom library font","书签":"Bookmarks","云存档包含无效文件名。":"The cloud archive contains an invalid filename.","云存档包含越界文件路径。":"The cloud archive contains a path outside its container.","云存档由更新版本创建，请先更新应用。":"This cloud archive requires a newer app version.","云盘":"Cloud storage","云端同步":"Cloud sync","云端图书类型无效。":"Invalid cloud book type.","人文衬线":"Humanist serif","今天":"Today","从此分类移出":"Remove from this collection","作者":"Author","使用内置字体":"Use a built-in font","使用手动主色":"Use a manual accent","保存":"Save","保存 Luma 内的高亮、文字笔记、书签及阅读进度。请让各设备连接同一同步目录，并等待云盘客户端完成上传和下载。":"Sync Luma highlights, notes, bookmarks and progress. Connect each device to the same folder and let your cloud client finish uploading and downloading.","保存图片":"Save image","保存密钥":"Save key","保存范围":"Settings scope","全部图书":"All Books","全部展开":"Expand all","全部年份":"All years","全部折叠":"Collapse all","全部设置…":"All Settings…","关闭":"Close","关闭动画":"Disable animations","关闭搜索":"Close search","关闭面板，返回原界面":"Close panel and return","其他阅读器的私有批注不会自动导入。这里的成功状态表示已写入同步目录，不代表云端传输已经完成。":"Private annotations from other readers are not imported automatically. Success means the sync folder was written, not that cloud transfer has finished.","内嵌图片格式不支持或大于 20 MB。":"Embedded image is unsupported or exceeds 20 MB.","分类":"Collections","分类名称":"Collection name","分类名称请输入 1–80 个字。":"Enter a collection name of 1–80 characters.","分钟":"Minutes","列表":"List","删除 · ⌘Z":"Delete · ⌘Z to undo","删除分类":"Delete collection","删除此划线与批注":"Delete highlight and note","前 1000 项结果":"First 1,000 results","加入书库":"Add to library","动态取色":"Dynamic color","动画":"Motion","动画强度":"Motion level","千问地址需与密钥所属地域一致；可填写百炼控制台提供的北京、新加坡或其他地域地址。":"The Qwen URL must match your key's region. Use the regional URL from the DashScope console.","午夜蓝":"Midnight blue","取消":"Cancel","取消标注和笔记":"Delete annotation","取消标注和笔记 · ⌘Z 撤销":"Delete annotation · ⌘Z to undo","取色":"Extract color","取色来源":"Color source","只支持书内本地图片。":"Only local book images are supported.","可直接在图片上选择文字":"Select text directly in the image","同步":"Sync","同步全部":"Sync all","同步已接入云盘":"Sync connected storage","同步范围":"Sync scope","周":"Weeks","周期":"Period","周起始":"Week starting","图书":"Books","图标风格":"Icon style","图片上选择文字":"Select image text","图片为空或大于 20 MB。":"Image is empty or exceeds 20 MB.","图片在本机取色。正文、AI 和操作控件共用一份配色。":"Colors are extracted locally. Reader, AI and controls share the palette.","图片尺寸过大。":"Image dimensions are too large.","图片操作失败":"Image operation failed","图片无法读取。":"Could not read the image.","图片未能读取：":"Could not read image: ","图片格式或大小不符合要求，请重新选择。":"Unsupported image type or size. Choose another image.","图片格式无法读取。":"Unsupported image format.","图片模型":"Vision model","图片路径不在当前图书内。":"Image path is outside this book.","图片转换失败。":"Image conversion failed.","图片过大，请缩小后再发送。":"Image is too large. Resize it before sending.","圆体":"Rounded","在此书中":"Search this book","在此书中搜索":"Find in this book","在此书中搜索 · ⌘F":"Search in book · ⌘F","在这里，想法可以继续。 ":"Keep your thoughts going here.","基线":"Baseline","复制全部文字":"Copy all text","复制文本":"Copy text","外观":"Appearance","外观与主题":"Appearance and theme","外观与排版":"Appearance and typography","外观与排版…":"Appearance and Typography…","外观与阅读":"Appearance and Reading","天":"Days","天空蓝":"Sky blue","好":"OK","字体":"Font","字体完整性检查失败：":"Font integrity check failed: ","字体文件无效或尚未下载完成。":"Font is invalid or not fully downloaded.","字体无法解析：":"Could not parse font: ","字体未能载入：":"Could not load font: ","字体样式":"Font style","字体目录不能是符号链接。":"The font directory cannot be a symbolic link.","字体资源":"Font files","字体超过 32 MB 或不是普通文件。":"Font exceeds 32 MB or is not a regular file.","完成":"Done","完整动画":"Full motion","定位原文":"Go to source","实时预览":"Live preview","宽窗口自动双页；正文保持居中。← / → 翻页，输入文字时移动光标。PDF 保留原始排版。":"Wide windows use two pages. Text stays centered. ← / → turns pages except while typing. PDFs keep their original layout.","密钥已保存，输入可替换":"Key saved; type to replace","密钥已移除":"Key removed","导入 TTF / OTF 字体，保存于 Luma，并随已接入的云盘同步。":"Import TTF / OTF fonts into Luma and sync them through connected storage.","导入图书 · ⌘O":"Import books · ⌘O","导入图书…":"Import Books…","导入字体…":"Import Fonts…","导出":"Export","导出含高亮 PDF…":"Export PDF with Highlights…","导出批注…":"Export Annotations…","将当前设置应用到所有书籍":"Apply these settings to all books","尚未写入同步目录":"Not yet written to the sync folder","展开":"Expand","展开 / 折叠批注":"Expand / collapse annotations","展开 / 收起 AI 助手":"Expand / collapse AI","展开 / 收起 AI 助手 · ⌥⌘A":"Expand / collapse AI · ⌥⌘A","展开或收起 AI 助手":"Expand or collapse AI","展开识别文字":"Show recognized text","已写入目录 · ":"Written to folder · ","已复制文本":"Text copied","已存入 macOS 钥匙串":"Saved in macOS Keychain","已完成":"Finished","已展开":"Expanded","已折叠":"Collapsed","已有同名分类，请换个名称。":"A collection with this name exists. Choose another name.","已添加书签":"Bookmark added","已移除书签":"Bookmark removed","已识别，可展开或复制文字":"Text recognized; expand or copy it","已达成":"Goal met","已锁定当前配色":"Current palette locked","平滑滑动":"Smooth slide","年份":"Year","应用":"Apply","应用图标":"App icon","当前 DeepSeek 接口只接入文字。请切换 Claude、Gemini、OpenAI、Grok 或千问的图文模型后发送。":"This DeepSeek connection supports text only. Switch to a vision model from Claude, Gemini, OpenAI, Grok or Qwen.","当前书籍封面":"Current book cover","当前位置":"Current position","当前使用所选画质":"Using selected image quality","当前修改作为所有书籍的默认设置":"Changes become the default for all books","当前省电中":"Energy saving is active","忠于封面":"Faithful to cover","性能":"Performance","恢复本书的默认设置":"Reset this book's settings","恢复默认排版":"Reset typography","恢复默认配色":"Reset palette","我的云端硬盘":"My Drive","我的字体":"My fonts","我的批注":"My annotations","手动主色":"Manual accent","批注":"Annotate","批注笔记":"Annotation note","折叠":"Collapse","折叠 · ⌥⌘1":"Collapse · ⌥⌘1","折叠批注栏":"Collapse annotations","排序方式":"Sort by","排版":"Typography","接入":"Connect","接入…":"Connect…","提示":"Notice","搜索书名或作者":"Search title or author","搜索目录标题":"Search contents","撤销重置":"Undo reset","支持 TTF / OTF，单个文件不超过 32 MB。字体文件随已连接云盘双向同步，另一台 Mac 同步到本机后可在这里选择。字体选择保存在本机；正文支持每本书独立记忆。PDF 原文版式不替换。":"Supports TTF / OTF up to 32 MB each. Font files sync through connected storage. Choose them on another Mac after downloading. Font selections are local; reader preferences can be per book. PDF typography is unchanged.","放大":"Zoom in","放大主页字号":"Increase library font size","文字模型":"Text model","文字识别失败，可重新尝试：":"Text recognition failed. Retry: ","断开":"Disconnect","新建分类":"New collection","新建分类…":"New Collection…","无法识别字体：":"Unrecognized font: ","无法读取图片，保留当前配色":"Could not read image; keeping this palette","无衬线":"Sans serif","日期":"Date","时间":"Time","明暗模式":"Color mode","显示":"View","显示与排序":"View and sort","显示阅读工具栏":"Show reader toolbar","暂无书签":"No bookmarks","暂无图书":"No books","暂无批注":"No annotations","暖纸白":"Warm paper","暖黄":"Warm yellow","更多阅读选项":"More reader options","更换同步目录…":"Change Sync Folder…","更新":"Newer","更早":"Earlier","最近":"Recent","最近搜索":"Recent searches","最近阅读":"Recently read","月份":"Month","服务商":"Provider","未打开图书，当前修改作为默认设置":"No book open; changes become defaults","未找到匹配图书":"No matching books","未识别到文字":"No text recognized","本周":"This week","本月":"This month","本页已有书签":"This page is bookmarked","杏橙":"Apricot","柔和动画":"Reduced motion","柔和协调":"Harmonious","标准 32%":"Standard 32%","桌面壁纸":"Desktop wallpaper","模式":"Mode","樱花粉":"Cherry pink","正在导入…":"Importing…","正在提取颜色…":"Extracting colors…","正在搜索…":"Searching…","正在识别文字…":"Recognizing text…","正在阅读":"Reading","正文与 AI 同步；右侧为缩略预览。":"Reader and AI share the palette; preview on the right.","正文自定义字体":"Custom reader font","正文阅读":"Reader","每一种颜色，都是此刻的自己与这本书的一次交谈。":"Each color is part of your conversation with this book.","每周":"Weekly","每天":"Daily","每家单独保存密钥与模型。切换会将本次对话历史发送给所选服务；关闭“附带当前阅读”可排除书籍上下文。仅发送时调用 API，对话不写入云存档。":"Keys and models are saved per provider. Switching sends this conversation to the selected provider. Disable reading context to exclude book excerpts. API requests happen only when sending; conversations are not included in cloud archives.","每日目标":"Daily goal","每日阅读目标分钟数":"Daily reading goal in minutes","每月":"Monthly","每本书记住阅读设置":"Remember settings for each book","水滴 15%":"Clear 15%","沉浸阅读":"Immersive reading","没有匹配的目录标题":"No matching headings","没有可读取的封面，保留当前配色":"No readable cover; keeping this palette","没有找到可阅读的 EPUB 章节；不支持 DRM 加密书籍。":"No readable EPUB chapters found. DRM-protected books are unsupported.","流畅的弹簧、展开与形态过渡":"Fluid springs, disclosures and transitions","浅色":"Light","液态玻璃效果":"Liquid Glass effects","液态玻璃透明度":"Liquid Glass opacity","液态玻璃强度":"Liquid Glass strength","深色":"Dark","添加 / 移除本页书签 · ⌘D":"Add / remove bookmark · ⌘D","添加书签":"Add bookmark","添加批注":"Add annotation","添加本页书签":"Bookmark this page","添加标注和笔记":"Add highlight and note","添加笔记…":"Add a note…","清空搜索":"Clear search","清空目录搜索":"Clear contents search","清除":"Clear","温润圆体":"Soft rounded","玫瑰粉":"Rose pink","现代无衬线":"Modern sans serif","玻璃":"Glass","目录":"Contents","目录…":"Contents…","目录、书签与笔记":"Contents, bookmarks and notes","目标请输入 5–600 之间的整数分钟。":"Enter a whole number from 5 to 600 minutes.","直接切换":"Instant","直接切换，无过渡动画":"Switch instantly, without transitions","省电模式":"Energy saving","磨砂 65%":"Frosted 65%","移除密钥":"Remove key","移除本页书签":"Remove bookmark","章节未能加载：":"Could not load chapter: ","笔记":"Notes","等宽":"Monospace","等宽手稿":"Monospace manuscript","等待字体同步":"Waiting for font sync","纯黑":"Pure black","经典主题":"Classic theme","经典立体":"Classic 3D","编辑笔记":"Edit note","缩小":"Zoom out","缩小主页字号":"Decrease library font size","缩短动画时间，减少形变":"Shorter transitions, less deformation","网格":"Grid","翻页动画":"Page-turn animation","翻页方式":"Page-turn style","背景":"Background","自动遵循系统低电量、减少动态效果和减少透明度设置。":"Follows system Low Power Mode, Reduce Motion and Reduce Transparency.","自定义动画与玻璃效果…":"Customize Motion and Glass…","自然卷页":"Natural page turn","自选图片":"Choose image","节能与计时":"Energy and timing","薄荷绿":"Mint green","薰衣草紫":"Lavender","表现力":"Expressive","衬线":"Serif","视觉效果":"Visual effects","设备标识无效。":"Invalid device identifier.","设置":"Settings","设置 API":"API Settings","识别文字":"Recognize text","询问 AI":"Ask AI","请先在“设置 API”中保存当前服务商的 API Key。":"Save this provider's API key in API Settings first.","请求过于频繁，请稍后重试。":"Too many requests. Try again later.","请直接选择云盘目录，不要使用符号链接。":"Choose the cloud folder itself, not a symbolic link.","请输入六位十六进制颜色。可带 #。 ":"Enter six hexadecimal digits, optionally starting with #.","请输入有效的 HTTPS API 地址。":"Enter a valid HTTPS API URL.","请选择不超过 32 MB 的 TTF 或 OTF 字体。":"Choose a TTF or OTF font up to 32 MB.","调整 AI 面板宽度":"Resize AI panel","跟随明暗":"Follow appearance","跟随系统":"Follow system","输入关键字搜索整本书":"Search the whole book","返回书库":"Back to library","返回书库 · ⌘L":"Back to library · ⌘L","这天没有可显示的详细时段。旧版只有每日总时长，无法还原具体时间。":"No detailed sessions for this day. Older records contain daily totals only.","这本 EPUB 太大，或包含不支持的链接文件。":"This EPUB is too large or contains unsupported linked files.","进入 / 退出沉浸阅读":"Toggle immersive reading","进入专注阅读":"Enter Focus mode","连接 AI 服务失败，请检查网络与 API 设置后重试。":"Could not connect to AI. Check your network and API settings.","连接云盘目录后同步全部图书、批注与书签":"Connect a cloud folder to sync books, annotations and bookmarks","退出专注阅读":"Exit Focus mode","选择取色图片…":"Choose Palette Image…","选择后更新 Dock 图标；Finder 使用安装包中的玻璃图标。玻璃版是静态质感图形。":"Updates the Dock icon. Finder uses the bundled Glass icon. The glass texture is static artwork.","通义千问":"Qwen","部分字体未能导入：":"Some fonts could not be imported: ","配色":"Palette","配色风格":"Palette style","重命名…":"Rename…","重命名分类":"Rename collection","重新识别":"Recognize again","重新读取壁纸":"Reload wallpaper","重置主页字体":"Reset library font","重置可撤销，原始记录保留；支持 ⌘Z。每日目标不受影响。":"Reset is reversible; original records are retained. Use ⌘Z. Your goal stays unchanged.","重置当天":"Reset this day","重置阅读记录":"Reset reading history","锁定配色，换书时保持":"Keep this palette when switching books","问 AI":"Ask AI","阅读":"Reading","阅读助手":"Reading assistant","阅读导航":"Reader navigation","阅读时段":"Reading sessions","阅读的意义，有时并不是记住多少内容，而是在别人的句子里，慢慢认出自己的想法。":"Reading can mean finding your own thoughts in someone else's words.","阅读统计":"Reading statistics","阅读记录读取失败，已保留原文件并停止写入。":"Could not read reading history. The original file is preserved and writes are paused.","阅读设置保存失败：":"Could not save reader settings: ","阅读设置未能读取，已保留原文件：":"Could not load reader settings. Original file preserved: ","阅读进程已停止，正在重新加载。":"The reader process stopped and is reloading.","静下来，读一页":"Pause and read a page","页面尚未就绪，请重试或检查本地书籍文件。":"Page is not ready. Retry or check the local book file.","顶部“更多”或 ⌥⌘I 进入。工具栏自动隐藏，鼠标移到窗口顶部即可显示；Esc 退出并恢复布局。选中文字时才显示标注工具。":"Use More or ⌥⌘I. The toolbar hides until you move to the top. Esc exits and restores the layout. Annotation tools appear when text is selected.","预览当前 PDF 页":"Preview current PDF page","首行缩进两字":"Indent first line","高亮所选文字":"Highlight selection","高亮标记和笔记":"Highlights and notes","鲜明":"Vibrant","黑白":"Monochrome","黑白 · 浅色":"Monochrome · Light","黑白 · 深色":"Monochrome · Dark","默认主题图片未能保存：":"Could not save default theme image: ","鼠尾草绿":"Sage green","界面语言":"Interface language","简体中文":"Simplified Chinese","玻璃强度 %@% · 越低越通透":"Glass strength %@% · Lower is clearer","第 %@ / %@ 页":"Page %@ of %@","第 %@ / %@ 节":"Chapter %@ of %@","第 %@ 节":"Chapter %@","第 %@ 页":"Page %@","已读 %@%":"Read %@%","已读 %@":"Read %@","%@ 分钟":"%@ minutes","%@ 小时 %@ 分钟":"%@ hours %@ minutes","%@ 个书签 · %@ 处批注":"%@ bookmarks · %@ annotations","阅读记录保存失败：%@":"Could not save reading history: %@","当前修改仅用于《%@》":"Changes apply only to “%@”","同步 %@":"Sync %@","导入到“%@”…":"Import into “%@”…","用%@高亮":"Highlight in %@","%@ pt":"%@ pt","已从 %@ 恢复":"Restored from %@","正在思考…":"Thinking…","发送消息":"Message","附带当前阅读":"Include reading context","仅发送你选择的上下文":"Only selected context is sent","发送":"Send","停止":"Stop","新对话":"New chat","折叠 AI 助手":"Collapse AI assistant","固定 AI 面板":"Pin AI panel","取消固定":"Unpin","放大或还原":"Expand or restore","还原宽度":"Restore width","放大宽度":"Expand width","读到这里，想到了什么？":"What comes to mind as you read?","解释这段话，也可以聊聊新的想法。":"Explain a passage or explore a new idea.","解释这段话":"Explain this passage","给我一个生活中的例子":"Give me an everyday example","移除选文":"Remove selection","你":"You","调整输入框高度":"Resize message input","拖动调整高度，双击恢复自动高度":"Drag to resize; double-click for automatic height","开启":"On","AI 服务商":"AI provider","移除引用":"Remove quote","移除图片":"Remove image","聊天记录":"Chat history","解释选文，也可以聊聊你的想法。":"Explain a selection or explore your thoughts.","展开引用选文":"Expand quoted selection","给 AI 的问题":"Message for AI","发送 · ⌘ Enter":"Send · ⌘ Enter","⌘ Enter 发送":"⌘ Enter to send","Monet 动态取色":"Monet dynamic colors","%@ · 共 %@":"%@ · Total %@","%@ 本书 · %@ 处批注 · %@ 个书签":"%@ books · %@ annotations · %@ bookmarks","%@ 款已导入字体":"%@ imported fonts","%@ 项结果":"%@ results","。云端传输状态请查看云盘客户端。":". Check your cloud client for transfer status.","上次写入同步目录：":"Last written to sync folder: ","字号 %@":"Size %@","接入 %@…":"Connect %@…","断开 %@":"Disconnect %@","段距 %@":"Paragraph spacing %@","没有找到“%@”":"No results for “%@”","版心 %@":"Text width %@","空闲 %@ 分钟暂停计时":"Pause after %@ idle minutes","立即同步 %@":"Sync %@ now","行距 %@":"Line spacing %@","展开%@":"Expand %@","折叠%@":"Collapse %@","请解释这段话，并结合当前书籍说明。":"Explain this passage in the context of this book.","请用一个生活中的例子解释当前阅读内容。":"Explain this passage using an everyday example.","English":"English","清透 25%":"Clear 25%","标准 50%":"Standard 50%","磨砂 75%":"Frosted 75%","接入 %@":"Connect %@","选择 %@ 同步目录":"Select %@ sync folder","已附带图片":"Image attached","图片":"Image","已删除书签":"Bookmark removed","返回跳转前的位置":"Return to previous reading position","返回跳转前的位置 · ⌥⌘←":"Return to previous reading position · ⌥⌘←","AI 界面资源不完整，请重新安装完整程序。":"AI interface resources are incomplete. Reinstall the complete application.","恢复 AI 界面":"Restore AI interface","AI 界面未能初始化，请恢复界面后重试。":"The AI interface could not initialize. Restore it and try again.","AI 界面资源加载失败，请恢复界面或重新安装。":"AI interface resources failed to load. Restore the interface or reinstall.","AI 界面进程已停止。对话仍保留，可恢复界面。":"The AI interface process stopped. Your conversation is preserved. Restore the interface to continue.","文件尚未下载、已移除或没有读取权限，请先同步。":"The file is not downloaded, was removed, or cannot be read. Sync it first.","没有可用的分享窗口。":"No window is available for sharing.","删除本地下载？":"Delete local download?","仅将 Luma 内的本地图书副本移到废纸篓，保留书签、笔记和云端原文件。同步后可能重新下载。":"Only the local Luma copy goes to Trash. Bookmarks, notes and cloud originals are kept. Sync may download it again.","删除本地下载":"Delete local download","本地下载不存在。":"The local download does not exist.","拖入的文件地址无法读取。":"The dropped file URL could not be read.","仅支持 EPUB 和 PDF 文件。":"Only EPUB and PDF files are supported.","书库与管理":"Library & management","封面显示样式":"Cover style","莫奈风格":"Monet","原始封面":"Original cover","书架卡片大小":"Shelf card size","单本书封面":"Cover for a book","选择图书":"Choose a book","跟随全局设置":"Use global setting","我的书库":"My library","主页":"Home","书架":"Bookshelf","想读清单":"Want to read","已读完":"Finished","标记为未读":"Mark as unread","标记为已读":"Mark as read","分享":"Share","移除…":"Remove…","从书架移除":"Remove from shelf","删除本地下载…":"Delete local download…","不会删除云端原文件":"Cloud originals are never deleted","更多图书操作":"More book actions","设置类别":"Settings category","AI 与辅助":"AI & assistance","通用":"General","莫奈与液态玻璃…":"Monet & Liquid Glass…","翻页动画模式":"Page-turn animation","原有翻页（默认）":"Existing animation (default)","3D 纸张卷曲（待原生验收）":"3D page curl (not yet validated)","无动画":"No animation","3D 卷页尚未通过原生验收，阅读器继续使用原有翻页。独立实验位于包内 Experiments/PageCurlLab.html。":"3D curl has not passed native validation. The reader uses its existing animation. See Experiments/PageCurlLab.html in the package.","高级":"Advanced","开发者与诊断":"Developer & diagnostics","Debug 模式":"Debug mode","日志仅保存在本机。默认不采集；关闭后停止事件写入和性能采样。":"Logs stay on this Mac. Collection is off by default; disabling stops event writes and performance sampling.","CPU 监测":"CPU monitoring","内存占用与内存压力":"Memory usage and pressure","电池与热状态":"Battery and thermal state","自动错误检测":"Automatic error detection","后台记录性能（可选）":"Background performance recording (optional)","默认离开此页就暂停性能采样；后台记录开启后，仅在应用处于活跃状态时继续。热压力高时降低采样频率。":"Sampling pauses when this page closes unless background recording is enabled. It runs only while the app is active and slows under thermal pressure.","GPU 监测（当前不可用）":"GPU monitoring (currently unavailable)","崩溃与卡死捕获（重启生效）":"Crash and hang capture (restart required)","MetricKit 延迟诊断（重启生效）":"MetricKit delayed diagnostics (restart required)","只使用 KSCrash。原始报告可能包含系统路径，内存内容探测关闭；原始报告不会加入导出文件。关闭已安装的捕获器需要重启。CPU 开关不控制 KSCrash 自身的资源跟踪器。":"KSCrash is the sole handler. Raw reports may contain system paths; memory introspection is disabled. Raw reports are never exported. Restart to disable an installed handler. The CPU toggle does not control KSCrash resource tracking.","本次捕获状态":"Capture status this session","已安装，完全停用需重启":"Installed; restart to fully disable","未安装，更改下次启动生效":"Not installed; changes apply next launch","本地崩溃报告":"Stored crash reports","上次终止原因代码":"Previous termination reason code","刷新崩溃计数":"Refresh crash count","LumaReader 进程（不含 WebKit）":"LumaReader process (excludes WebKit)","物理占用":"Physical footprint","进程 CPU 按单核 100% 计，可超过 100%；RSS 与物理占用是不同指标。":"Process CPU uses 100% per core and may exceed 100%. RSS and footprint are different metrics.","WebKit 辅助进程 CPU / 内存 / GPU":"WebKit helper CPU / memory / GPU","整机系统":"Whole system","已用内存（估计）":"Used memory (estimate)","内存压力（系统通知）":"Memory pressure (system notification)","电池电量":"Battery charge","热状态":"Thermal state","低电量模式":"Low Power Mode","GPU 利用率 / 功耗 W":"GPU utilization / power W","不启用 IOReport、SMC 或特权助手。电池百分比与热状态不是瓦特数；不能可靠归属的 WebKit CPU、内存及 GPU 均为 Not Available。":"No IOReport, SMC or privileged helper. Battery charge and thermal state are not watts. WebKit CPU, memory and GPU are Not Available without reliable ownership attribution.","采样状态":"Sampling status","正在采样":"Sampling","已暂停":"Paused","单次采样墙钟耗时":"Sampling wall time","这不是 Debug 的 CPU 或内存开销测量；需要原生 A/B 性能测试。":"This does not measure Debug CPU or memory overhead; native A/B profiling is required.","性能历史（本次会话，最多 600 点）":"Performance history (this session, up to 600 samples)","历史指标":"History metric","进程 CPU %":"Process CPU %","整机 CPU %":"System CPU %","进程物理占用 MiB":"Process footprint MiB","整机内存估计 MiB":"System memory estimate MiB","尚无有效采样，缺失数据不会显示为零。":"No valid samples yet. Missing data is not shown as zero.","Bug 日志（Pulse）":"Bug logs (Pulse)","只看错误":"Errors only","暂无诊断事件":"No diagnostic events","导出诊断 ZIP":"Export diagnostic ZIP","导出 Markdown":"Export Markdown","导出只含白名单事件与数值，不含书籍正文、笔记、AI 对话、URL、密钥、路径、主机名、原始 Pulse 或原始崩溃报告。":"Exports contain only allowlisted events and numbers. No book text, notes, AI conversations, URLs, keys, paths, host names, raw Pulse stores or raw crash reports.","日志存储不可用":"Log storage unavailable","已有异常处理器，未安装第二个崩溃处理器":"An exception handler already exists; no second handler installed","读取日志失败":"Unable to read logs","诊断报告已导出":"Diagnostic report exported","诊断报告导出失败":"Unable to export diagnostic report","阅读界面资源缺失，请重新安装完整程序。":"Reader resources are missing. Reinstall the complete application.","详细日志与性能采样默认关闭。基础错误只保存在本次会话内存中，最多 128 条，不自动上传。":"Verbose logs and performance sampling are off by default. Up to 128 basic errors remain in session memory only and are never uploaded automatically.","检查 AI 界面":"Check AI interface","AI 界面尚未加载，无法检查":"The AI interface has not loaded yet.","正在检查 AI 界面":"Checking AI interface","AI 界面结构与样式检查通过":"AI structure and style checks passed","AI 界面结构或样式异常":"AI structure or styles are abnormal","书签、高亮与笔记":"Bookmarks, highlights and notes","新建对话":"New conversation","暂无聊天记录":"No conversations yet","搜索分类":"Search collections","清空分类搜索":"Clear collection search","暂无分类":"No collections yet","没有匹配的分类":"No matching collections","搜索时暂停分类排序":"Reordering is paused while searching","无法保存本地聊天记录，请检查磁盘空间。":"Could not save local conversations. Check available disk space.","无法读取这条聊天记录，原记录已保留。":"Could not read this conversation. The original record was preserved.","无法读取本地聊天记录，原文件已保留。":"Could not read local conversations. The original files were preserved.","展开书架":"Expand Bookshelf","折叠书架":"Collapse Bookshelf","展开云盘":"Expand Cloud Storage","折叠云盘":"Collapse Cloud Storage","展开分类":"Expand Collections","折叠分类":"Collapse Collections","未读":"Unread"}};
++window.LumaStrings={"AI 助手":"AI assistant","AI 服务":"AI service","AI 没有返回可显示的内容，请重试。":"AI returned no content. Try again.","AI 界面加载失败：":"Could not load AI interface: ","AI 界面文件缺失。":"AI interface resource is missing.","API 地址":"API URL","API 密钥无效或没有访问权限，请检查设置。":"The API key is invalid or access was denied. Check settings.","API 账户余额不足。":"Insufficient API account balance.","EPUB 包含无效路径。":"The EPUB contains an invalid path.","EPUB 字体":"EPUB font","EPUB 字号":"EPUB font size","EPUB 文件校验失败。":"EPUB validation failed.","EPUB 正文":"EPUB text","EPUB 版心":"EPUB text width","EPUB 的章节路径无效。":"Invalid EPUB chapter path.","EPUB 目录解析失败。":"Could not parse the EPUB contents.","EPUB 缺少书籍目录。":"EPUB contents are missing.","EPUB 路径越界。":"EPUB path is outside its container.","HEX，例如 6E9277":"HEX, e.g. 6E9277","Luma · 图书":"Luma · Books","上一页 / 节":"Previous page / chapter","下一页 / 节":"Next page / chapter","不足 1 分钟":"Less than a minute","专注":"Focus","专注时自动收起 AI":"Collapse AI in Focus mode","专注阅读":"Focused reading","中性":"Neutral","主色":"Accent color","主页字体":"Library font","主页字号":"Library font size","书名":"Title","书库":"Library","书库与阅读轻柔过渡":"Library and reader transitions","书库自定义字体":"Custom library font","书签":"Bookmarks","云存档包含无效文件名。":"The cloud archive contains an invalid filename.","云存档包含越界文件路径。":"The cloud archive contains a path outside its container.","云存档由更新版本创建，请先更新应用。":"This cloud archive requires a newer app version.","云盘":"Cloud storage","云端同步":"Cloud sync","云端图书类型无效。":"Invalid cloud book type.","人文衬线":"Humanist serif","今天":"Today","从此分类移出":"Remove from this collection","作者":"Author","使用内置字体":"Use a built-in font","使用手动主色":"Use a manual accent","保存":"Save","保存 Luma 内的高亮、文字笔记、书签及阅读进度。请让各设备连接同一同步目录，并等待云盘客户端完成上传和下载。":"Sync Luma highlights, notes, bookmarks and progress. Connect each device to the same folder and let your cloud client finish uploading and downloading.","保存图片":"Save image","保存密钥":"Save key","保存范围":"Settings scope","全部图书":"All Books","全部展开":"Expand all","全部年份":"All years","全部折叠":"Collapse all","全部设置…":"All Settings…","关闭":"Close","关闭动画":"Disable animations","关闭搜索":"Close search","关闭面板，返回原界面":"Close panel and return","其他阅读器的私有批注不会自动导入。这里的成功状态表示已写入同步目录，不代表云端传输已经完成。":"Private annotations from other readers are not imported automatically. Success means the sync folder was written, not that cloud transfer has finished.","内嵌图片格式不支持或大于 20 MB。":"Embedded image is unsupported or exceeds 20 MB.","分类":"Collections","分类名称":"Collection name","分类名称请输入 1–80 个字。":"Enter a collection name of 1–80 characters.","分钟":"Minutes","列表":"List","删除 · ⌘Z":"Delete · ⌘Z to undo","删除分类":"Delete collection","删除此划线与批注":"Delete highlight and note","前 1000 项结果":"First 1,000 results","加入书库":"Add to library","动态取色":"Dynamic color","动画":"Motion","动画强度":"Motion level","千问地址需与密钥所属地域一致；可填写百炼控制台提供的北京、新加坡或其他地域地址。":"The Qwen URL must match your key's region. Use the regional URL from the DashScope console.","午夜蓝":"Midnight blue","取消":"Cancel","取消标注和笔记":"Delete annotation","取消标注和笔记 · ⌘Z 撤销":"Delete annotation · ⌘Z to undo","取色":"Extract color","取色来源":"Color source","只支持书内本地图片。":"Only local book images are supported.","可直接在图片上选择文字":"Select text directly in the image","同步":"Sync","同步全部":"Sync all","同步已接入云盘":"Sync connected storage","同步范围":"Sync scope","周":"Weeks","周期":"Period","周起始":"Week starting","图书":"Books","图标风格":"Icon style","图片上选择文字":"Select image text","图片为空或大于 20 MB。":"Image is empty or exceeds 20 MB.","图片在本机取色。正文、AI 和操作控件共用一份配色。":"Colors are extracted locally. Reader, AI and controls share the palette.","图片尺寸过大。":"Image dimensions are too large.","图片操作失败":"Image operation failed","图片无法读取。":"Could not read the image.","图片未能读取：":"Could not read image: ","图片格式或大小不符合要求，请重新选择。":"Unsupported image type or size. Choose another image.","图片格式无法读取。":"Unsupported image format.","图片模型":"Vision model","图片路径不在当前图书内。":"Image path is outside this book.","图片转换失败。":"Image conversion failed.","图片过大，请缩小后再发送。":"Image is too large. Resize it before sending.","圆体":"Rounded","在此书中":"Search this book","在此书中搜索":"Find in this book","在此书中搜索 · ⌘F":"Search in book · ⌘F","在这里，想法可以继续。 ":"Keep your thoughts going here.","基线":"Baseline","复制全部文字":"Copy all text","复制文本":"Copy text","外观":"Appearance","外观与主题":"Appearance and theme","外观与排版":"Appearance and typography","外观与排版…":"Appearance and Typography…","外观与阅读":"Appearance and Reading","天":"Days","天空蓝":"Sky blue","好":"OK","字体":"Font","字体完整性检查失败：":"Font integrity check failed: ","字体文件无效或尚未下载完成。":"Font is invalid or not fully downloaded.","字体无法解析：":"Could not parse font: ","字体未能载入：":"Could not load font: ","字体样式":"Font style","字体目录不能是符号链接。":"The font directory cannot be a symbolic link.","字体资源":"Font files","字体超过 32 MB 或不是普通文件。":"Font exceeds 32 MB or is not a regular file.","完成":"Done","完整动画":"Full motion","定位原文":"Go to source","实时预览":"Live preview","宽窗口自动双页；正文保持居中。← / → 翻页，输入文字时移动光标。PDF 保留原始排版。":"Wide windows use two pages. Text stays centered. ← / → turns pages except while typing. PDFs keep their original layout.","密钥已保存，输入可替换":"Key saved; type to replace","密钥已移除":"Key removed","导入 TTF / OTF 字体，保存于 Luma，并随已接入的云盘同步。":"Import TTF / OTF fonts into Luma and sync them through connected storage.","导入图书 · ⌘O":"Import books · ⌘O","导入图书…":"Import Books…","导入字体…":"Import Fonts…","导出":"Export","导出含高亮 PDF…":"Export PDF with Highlights…","导出批注…":"Export Annotations…","将当前设置应用到所有书籍":"Apply these settings to all books","尚未写入同步目录":"Not yet written to the sync folder","展开":"Expand","展开 / 折叠批注":"Expand / collapse annotations","展开 / 收起 AI 助手":"Expand / collapse AI","展开 / 收起 AI 助手 · ⌥⌘A":"Expand / collapse AI · ⌥⌘A","展开或收起 AI 助手":"Expand or collapse AI","展开识别文字":"Show recognized text","已写入目录 · ":"Written to folder · ","已复制文本":"Text copied","已存入 macOS 钥匙串":"Saved in macOS Keychain","已完成":"Finished","已展开":"Expanded","已折叠":"Collapsed","已有同名分类，请换个名称。":"A collection with this name exists. Choose another name.","已添加书签":"Bookmark added","已移除书签":"Bookmark removed","已识别，可展开或复制文字":"Text recognized; expand or copy it","已达成":"Goal met","已锁定当前配色":"Current palette locked","平滑滑动":"Smooth slide","年份":"Year","应用":"Apply","应用图标":"App icon","当前 DeepSeek 接口只接入文字。请切换 Claude、Gemini、OpenAI、Grok 或千问的图文模型后发送。":"This DeepSeek connection supports text only. Switch to a vision model from Claude, Gemini, OpenAI, Grok or Qwen.","当前书籍封面":"Current book cover","当前位置":"Current position","当前使用所选画质":"Using selected image quality","当前修改作为所有书籍的默认设置":"Changes become the default for all books","当前省电中":"Energy saving is active","忠于封面":"Faithful to cover","性能":"Performance","恢复本书的默认设置":"Reset this book's settings","恢复默认排版":"Reset typography","恢复默认配色":"Reset palette","我的云端硬盘":"My Drive","我的字体":"My fonts","我的批注":"My annotations","手动主色":"Manual accent","批注":"Annotate","批注笔记":"Annotation note","折叠":"Collapse","折叠 · ⌥⌘1":"Collapse · ⌥⌘1","折叠批注栏":"Collapse annotations","排序方式":"Sort by","排版":"Typography","接入":"Connect","接入…":"Connect…","提示":"Notice","搜索书名或作者":"Search title or author","搜索目录标题":"Search contents","撤销重置":"Undo reset","支持 TTF / OTF，单个文件不超过 32 MB。字体文件随已连接云盘双向同步，另一台 Mac 同步到本机后可在这里选择。字体选择保存在本机；正文支持每本书独立记忆。PDF 原文版式不替换。":"Supports TTF / OTF up to 32 MB each. Font files sync through connected storage. Choose them on another Mac after downloading. Font selections are local; reader preferences can be per book. PDF typography is unchanged.","放大":"Zoom in","放大主页字号":"Increase library font size","文字模型":"Text model","文字识别失败，可重新尝试：":"Text recognition failed. Retry: ","断开":"Disconnect","新建分类":"New collection","新建分类…":"New Collection…","无法识别字体：":"Unrecognized font: ","无法读取图片，保留当前配色":"Could not read image; keeping this palette","无衬线":"Sans serif","日期":"Date","时间":"Time","明暗模式":"Color mode","显示":"View","显示与排序":"View and sort","显示阅读工具栏":"Show reader toolbar","暂无书签":"No bookmarks","暂无图书":"No books","暂无批注":"No annotations","暖纸白":"Warm paper","暖黄":"Warm yellow","更多阅读选项":"More reader options","更换同步目录…":"Change Sync Folder…","更新":"Newer","更早":"Earlier","最近":"Recent","最近搜索":"Recent searches","最近阅读":"Recently read","月份":"Month","服务商":"Provider","未打开图书，当前修改作为默认设置":"No book open; changes become defaults","未找到匹配图书":"No matching books","未识别到文字":"No text recognized","本周":"This week","本月":"This month","本页已有书签":"This page is bookmarked","杏橙":"Apricot","柔和动画":"Reduced motion","柔和协调":"Harmonious","标准 32%":"Standard 32%","桌面壁纸":"Desktop wallpaper","模式":"Mode","樱花粉":"Cherry pink","正在导入…":"Importing…","正在提取颜色…":"Extracting colors…","正在搜索…":"Searching…","正在识别文字…":"Recognizing text…","正在阅读":"Reading","正文与 AI 同步；右侧为缩略预览。":"Reader and AI share the palette; preview on the right.","正文自定义字体":"Custom reader font","正文阅读":"Reader","每一种颜色，都是此刻的自己与这本书的一次交谈。":"Each color is part of your conversation with this book.","每周":"Weekly","每天":"Daily","每家单独保存密钥与模型。切换会将本次对话历史发送给所选服务；关闭“附带当前阅读”可排除书籍上下文。仅发送时调用 API，对话不写入云存档。":"Keys and models are saved per provider. Switching sends this conversation to the selected provider. Disable reading context to exclude book excerpts. API requests happen only when sending; conversations are not included in cloud archives.","每日目标":"Daily goal","每日阅读目标分钟数":"Daily reading goal in minutes","每月":"Monthly","每本书记住阅读设置":"Remember settings for each book","水滴 15%":"Clear 15%","沉浸阅读":"Immersive reading","没有匹配的目录标题":"No matching headings","没有可读取的封面，保留当前配色":"No readable cover; keeping this palette","没有找到可阅读的 EPUB 章节；不支持 DRM 加密书籍。":"No readable EPUB chapters found. DRM-protected books are unsupported.","流畅的弹簧、展开与形态过渡":"Fluid springs, disclosures and transitions","浅色":"Light","液态玻璃效果":"Liquid Glass effects","液态玻璃透明度":"Liquid Glass opacity","液态玻璃强度":"Liquid Glass strength","深色":"Dark","添加 / 移除本页书签 · ⌘D":"Add / remove bookmark · ⌘D","添加书签":"Add bookmark","添加批注":"Add annotation","添加本页书签":"Bookmark this page","添加标注和笔记":"Add highlight and note","添加笔记…":"Add a note…","清空搜索":"Clear search","清空目录搜索":"Clear contents search","清除":"Clear","温润圆体":"Soft rounded","玫瑰粉":"Rose pink","现代无衬线":"Modern sans serif","玻璃":"Glass","目录":"Contents","目录…":"Contents…","目录、书签与笔记":"Contents, bookmarks and notes","目标请输入 5–600 之间的整数分钟。":"Enter a whole number from 5 to 600 minutes.","直接切换":"Instant","直接切换，无过渡动画":"Switch instantly, without transitions","省电模式":"Energy saving","磨砂 65%":"Frosted 65%","移除密钥":"Remove key","移除本页书签":"Remove bookmark","章节未能加载：":"Could not load chapter: ","笔记":"Notes","等宽":"Monospace","等宽手稿":"Monospace manuscript","等待字体同步":"Waiting for font sync","纯黑":"Pure black","经典主题":"Classic theme","经典立体":"Classic 3D","编辑笔记":"Edit note","缩小":"Zoom out","缩小主页字号":"Decrease library font size","缩短动画时间，减少形变":"Shorter transitions, less deformation","网格":"Grid","翻页动画":"Page-turn animation","翻页方式":"Page-turn style","背景":"Background","自动遵循系统低电量、减少动态效果和减少透明度设置。":"Follows system Low Power Mode, Reduce Motion and Reduce Transparency.","自定义动画与玻璃效果…":"Customize Motion and Glass…","自然卷页":"Natural page turn","自选图片":"Choose image","节能与计时":"Energy and timing","薄荷绿":"Mint green","薰衣草紫":"Lavender","表现力":"Expressive","衬线":"Serif","视觉效果":"Visual effects","设备标识无效。":"Invalid device identifier.","设置":"Settings","设置 API":"API Settings","识别文字":"Recognize text","询问 AI":"Ask AI","请先在“设置 API”中保存当前服务商的 API Key。":"Save this provider's API key in API Settings first.","请求过于频繁，请稍后重试。":"Too many requests. Try again later.","请直接选择云盘目录，不要使用符号链接。":"Choose the cloud folder itself, not a symbolic link.","请输入六位十六进制颜色。可带 #。 ":"Enter six hexadecimal digits, optionally starting with #.","请输入有效的 HTTPS API 地址。":"Enter a valid HTTPS API URL.","请选择不超过 32 MB 的 TTF 或 OTF 字体。":"Choose a TTF or OTF font up to 32 MB.","调整 AI 面板宽度":"Resize AI panel","跟随明暗":"Follow appearance","跟随系统":"Follow system","输入关键字搜索整本书":"Search the whole book","返回书库":"Back to library","返回书库 · ⌘L":"Back to library · ⌘L","这天没有可显示的详细时段。旧版只有每日总时长，无法还原具体时间。":"No detailed sessions for this day. Older records contain daily totals only.","这本 EPUB 太大，或包含不支持的链接文件。":"This EPUB is too large or contains unsupported linked files.","进入 / 退出沉浸阅读":"Toggle immersive reading","进入专注阅读":"Enter Focus mode","连接 AI 服务失败，请检查网络与 API 设置后重试。":"Could not connect to AI. Check your network and API settings.","连接云盘目录后同步全部图书、批注与书签":"Connect a cloud folder to sync books, annotations and bookmarks","退出专注阅读":"Exit Focus mode","选择取色图片…":"Choose Palette Image…","选择后更新 Dock 图标；Finder 使用安装包中的玻璃图标。玻璃版是静态质感图形。":"Updates the Dock icon. Finder uses the bundled Glass icon. The glass texture is static artwork.","通义千问":"Qwen","部分字体未能导入：":"Some fonts could not be imported: ","配色":"Palette","配色风格":"Palette style","重命名…":"Rename…","重命名分类":"Rename collection","重新识别":"Recognize again","重新读取壁纸":"Reload wallpaper","重置主页字体":"Reset library font","重置可撤销，原始记录保留；支持 ⌘Z。每日目标不受影响。":"Reset is reversible; original records are retained. Use ⌘Z. Your goal stays unchanged.","重置当天":"Reset this day","重置阅读记录":"Reset reading history","锁定配色，换书时保持":"Keep this palette when switching books","问 AI":"Ask AI","阅读":"Reading","阅读助手":"Reading assistant","阅读导航":"Reader navigation","阅读时段":"Reading sessions","阅读的意义，有时并不是记住多少内容，而是在别人的句子里，慢慢认出自己的想法。":"Reading can mean finding your own thoughts in someone else's words.","阅读统计":"Reading statistics","阅读记录读取失败，已保留原文件并停止写入。":"Could not read reading history. The original file is preserved and writes are paused.","阅读设置保存失败：":"Could not save reader settings: ","阅读设置未能读取，已保留原文件：":"Could not load reader settings. Original file preserved: ","阅读进程已停止，正在重新加载。":"The reader process stopped and is reloading.","静下来，读一页":"Pause and read a page","页面尚未就绪，请重试或检查本地书籍文件。":"Page is not ready. Retry or check the local book file.","顶部“更多”或 ⌥⌘I 进入。工具栏自动隐藏，鼠标移到窗口顶部即可显示；Esc 退出并恢复布局。选中文字时才显示标注工具。":"Use More or ⌥⌘I. The toolbar hides until you move to the top. Esc exits and restores the layout. Annotation tools appear when text is selected.","预览当前 PDF 页":"Preview current PDF page","首行缩进两字":"Indent first line","高亮所选文字":"Highlight selection","高亮标记和笔记":"Highlights and notes","鲜明":"Vibrant","黑白":"Monochrome","黑白 · 浅色":"Monochrome · Light","黑白 · 深色":"Monochrome · Dark","默认主题图片未能保存：":"Could not save default theme image: ","鼠尾草绿":"Sage green","界面语言":"Interface language","简体中文":"Simplified Chinese","玻璃强度 %@% · 越低越通透":"Glass strength %@% · Lower is clearer","第 %@ / %@ 页":"Page %@ of %@","第 %@ / %@ 节":"Chapter %@ of %@","第 %@ 节":"Chapter %@","第 %@ 页":"Page %@","已读 %@%":"Read %@%","已读 %@":"Read %@","%@ 分钟":"%@ minutes","%@ 小时 %@ 分钟":"%@ hours %@ minutes","%@ 个书签 · %@ 处批注":"%@ bookmarks · %@ annotations","阅读记录保存失败：%@":"Could not save reading history: %@","当前修改仅用于《%@》":"Changes apply only to “%@”","同步 %@":"Sync %@","导入到“%@”…":"Import into “%@”…","用%@高亮":"Highlight in %@","%@ pt":"%@ pt","已从 %@ 恢复":"Restored from %@","正在思考…":"Thinking…","发送消息":"Message","附带当前阅读":"Include reading context","仅发送你选择的上下文":"Only selected context is sent","发送":"Send","停止":"Stop","新对话":"New chat","折叠 AI 助手":"Collapse AI assistant","固定 AI 面板":"Pin AI panel","取消固定":"Unpin","放大或还原":"Expand or restore","还原宽度":"Restore width","放大宽度":"Expand width","读到这里，想到了什么？":"What comes to mind as you read?","解释这段话，也可以聊聊新的想法。":"Explain a passage or explore a new idea.","解释这段话":"Explain this passage","给我一个生活中的例子":"Give me an everyday example","移除选文":"Remove selection","你":"You","调整输入框高度":"Resize message input","拖动调整高度，双击恢复自动高度":"Drag to resize; double-click for automatic height","开启":"On","AI 服务商":"AI provider","移除引用":"Remove quote","移除图片":"Remove image","聊天记录":"Chat history","解释选文，也可以聊聊你的想法。":"Explain a selection or explore your thoughts.","展开引用选文":"Expand quoted selection","给 AI 的问题":"Message for AI","发送 · ⌘ Enter":"Send · ⌘ Enter","⌘ Enter 发送":"⌘ Enter to send","Monet 动态取色":"Monet dynamic colors","%@ · 共 %@":"%@ · Total %@","%@ 本书 · %@ 处批注 · %@ 个书签":"%@ books · %@ annotations · %@ bookmarks","%@ 款已导入字体":"%@ imported fonts","%@ 项结果":"%@ results","。云端传输状态请查看云盘客户端。":". Check your cloud client for transfer status.","上次写入同步目录：":"Last written to sync folder: ","字号 %@":"Size %@","接入 %@…":"Connect %@…","断开 %@":"Disconnect %@","段距 %@":"Paragraph spacing %@","没有找到“%@”":"No results for “%@”","版心 %@":"Text width %@","空闲 %@ 分钟暂停计时":"Pause after %@ idle minutes","立即同步 %@":"Sync %@ now","行距 %@":"Line spacing %@","展开%@":"Expand %@","折叠%@":"Collapse %@","请解释这段话，并结合当前书籍说明。":"Explain this passage in the context of this book.","请用一个生活中的例子解释当前阅读内容。":"Explain this passage using an everyday example.","English":"English","清透 25%":"Clear 25%","标准 50%":"Standard 50%","磨砂 75%":"Frosted 75%","接入 %@":"Connect %@","选择 %@ 同步目录":"Select %@ sync folder","已附带图片":"Image attached","图片":"Image","已删除书签":"Bookmark removed","返回跳转前的位置":"Return to previous reading position","返回跳转前的位置 · ⌥⌘←":"Return to previous reading position · ⌥⌘←","AI 界面资源不完整，请重新安装完整程序。":"AI interface resources are incomplete. Reinstall the complete application.","恢复 AI 界面":"Restore AI interface","AI 界面未能初始化，请恢复界面后重试。":"The AI interface could not initialize. Restore it and try again.","AI 界面资源加载失败，请恢复界面或重新安装。":"AI interface resources failed to load. Restore the interface or reinstall.","AI 界面进程已停止。对话仍保留，可恢复界面。":"The AI interface process stopped. Your conversation is preserved. Restore the interface to continue.","文件尚未下载、已移除或没有读取权限，请先同步。":"The file is not downloaded, was removed, or cannot be read. Sync it first.","没有可用的分享窗口。":"No window is available for sharing.","删除本地下载？":"Delete local download?","仅将 Luma 内的本地图书副本移到废纸篓，保留书签、笔记和云端原文件。同步后可能重新下载。":"Only the local Luma copy goes to Trash. Bookmarks, notes and cloud originals are kept. Sync may download it again.","删除本地下载":"Delete local download","本地下载不存在。":"The local download does not exist.","拖入的文件地址无法读取。":"The dropped file URL could not be read.","仅支持 EPUB 和 PDF 文件。":"Only EPUB and PDF files are supported.","书库与管理":"Library & management","封面显示样式":"Cover style","莫奈风格":"Monet","原始封面":"Original cover","书架卡片大小":"Shelf card size","单本书封面":"Cover for a book","选择图书":"Choose a book","跟随全局设置":"Use global setting","我的书库":"My library","主页":"Home","书架":"Bookshelf","想读清单":"Want to read","已读完":"Finished","标记为未读":"Mark as unread","标记为已读":"Mark as read","分享":"Share","移除…":"Remove…","从书架移除":"Remove from shelf","删除本地下载…":"Delete local download…","不会删除云端原文件":"Cloud originals are never deleted","更多图书操作":"More book actions","设置类别":"Settings category","AI 与辅助":"AI & assistance","通用":"General","莫奈与液态玻璃…":"Monet & Liquid Glass…","翻页动画模式":"Page-turn animation","原有翻页（默认）":"Existing animation (default)","3D 纸张卷曲（待原生验收）":"3D page curl (not yet validated)","无动画":"No animation","3D 卷页尚未通过原生验收，阅读器继续使用原有翻页。独立实验位于包内 Experiments/PageCurlLab.html。":"3D curl has not passed native validation. The reader uses its existing animation. See Experiments/PageCurlLab.html in the package.","高级":"Advanced","开发者与诊断":"Developer & diagnostics","Debug 模式":"Debug mode","日志仅保存在本机。默认不采集；关闭后停止事件写入和性能采样。":"Logs stay on this Mac. Collection is off by default; disabling stops event writes and performance sampling.","CPU 监测":"CPU monitoring","内存占用与内存压力":"Memory usage and pressure","电池与热状态":"Battery and thermal state","自动错误检测":"Automatic error detection","后台记录性能（可选）":"Background performance recording (optional)","默认离开此页就暂停性能采样；后台记录开启后，仅在应用处于活跃状态时继续。热压力高时降低采样频率。":"Sampling pauses when this page closes unless background recording is enabled. It runs only while the app is active and slows under thermal pressure.","GPU 监测（当前不可用）":"GPU monitoring (currently unavailable)","崩溃与卡死捕获（重启生效）":"Crash and hang capture (restart required)","MetricKit 延迟诊断（重启生效）":"MetricKit delayed diagnostics (restart required)","只使用 KSCrash。原始报告可能包含系统路径，内存内容探测关闭；原始报告不会加入导出文件。关闭已安装的捕获器需要重启。CPU 开关不控制 KSCrash 自身的资源跟踪器。":"KSCrash is the sole handler. Raw reports may contain system paths; memory introspection is disabled. Raw reports are never exported. Restart to disable an installed handler. The CPU toggle does not control KSCrash resource tracking.","本次捕获状态":"Capture status this session","已安装，完全停用需重启":"Installed; restart to fully disable","未安装，更改下次启动生效":"Not installed; changes apply next launch","本地崩溃报告":"Stored crash reports","上次终止原因代码":"Previous termination reason code","刷新崩溃计数":"Refresh crash count","LumaReader 进程（不含 WebKit）":"LumaReader process (excludes WebKit)","物理占用":"Physical footprint","进程 CPU 按单核 100% 计，可超过 100%；RSS 与物理占用是不同指标。":"Process CPU uses 100% per core and may exceed 100%. RSS and footprint are different metrics.","WebKit 辅助进程 CPU / 内存 / GPU":"WebKit helper CPU / memory / GPU","整机系统":"Whole system","已用内存（估计）":"Used memory (estimate)","内存压力（系统通知）":"Memory pressure (system notification)","电池电量":"Battery charge","热状态":"Thermal state","低电量模式":"Low Power Mode","GPU 利用率 / 功耗 W":"GPU utilization / power W","不启用 IOReport、SMC 或特权助手。电池百分比与热状态不是瓦特数；不能可靠归属的 WebKit CPU、内存及 GPU 均为 Not Available。":"No IOReport, SMC or privileged helper. Battery charge and thermal state are not watts. WebKit CPU, memory and GPU are Not Available without reliable ownership attribution.","采样状态":"Sampling status","正在采样":"Sampling","已暂停":"Paused","单次采样墙钟耗时":"Sampling wall time","这不是 Debug 的 CPU 或内存开销测量；需要原生 A/B 性能测试。":"This does not measure Debug CPU or memory overhead; native A/B profiling is required.","性能历史（本次会话，最多 600 点）":"Performance history (this session, up to 600 samples)","历史指标":"History metric","进程 CPU %":"Process CPU %","整机 CPU %":"System CPU %","进程物理占用 MiB":"Process footprint MiB","整机内存估计 MiB":"System memory estimate MiB","尚无有效采样，缺失数据不会显示为零。":"No valid samples yet. Missing data is not shown as zero.","Bug 日志（Pulse）":"Bug logs (Pulse)","只看错误":"Errors only","暂无诊断事件":"No diagnostic events","导出诊断 ZIP":"Export diagnostic ZIP","导出 Markdown":"Export Markdown","导出只含白名单事件与数值，不含书籍正文、笔记、AI 对话、URL、密钥、路径、主机名、原始 Pulse 或原始崩溃报告。":"Exports contain only allowlisted events and numbers. No book text, notes, AI conversations, URLs, keys, paths, host names, raw Pulse stores or raw crash reports.","日志存储不可用":"Log storage unavailable","已有异常处理器，未安装第二个崩溃处理器":"An exception handler already exists; no second handler installed","读取日志失败":"Unable to read logs","诊断报告已导出":"Diagnostic report exported","诊断报告导出失败":"Unable to export diagnostic report","阅读界面资源缺失，请重新安装完整程序。":"Reader resources are missing. Reinstall the complete application.","详细日志与性能采样默认关闭。基础错误只保存在本次会话内存中，最多 128 条，不自动上传。":"Verbose logs and performance sampling are off by default. Up to 128 basic errors remain in session memory only and are never uploaded automatically.","检查 AI 界面":"Check AI interface","AI 界面尚未加载，无法检查":"The AI interface has not loaded yet.","正在检查 AI 界面":"Checking AI interface","AI 界面结构与样式检查通过":"AI structure and style checks passed","AI 界面结构或样式异常":"AI structure or styles are abnormal","书签、高亮与笔记":"Bookmarks, highlights and notes","新建对话":"New conversation","暂无聊天记录":"No conversations yet","搜索分类":"Search collections","清空分类搜索":"Clear collection search","暂无分类":"No collections yet","没有匹配的分类":"No matching collections","搜索时暂停分类排序":"Reordering is paused while searching","无法保存本地聊天记录，请检查磁盘空间。":"Could not save local conversations. Check available disk space.","无法读取这条聊天记录，原记录已保留。":"Could not read this conversation. The original record was preserved.","无法读取本地聊天记录，原文件已保留。":"Could not read local conversations. The original files were preserved.","展开书架":"Expand Bookshelf","折叠书架":"Collapse Bookshelf","展开云盘":"Expand Cloud Storage","折叠云盘":"Collapse Cloud Storage","展开分类":"Expand Collections","折叠分类":"Collapse Collections","未读":"Unread","界面风格":"Interface style","动态":"Dynamic","静态":"Static","按钮弹性、指针高光、图标弹跳与选中形变":"Springy buttons, pointer highlight, icon bounce and morphing selection","无缩放与弹跳，状态直接切换":"No scaling or bounce; states switch instantly"}};
+diff --git a/Sources/LumaReader/Resources/AppStrings.json b/Sources/LumaReader/Resources/AppStrings.json
+index 2259c44..7a0f918 100644
+--- a/Sources/LumaReader/Resources/AppStrings.json
++++ b/Sources/LumaReader/Resources/AppStrings.json
+@@ -583,5 +583,10 @@
+   "折叠云盘": "Collapse Cloud Storage",
+   "展开分类": "Expand Collections",
+   "折叠分类": "Collapse Collections",
+-  "未读": "Unread"
++  "未读": "Unread",
++  "界面风格": "Interface style",
++  "动态": "Dynamic",
++  "静态": "Static",
++  "按钮弹性、指针高光、图标弹跳与选中形变": "Springy buttons, pointer highlight, icon bounce and morphing selection",
++  "无缩放与弹跳，状态直接切换": "No scaling or bounce; states switch instantly"
+ }
+diff --git a/Sources/LumaReader/SurfaceMotion.swift b/Sources/LumaReader/SurfaceMotion.swift
+index 4c7eab9..85d799d 100644
+--- a/Sources/LumaReader/SurfaceMotion.swift
++++ b/Sources/LumaReader/SurfaceMotion.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import LumaReaderStudyKit
+ 
+ // Scoped to reader/library/settings subtrees. AI keeps its existing environment and timing.
+ private struct SurfacePolishKey: EnvironmentKey { static let defaultValue = false }
+@@ -8,14 +9,15 @@ extension EnvironmentValues {
+         set { self[SurfacePolishKey.self] = newValue }
+     }
+ }
++// Values live in LumaDesignTokens.swift (LumaReaderStudyKit); numbers are unchanged.
+ enum MotionTokens {
+-    static let aiOpening = Animation.spring(response:0.36,dampingFraction:0.96)
+-    static let aiClosing = Animation.spring(response:0.48,dampingFraction:0.96)
+-    static let settingsOpening = Animation.spring(response:0.38,dampingFraction:0.90)
+-    static let settingsClosing = Animation.spring(response:0.46,dampingFraction:0.90)
+-    static let micro = Animation.spring(response:0.22,dampingFraction:0.82)
+-    static let floating = Animation.spring(response:0.32,dampingFraction:0.86)
+-    static let navigation = Animation.spring(response:0.42,dampingFraction:0.88)
++    static let aiOpening = LumaMotionToken.aiOpening
++    static let aiClosing = LumaMotionToken.aiClosing
++    static let settingsOpening = LumaMotionToken.settingsOpening
++    static let settingsClosing = LumaMotionToken.settingsClosing
++    static let micro = LumaMotionToken.micro
++    static let floating = LumaMotionToken.floating
++    static let navigation = LumaMotionToken.navigation
+ }
+ enum SurfaceMotion {
+     static let press = MotionTokens.micro

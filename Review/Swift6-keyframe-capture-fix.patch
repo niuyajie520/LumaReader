@@ -1,0 +1,14 @@
+--- a/Deferred/StudyCenter/StudyHome.swift
++++ b/Deferred/StudyCenter/StudyHome.swift
+@@ -2718,8 +2718,9 @@
+             }
+             .frame(width: 14, height: 14)
+             .animation(dictRichMotion ? LumaMotionToken.dynamicMorph : nil, value: ratio)
+-            .keyframeAnimator(initialValue: CGFloat(1), trigger: dictationSuccessTick) { ring, scale in
+-                ring.scaleEffect(dictRichMotion ? scale : 1)
++            // Capture the Bool on the main actor; the Sendable animation callback must not read self.
++            .keyframeAnimator(initialValue: CGFloat(1), trigger: dictationSuccessTick) { [richMotion = dictRichMotion] ring, scale in
++                ring.scaleEffect(richMotion ? scale : 1)
+             } keyframes: { _ in
+                 KeyframeTrack {
+                     SpringKeyframe(1.45, duration: 0.14, spring: .snappy)

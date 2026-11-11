@@ -1,0 +1,57 @@
+✅ dictationAnswerBox 函数体逐字节不变 (新 L2911)
+✅ dictationAnswerHints 函数体逐字节不变 (新 L2976)
+✅ triggerDictationErrorAnimation 函数体逐字节不变 (新 L4999)
+✅ submitCurrentDictation 函数体逐字节不变 (新 L5017)
+✅ speakCurrentWord 函数体逐字节不变 (新 L4938)
+✅ speakArbitraryWord 函数体逐字节不变 (新 L3610)
+✅ recentWrongWordStrings 函数体逐字节不变 (新 L2750)
+✅ dictationStaticStatusLine 函数体逐字节不变 (新 L2881)
+✅ dictationMorePanel 函数体逐字节不变 (新 L2572)
+✅ buildFirstLetterHint 函数体逐字节不变 (新 L3358)
+✅ listeningCenterView 函数体逐字节不变 (新 L3054)
+✅ DictationShakeEffect 不变
+✅ HostStateModel 业务模型不变
+✅ AppKit 键盘监听（回车 / ⌘H ⌘/ ⌘R ⌘'）逐字节不变
+✅ 输入框保留 text: $vm.dictationInput
+✅ 输入框保留 .focused($answerFocused)
+✅ 输入框保留 .autocorrectionDisabled()
+✅ 输入框保留 .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+✅ 输入框保留 .accessibilityIdentifier("study.dictation.answer")
+✅ 输入框保留 .onSubmit {
+✅ StudyHome 全部 keyboardShortcut 声明不变
+✅ ContentView 全部 keyboardShortcut 声明不变
+✅ StudyHome accessibilityIdentifier 不变
+✅ 底部动作「上一个」闭包不变
+✅ 底部动作「重播」闭包不变
+✅ 底部动作「慢放」闭包不变
+✅ 底部动作「中文」闭包不变
+✅ 底部动作「首字母」闭包不变
+✅ 底部动作「提交」闭包不变
+✅ 禁用条件保留: disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
+✅ 禁用条件保留: !listeningDailyTimer.running || kokoro.isSwitching
+✅ 六个按钮 Tab 顺序不变（上一个→重播→慢放→中文→首字母→提交）
+✅ 阅读顶栏动作保留: Button { closeReaderPanels(); store.returnToLibrary() }
+✅ 阅读顶栏动作保留: Button { activeReaderPanel = nil; showBookSearch.toggle() }
+✅ 阅读顶栏动作保留: readerPanelButton(.contents,symbol:"list.bullet",label:"目录"
+✅ 阅读顶栏动作保留: readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记"
+✅ 阅读顶栏动作保留: Button { closeReaderPanels(); showSettings = true }
+✅ 阅读顶栏动作保留: Button { store.aiPanelVisible.toggle() }
+✅ 阅读顶栏动作保留: Button { controller.addBookmark() }
+✅ 阅读顶栏动作保留: .focused($readerBackFocused)
+✅ 阅读顶栏动作保留: showBookSearch = false
+✅ ContentView help 文案集合不变
+✅ ContentView accessibilityLabel 文案集合不变
+✅ 阅读顶栏顺序：左（返回、搜索、目录、笔记）右（设置、AI | 书签）
+✅ 右组内顺序：设置→AI
+✅ 文件逐字节不变: Deferred/StudyCenter/StudyPromptView.swift
+✅ 文件逐字节不变: Sources/LumaReader/ReaderController.swift
+✅ 文件逐字节不变: Sources/LumaReader/NoteActions.swift
+✅ 文件逐字节不变: Deferred/StudyCenter/DictationPracticeLayout.swift
+✅ 文件逐字节不变: Deferred/StudyCenter/DictationEngine.swift
+✅ 文件逐字节不变: Sources/LumaReader/LumaReaderApp.swift
+✅ 文件逐字节不变: Sources/LumaReader/ReaderKeyboard.swift
+✅ 文件逐字节不变: Sources/LumaReader/Theme.swift
+✅ 文件逐字节不变: Sources/LumaReader/MonetTheme.swift
+✅ 改动文件清单
+  → Deferred/StudyCenter/LumaDesignTokens.swift, Deferred/StudyCenter/Package.swift, Deferred/StudyCenter/StudyHome.swift, Sources/LumaReader/ContentView.swift, Sources/LumaReader/CustomizationPanel.swift, Sources/LumaReader/NativeWindowControls.swift, Sources/LumaReader/Resources/AppStrings.js, Sources/LumaReader/Resources/AppStrings.json, Sources/LumaReader/SurfaceMotion.swift, "\346\234\254\346\254\241\346\233\264\346\226\260\350\257\264\346\230\216.txt", "\347\273\247\347\273\255\344\270\212\346\254\241\345\256\211\350\243\205.command"
+失败数 0

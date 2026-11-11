@@ -1,0 +1,2065 @@
+--- a/Deferred/StudyCenter/Package.swift
++++ b/Deferred/StudyCenter/Package.swift
+@@ -15,6 +15,7 @@
+             sources: [
+                 "BuiltInIELTSDictionary.swift",
+                 "DictationEngine.swift",
++                "DictationPracticeLayout.swift",
+                 "EmbeddedNeuralSpeechEngine.swift",
+                 "IELTSOfficialRubricEngine.swift",
+                 "LumaStudyCenterAllInOne.swift",
+--- a/Deferred/StudyCenter/StudyHome.swift
++++ b/Deferred/StudyCenter/StudyHome.swift
+@@ -1264,6 +1264,10 @@
+     @State private var deckToDelete: String? = nil
+     @State private var deckEditing: LumaDeckEditTarget? = nil
+     @State private var dictationMoreShown = false
++    @State private var dictationAnswerWidth: CGFloat = 640
++    @State private var dictationAnswerFontSize: CGFloat = 140
++    @State private var dictationAnswerWraps = false
++    @ScaledMetric(relativeTo: .largeTitle) private var dictationFontCeiling: CGFloat = 140
+     @State private var speechSettingsTab: String = "neural" 
+     @State private var writingExitDestination = "学习_写作_Task1题库"
+     @State private var exitToReading = false
+@@ -2466,7 +2470,7 @@
+                     .font(.system(size: 16, weight: .medium, design: .monospaced))
+                     .monospacedDigit()
+                     .tracking(1.0)
+-                    .foregroundStyle(paused ? Color(red: 0xFA/255.0, green: 0xE8/255.0, blue: 0xC6/255.0) : dictTextPrimary)
++                    .foregroundStyle(dictTextPrimary)
+                     .frame(width: 110, height: 40)
+                     .background(
+                         Capsule(style: .continuous)
+@@ -2688,55 +2692,27 @@
+         let todayCount = DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString())
+         let pct = min(100.0, max(0.0, Double(done) / Double(total) * 100.0))
+ 
+-        return VStack(alignment: .leading, spacing: 12) {
+-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+-                Text("本轮进度")
+-                    .font(.system(size: 16, weight: .semibold))
+-                    .foregroundStyle(dictTextPrimary)
+-
+-                Spacer(minLength: 12)
+-
+-                HStack(alignment: .firstTextBaseline, spacing: 14) {
+-                    Text("已完成 \(done) 词   ·   剩余 \(remaining) 词   ·   今日 \(todayCount) 词")
+-                        .font(.system(size: 13.5, weight: .medium))
+-                        .monospacedDigit()
+-                        .foregroundStyle(dictTextSecondary)
+-                        .lineLimit(1)
+-
+-                    Text(String(format: "%.1f%%", pct))
+-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+-                        .monospacedDigit()
+-                        .foregroundStyle(dictTextPrimary)
+-                }
+-            }
+-
++        return VStack(spacing: 8) {
++            HStack(spacing: 12) {
++                Text("已完成 \(done) / \(total) · 剩余 \(remaining) · 今日 \(todayCount)")
++                Spacer(minLength: 0)
++                Text(String(format: "%.1f%%", pct))
++            }
++            .font(.system(size: 12.5, weight: .medium).monospacedDigit())
++            .foregroundStyle(dictTextSecondary)
+             GeometryReader { geo in
+                 let ratio = min(1.0, max(0.0, CGFloat(done) / CGFloat(total)))
+-                let fillWidth = done > 0 ? max(26, geo.size.width * ratio) : 0
+-                ZStack(alignment: .leading) {
+-                    Capsule(style: .continuous)
+-                        .fill(dictTrackFill)
+-                        .frame(height: 11)
+-                    if fillWidth > 0 {
+-                        Capsule(style: .continuous)
+-                            .fill(dictAccentPink)
+-                            .frame(width: min(geo.size.width, fillWidth), height: 11)
+-                    }
+-                }
+-            }
+-            .frame(height: 11)
+-        }
+-        .padding(.horizontal, 20)
+-        .padding(.vertical, 14)
++                Capsule().fill(dictTrackFill)
++                    .overlay(alignment: .leading) {
++                        Capsule().fill(dictAccentPink)
++                            .frame(width: geo.size.width * ratio)
++                    }
++            }
++            .frame(height: 4)
++            .accessibilityLabel("本轮进度")
++            .accessibilityValue(String(format: "%.1f%%", pct))
++        }
+         .frame(maxWidth: .infinity)
+-        .background(
+-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+-                .fill(dictCardColor)
+-        )
+-        .overlay(
+-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+-                .strokeBorder(dictTextPrimary.opacity(0.08), lineWidth: 1)
+-        )
+     }
+ 
+     /// 收集最近实际出错的最多 5 个英文词汇（未揭晓当前词答案前绝不提前透露当前词）
+@@ -2806,8 +2782,8 @@
+         let candidates = recentWrongWordStrings
+         return HStack(spacing: 18) {
+             Text("最近错词")
+-                .font(.system(size: 16, weight: .semibold))
+-                .foregroundStyle(dictTextPrimary)
++                .font(.system(size: 12.5, weight: .medium))
++                .foregroundStyle(dictTextSecondary)
+                 .fixedSize()
+ 
+             GeometryReader { geo in
+@@ -2834,7 +2810,7 @@
+                     HStack {
+                         Text("暂无最近错词记录")
+                             .font(.system(size: 13.5))
+-                            .foregroundStyle(dictTextSecondary.opacity(0.65))
++                            .foregroundStyle(dictTextSecondary)
+                             .lineLimit(1)
+                         Spacer(minLength: 0)
+                     }
+@@ -2863,17 +2839,8 @@
+             }
+             .frame(height: 34)
+         }
+-        .padding(.horizontal, 20)
+-        .frame(height: 54)
++        .frame(height: 40)
+         .frame(maxWidth: .infinity)
+-        .background(
+-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+-                .fill(dictCardColor)
+-        )
+-        .overlay(
+-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+-                .strokeBorder(dictTextPrimary.opacity(0.08), lineWidth: 1)
+-        )
+     }
+ 
+     /// 输入框与底部六按钮之间的一行静态状态文字：
+@@ -2911,8 +2878,15 @@
+     private var dictationAnswerBox: some View {
+         let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+         let borderCol = dictationErrorFlash ? Color.red : dictAccentPink.opacity(answerFocused ? 0.85 : 0.65)
++        let text = vm.dictationInput.isEmpty ? "输入听到的英文词汇" : vm.dictationInput
++        let availableWidth = max(1, dictationAnswerWidth - 56)
++        let wrapHeadroom = availableWidth - DictationAnswerMetrics.width(text, size: 36)
++        let targetSize = DictationAnswerMetrics.fittedSize(
++            text: text, availableWidth: max(1, dictationAnswerWidth - 56),
++            ceiling: min(180, max(140, dictationFontCeiling))
++        )
+         return ZStack {
+-            shape.fill(Color(red: 0x15/255.0, green: 0x0E/255.0, blue: 0x16/255.0))
++            shape.fill(dictBgColor)
+             shape.fill(
+                 RadialGradient(
+                     colors: [
+@@ -2925,67 +2899,40 @@
+                 )
+             )
+ 
+-            TextField("输入听到的英文词汇", text: $vm.dictationInput)
++            TextField("输入听到的英文词汇", text: $vm.dictationInput,
++                      prompt: Text("输入听到的英文词汇").foregroundStyle(dictTextSecondary), axis: .vertical)
+                 .focused($answerFocused)
+                 .autocorrectionDisabled()
+                 .textFieldStyle(.plain)
+-                .font(.system(size: vm.dictationInput.isEmpty ? 56 : 80, weight: .bold, design: .rounded))
+-                .minimumScaleFactor(0.4)
+-                .lineLimit(1)
++                .modifier(DictationAnswerFont(size: min(dictationAnswerFontSize, targetSize)))
++                .lineLimit(nil)
++                .fixedSize(horizontal: false, vertical: true)
+                 .foregroundStyle(dictationErrorFlash ? Color.red : dictTextPrimary)
+                 .multilineTextAlignment(.center)
+-                .padding(.horizontal, 32)
+-                .frame(maxWidth: .infinity, minHeight: 148)
++                .frame(width: max(1, availableWidth - (dictationAnswerWraps ? 24 : 0)))
++                .padding(.horizontal, 28)
++                .padding(.vertical, 32)
++                .frame(maxWidth: .infinity, minHeight: 260)
+                 .accessibilityIdentifier("study.dictation.answer")
+                 .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+                 .onSubmit {
+                     submitCurrentDictation()
+                 }
+-        }
+-        .frame(maxWidth: .infinity, minHeight: 214, maxHeight: 224)
+-        .overlay(alignment: .bottom) {
+-            if let word = vm.dictationMachine.currentWord {
+-                HStack(spacing: 16) {
+-                    if vm.showMeaning {
+-                        Text(word.definitionZH.isEmpty ? (BuiltInIELTSDictionaryEngine.lookupChineseDefinition(for: word.word) ?? "暂无释义") : word.definitionZH)
+-                            .font(.system(size: 18, weight: .medium))
+-                            .foregroundStyle(dictAccentPink)
+-                            .lineLimit(1)
+-                    }
+-                    if showFirstLetterHint {
+-                        Text(Self.buildFirstLetterHint(for: word.word))
+-                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+-                            .foregroundStyle(dictAccentPink)
+-                            .lineLimit(1)
+-                    }
+-                    if vm.dictationMachine.requiresCorrection {
+-                        if vm.revealedWordID == word.id {
+-                            let wrongAttempts = vm.dictationMachine.attemptLogs.filter { $0.wordID == word.id && !$0.isCorrect }.map(\.userTyped)
+-                            Text(
+-                                WordErrorLetterAnalyzer.highlightedAttributedWord(
+-                                    word.word,
+-                                    typedAttempts: wrongAttempts,
+-                                    baseFont: .system(size: 22, weight: .bold, design: .rounded),
+-                                    normalColor: dictTextPrimary,
+-                                    errorColor: .red
+-                                )
+-                            )
+-                            .lineLimit(1)
+-                        } else {
+-                            Button("查看拼写 (⌘')") { vm.revealedWordID = word.id; vm.save() }
+-                                .buttonStyle(.plain)
+-                                .font(.system(size: 14, weight: .medium))
+-                                .foregroundStyle(dictAccentPink)
+-                                .padding(.horizontal, 12)
+-                                .padding(.vertical, 4)
+-                                .background(Capsule().fill(dictCapsuleColor))
+-                        }
+-                    }
+-                }
+-                .padding(.horizontal, 24)
+-                .padding(.bottom, 14)
+-            }
+-        }
++                .onChange(of: targetSize, initial: true) { _, target in
++                    let next = DictationAnswerMetrics.settledSize(current: dictationAnswerFontSize, target: target)
++                    guard next != dictationAnswerFontSize else { return }
++                    // Never interpolate through an oversized font while shrinking.
++                    withAnimation(!reduceMotion && next > dictationAnswerFontSize ? .easeOut(duration: 0.10) : nil) {
++                        dictationAnswerFontSize = next
++                    }
++                }
++                .onChange(of: wrapHeadroom, initial: true) { _, headroom in
++                    let next = DictationAnswerMetrics.shouldWrap(headroom: headroom, wasWrapped: dictationAnswerWraps)
++                    if next != dictationAnswerWraps { withAnimation(nil) { dictationAnswerWraps = next } }
++                }
++        }
++        .frame(maxWidth: .infinity, minHeight: 260)
++        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { dictationAnswerWidth = $0 }
+         .overlay(shape.strokeBorder(borderCol, lineWidth: dictationErrorFlash ? 2.4 : 1.4))
+         .shadow(color: (dictationErrorFlash ? Color.red : dictAccentPink).opacity(0.16), radius: 14, x: 0, y: 0)
+         .modifier(DictationShakeEffect(animatableData: dictationErrorShake))
+@@ -2993,57 +2940,82 @@
+         .onTapGesture { answerFocused = true }
+     }
+ 
++    @ViewBuilder private var dictationAnswerHints: some View {
++        if let word = vm.dictationMachine.currentWord {
++            VStack(spacing: 6) {
++                if vm.showMeaning {
++                    Text(word.definitionZH.isEmpty ? (BuiltInIELTSDictionaryEngine.lookupChineseDefinition(for: word.word) ?? "暂无释义") : word.definitionZH)
++                        .font(.system(size: 18, weight: .medium))
++                        .foregroundStyle(dictAccentPink)
++                        .fixedSize(horizontal: false, vertical: true)
++                }
++                if showFirstLetterHint {
++                    Text(Self.buildFirstLetterHint(for: word.word))
++                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
++                        .foregroundStyle(dictAccentPink)
++                        .fixedSize(horizontal: false, vertical: true)
++                }
++                if vm.dictationMachine.requiresCorrection {
++                    if vm.revealedWordID == word.id {
++                        let wrongAttempts = vm.dictationMachine.attemptLogs.filter { $0.wordID == word.id && !$0.isCorrect }.map(\.userTyped)
++                        Text(
++                            WordErrorLetterAnalyzer.highlightedAttributedWord(
++                                word.word,
++                                typedAttempts: wrongAttempts,
++                                baseFont: .system(size: 22, weight: .bold, design: .rounded),
++                                normalColor: dictTextPrimary,
++                                errorColor: .red
++                            )
++                        )
++                        .fixedSize(horizontal: false, vertical: true)
++                    } else {
++                        Button("查看拼写 (⌘')") { vm.revealedWordID = word.id; vm.save() }
++                            .buttonStyle(.plain)
++                            .font(.system(size: 14, weight: .medium))
++                            .foregroundStyle(dictAccentPink)
++                            .padding(.horizontal, 12)
++                            .padding(.vertical, 4)
++                            .background(Capsule().fill(dictCapsuleColor))
++                    }
++                }
++            }
++            .multilineTextAlignment(.center)
++            .frame(maxWidth: .infinity)
++        }
++    }
++
++
++    private func dictationControlLabel(title: String, symbol: String, selected: Bool = false,
++                                       prominent: Bool = false, disabled: Bool = false) -> some View {
++        HStack(spacing: 7) {
++            Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
++            Text(title).font(.system(size: 14, weight: selected || prominent ? .semibold : .medium))
++        }
++        .foregroundStyle(prominent ? dictBgColor : (selected ? dictAccentPink : (disabled ? dictTextSecondary : dictTextPrimary)))
++        .padding(.horizontal, 16)
++        .frame(height: 44)
++        .background(selected ? dictCardColor : Color.clear, in: Capsule())
++        .contentShape(Capsule())
++    }
++
++    private func dictationControlGroup<Content: View>(prominent: Bool = false, @ViewBuilder content: () -> Content) -> some View {
++        HStack(spacing: 0, content: content)
++            .background(prominent ? dictAccentPink : dictCapsuleColor, in: Capsule())
++            .overlay(Capsule().strokeBorder(dictTextSecondary.opacity(0.35), lineWidth: 1))
++    }
++
+     private func dictationBottomCapsuleButton(
+-        title: String,
+-        symbol: String,
+-        selected: Bool = false,
+-        prominent: Bool = false,
+-        disabled: Bool = false,
+-        action: @escaping () -> Void
++        title: String, symbol: String, selected: Bool = false,
++        prominent: Bool = false, disabled: Bool = false, action: @escaping () -> Void
+     ) -> some View {
+-        Button(action: action) {
+-            HStack(spacing: 7) {
+-                Image(systemName: symbol)
+-                    .font(.system(size: 13.5, weight: .semibold))
+-                Text(title)
+-                    .font(.system(size: 14, weight: prominent || selected ? .semibold : .medium))
+-                    .lineLimit(1)
+-            }
+-            .foregroundStyle(prominent ? Color.white : (disabled ? dictTextSecondary.opacity(0.45) : dictTextPrimary))
+-            .padding(.horizontal, prominent ? 24 : 18)
+-            .frame(height: 40)
+-            .background(
+-                Group {
+-                    if prominent {
+-                        Capsule(style: .continuous)
+-                            .fill(
+-                                LinearGradient(
+-                                    colors: [
+-                                        dictAccentPink,
+-                                        Color(red: 0xDC/255.0, green: 0x82/255.0, blue: 0xB0/255.0)
+-                                    ],
+-                                    startPoint: .top,
+-                                    endPoint: .bottom
+-                                )
+-                            )
+-                    } else {
+-                        Capsule(style: .continuous)
+-                            .fill(selected ? dictAccentPink.opacity(0.26) : dictCapsuleColor)
+-                    }
+-                }
+-            )
+-            .overlay(
+-                Capsule(style: .continuous)
+-                    .strokeBorder(
+-                        prominent ? Color.white.opacity(0.35) : (selected ? dictAccentPink.opacity(0.65) : dictTextPrimary.opacity(0.10)),
+-                        lineWidth: prominent || selected ? 1.1 : 0.8
+-                    )
+-            )
+-            .contentShape(Capsule(style: .continuous))
+-        }
+-        .buttonStyle(.plain)
+-        .disabled(disabled)
+-        .fixedSize(horizontal: true, vertical: true)
++        dictationControlGroup(prominent: prominent) {
++            Button(action: action) {
++                dictationControlLabel(title: title, symbol: symbol, selected: selected, prominent: prominent, disabled: disabled)
++            }
++            .buttonStyle(.plain)
++            .disabled(disabled)
++        }
++        .fixedSize()
+     }
+ 
+     @ViewBuilder private func listeningCenterView(submode: DictationSessionMode) -> some View {
+@@ -3051,7 +3023,6 @@
+             VStack(spacing: 14) {
+                 Image(systemName: "tray.and.arrow.down").font(.system(size: 38, weight: .light)).foregroundStyle(dictAccentPink)
+                 Text(submode == .wrongWordReview ? "还没有错词" : "还没有词库").font(.title3.weight(.semibold)).foregroundStyle(dictTextPrimary)
+-                Text("先导入你自己的单词表，听写答错的单词会自动出现在这里。").font(.callout).foregroundStyle(dictTextSecondary)
+                 Button("导入词库", systemImage: "square.and.arrow.down") { mode = "学习_听力"; importShown = true }
+                     .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 16, height: 34))
+             }
+@@ -3080,7 +3051,6 @@
+                     VStack(spacing: 14) {
+                         Image(systemName: "checkmark.seal").font(.system(size: 38, weight: .light)).foregroundStyle(dictAccentPink)
+                         Text("当前词库还没有错词").font(.title3.weight(.semibold)).foregroundStyle(dictTextPrimary)
+-                        Text("在听写练习中答错的单词会自动收录到这里，方便你随时专项复习。").font(.callout).foregroundStyle(dictTextSecondary)
+                         Button("去听写本词库", systemImage: "headphones") {
+                             selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .newTask, resume: true)
+                             mode = "学习_听力_今日计划"
+@@ -3109,144 +3079,155 @@
+         }
+     }
+ 
++    private func dictationInlineButton(
++        title: String, symbol: String, selected: Bool = false, action: @escaping () -> Void
++    ) -> some View {
++        Button(action: action) { dictationControlLabel(title: title, symbol: symbol, selected: selected) }
++            .buttonStyle(.plain)
++            .fixedSize()
++    }
++
++    private var dictationPracticeHeader: some View {
++        VStack(spacing: 10) {
++            let layout = dictationAnswerWidth < 560
++                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
++                : AnyLayout(HStackLayout(spacing: 12))
++            layout {
++                HStack(spacing: 12) {
++                    dictationBackButton
++                    Text(dictationModeTitle)
++                        .font(.system(size: 18, weight: .semibold))
++                        .foregroundStyle(dictTextSecondary)
++                        .lineLimit(1)
++                    Spacer(minLength: 0)
++                }
++                dictationTopRightCapsules
++            }
++            dictationProgressCard
++            dictationRecentWrongWordsCard
++        }
++    }
++
++    private var dictationPracticeActions: some View {
++        VStack(spacing: 10) {
++            dictationAnswerHints
++            if let word = vm.dictationMachine.currentWord {
++                Text(dictationStaticStatusLine(currentWord: word))
++                    .font(.system(size: 12.5)).monospacedDigit()
++                    .foregroundStyle(dictTextSecondary)
++                    .multilineTextAlignment(.center)
++                    .fixedSize(horizontal: false, vertical: true)
++                    .frame(maxWidth: .infinity, minHeight: 20)
++            }
++            // Four visual groups, six native Buttons in their original Tab order.
++            // One identity-preserving Layout switches to two columns in narrow panes.
++            let layout = dictationAnswerWidth < 680
++                ? AnyLayout(GridLayoutForDictationActions())
++                : AnyLayout(HStackLayout(spacing: 10))
++            layout {
++                dictationBottomCapsuleButton(
++                    title: "上一个",
++                    symbol: "backward.end.fill",
++                    disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
++                ) {
++                    guard let previousDictationWord else { return }
++                    ttsEngine.stop(); audio.stop(); kokoro.stop()
++                    vm.dictationMachine.revisitCompletedWord(previousDictationWord)
++                    vm.dictationInput = ""; vm.showMeaning = false; vm.revealedWordID = nil
++                    showFirstLetterHint = false
++                    vm.save(); speakCurrentWord(); answerFocused = true
++                }
++
++                dictationControlGroup {
++                    dictationInlineButton(
++                        title: kokoro.isPreparingAudio ? "准备中…" : "重播",
++                        symbol: "speaker.wave.2.fill"
++                    ) {
++                        speakCurrentWord()
++                    }
++                    .keyboardShortcut("r", modifiers: [.command])
++
++                    dictationInlineButton(
++                        title: "慢放",
++                        symbol: "tortoise.fill"
++                    ) {
++                        speakCurrentWord(overrideRate: 0.75)
++                    }
++                    .keyboardShortcut("r", modifiers: [.command, .shift])
++                }
++
++                dictationControlGroup {
++                    dictationInlineButton(
++                        title: vm.showMeaning ? "隐藏中文" : "显示中文",
++                        symbol: "character.bubble",
++                        selected: vm.showMeaning
++                    ) {
++                        vm.showMeaning.toggle()
++                        vm.save()
++                    }
++
++                    dictationInlineButton(
++                        title: showFirstLetterHint ? "隐藏提示" : "首字母提示",
++                        symbol: "lightbulb",
++                        selected: showFirstLetterHint
++                    ) {
++                        showFirstLetterHint.toggle()
++                    }
++                }
++
++                dictationBottomCapsuleButton(
++                    title: "提交",
++                    symbol: "return",
++                    prominent: true,
++                    disabled: !listeningDailyTimer.running || kokoro.isSwitching
++                ) {
++                    submitCurrentDictation()
++                }
++            }
++            .frame(maxWidth: .infinity)
++        }
++    }
++
+     private func listeningCenterContent(submode: DictationSessionMode) -> some View {
+         deckManagement(
+-            VStack(alignment: .leading, spacing: 16) {
+-                // 二、顶部：左侧返回按钮 + 标题与进度数字 + 右侧三合一功能胶囊
+-                HStack(alignment: .center, spacing: 14) {
+-                    dictationBackButton
+-                    HStack(alignment: .firstTextBaseline, spacing: 14) {
+-                        Text(dictationModeTitle)
+-                            .font(.system(size: 28, weight: .semibold))
+-                            .foregroundStyle(dictTextPrimary)
+-                            .lineLimit(1)
+-                        Text("\(vm.dictationMachine.completedWordIDs.count) / \(dictationTotalWords)")
+-                            .font(.system(size: 21, weight: .regular, design: .rounded))
+-                            .monospacedDigit()
+-                            .foregroundStyle(dictTextSecondary)
+-                            .lineLimit(1)
+-                    }
+-                    Spacer(minLength: 12)
+-                    dictationTopRightCapsules
+-                }
+-                .padding(.bottom, 2)
+-
+-                if let word = vm.dictationMachine.currentWord {
+-                    // 三、本轮进度区（全宽）
+-                    dictationProgressCard
+-
+-                    // 四、最近错词（进度条下方固定高度、永远只有一行）
+-                    dictationRecentWrongWordsCard
+-
+-                    Spacer(minLength: 6)
+-
+-                    // 五、中央听写输入
+-                    dictationAnswerBox
+-
+-                    // 六、输入框和底部工具栏之间的一行静态状态文字（固定高度，不推移输入框或底部按钮）
+-                    let statusLine = dictationStaticStatusLine(currentWord: word)
+-                    Text(statusLine)
+-                        .font(.system(size: 12.5, weight: .regular))
+-                        .monospacedDigit()
+-                        .foregroundStyle(dictTextSecondary)
+-                        .lineLimit(1)
+-                        .minimumScaleFactor(0.75)
+-                        .frame(maxWidth: .infinity, minHeight: 20, maxHeight: 20, alignment: .center)
+-
+-                    Spacer(minLength: 4)
+-
+-                    // 七、底部六按钮（统一横向浮动胶囊操作区）
+-                    HStack(spacing: 14) {
+-                        dictationBottomCapsuleButton(
+-                            title: "上一个",
+-                            symbol: "backward.end.fill",
+-                            disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
+-                        ) {
+-                            guard let previousDictationWord else { return }
+-                            ttsEngine.stop(); audio.stop(); kokoro.stop()
+-                            vm.dictationMachine.revisitCompletedWord(previousDictationWord)
+-                            vm.dictationInput = ""; vm.showMeaning = false; vm.revealedWordID = nil
+-                            showFirstLetterHint = false
+-                            vm.save(); speakCurrentWord(); answerFocused = true
++            GeometryReader { viewport in
++                ScrollView(.vertical) {
++                    if vm.dictationMachine.currentWord != nil {
++                        DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32)) {
++                            dictationPracticeHeader
++                            dictationAnswerBox
++                            dictationPracticeActions
+                         }
+-
+-                        dictationBottomCapsuleButton(
+-                            title: kokoro.isPreparingAudio ? "准备中…" : "重播",
+-                            symbol: "speaker.wave.2.fill"
+-                        ) {
+-                            speakCurrentWord()
++                        .padding(.horizontal, 24)
++                        .padding(.vertical, 16)
++                    } else {
++                        VStack(spacing: 20) {
++                            dictationPracticeHeader
++                            dictationSummaryView
+                         }
+-                        .keyboardShortcut("r", modifiers: [.command])
+-
+-                        dictationBottomCapsuleButton(
+-                            title: "慢放",
+-                            symbol: "tortoise.fill"
+-                        ) {
+-                            speakCurrentWord(overrideRate: 0.75)
+-                        }
+-                        .keyboardShortcut("r", modifiers: [.command, .shift])
+-
+-                        Rectangle()
+-                            .fill(dictTextPrimary.opacity(0.18))
+-                            .frame(width: 1, height: 22)
+-                            .padding(.horizontal, 2)
+-
+-                        dictationBottomCapsuleButton(
+-                            title: vm.showMeaning ? "隐藏中文" : "显示中文",
+-                            symbol: "character.bubble",
+-                            selected: vm.showMeaning
+-                        ) {
+-                            vm.showMeaning.toggle()
+-                            vm.save()
+-                        }
+-
+-                        dictationBottomCapsuleButton(
+-                            title: showFirstLetterHint ? "隐藏提示" : "首字母提示",
+-                            symbol: "lightbulb",
+-                            selected: showFirstLetterHint
+-                        ) {
+-                            showFirstLetterHint.toggle()
+-                        }
+-
+-                        Rectangle()
+-                            .fill(dictTextPrimary.opacity(0.18))
+-                            .frame(width: 1, height: 22)
+-                            .padding(.horizontal, 2)
+-
+-                        dictationBottomCapsuleButton(
+-                            title: "提交",
+-                            symbol: "return",
+-                            prominent: true,
+-                            disabled: !listeningDailyTimer.running || kokoro.isSwitching
+-                        ) {
+-                            submitCurrentDictation()
+-                        }
+-                    }
+-                    .padding(.horizontal, 18)
+-                    .padding(.vertical, 12)
+-                    .frame(maxWidth: .infinity)
+-                    .background(
+-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+-                            .fill(dictCardColor)
+-                    )
+-                    .overlay(
+-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+-                            .strokeBorder(dictTextPrimary.opacity(0.08), lineWidth: 1)
+-                    )
+-                } else {
+-                    ScrollView(.vertical, showsIndicators: true) {
+-                        dictationSummaryView
+-                    }
+-                }
+-            }
+-            .padding(.horizontal, 42)
+-            .padding(.top, 30)
+-            .padding(.bottom, 28)
+-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
++                        .padding(24)
++                    }
++                }
++                .scrollBounceBehavior(.basedOnSize)
++            }
++            .frame(maxWidth: .infinity, maxHeight: .infinity)
+             .background(dictBgColor.ignoresSafeArea())
+             .background(
+                 StudyKeyboardEventMonitor { event in
+                     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
++                    // Preserve single-line Return semantics with a vertical native field.
++                    // Local AppKit monitoring also covers bridged text controls. Never
++                    // consume IME confirmation, another window's input, or a sheet.
++                    if (event.keyCode == 36 || event.keyCode == 76),
++                       flags.intersection([.command, .option, .control, .shift]).isEmpty,
++                       answerFocused, !dictationMoreShown,
++                       event.window?.isKeyWindow == true, event.window?.isMainWindow == true,
++                       event.window?.attachedSheet == nil,
++                       let editor = event.window?.firstResponder as? NSTextView,
++                       !editor.hasMarkedText(), listeningDailyTimer.running, !kokoro.isSwitching {
++                        submitCurrentDictation()
++                        return true
++                    }
+                     guard flags == [.command] else { return false }
+                     let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
+                     if chars == "h" {
+@@ -3289,9 +3270,6 @@
+                     Text("慢反应词 · 提速巩固")
+                         .font(.system(size: 30, weight: .bold, design: .serif))
+                         .foregroundStyle(appearance.ink)
+-                    Text("统计从语音播完到敲下回车的时间：虽然拼写正确但犹豫超过 5.0 秒的词在真题语速下极易漏听，系统自动将其归入此处进行倍速听写提速。")
+-                        .font(.system(size: 13))
+-                        .foregroundStyle(appearance.ink.opacity(0.7))
+                 }
+                 Spacer()
+                 if !slowRecords.isEmpty {
+@@ -3310,7 +3288,7 @@
+             }
+ 
+             if slowRecords.isEmpty {
+-                Text("暂无慢反应词记录。在听写中若某个词虽然拼对，但从语音播完到敲下回车超过 5.0 秒，系统将自动标记在此。")
++                Text("暂无慢反应词记录。")
+                     .font(.system(size: 14))
+                     .foregroundStyle(appearance.ink.opacity(0.6))
+                     .padding(.top, 20)
+@@ -3562,9 +3540,6 @@
+             Text("顽固单词")
+                 .font(.system(size: 30, weight: .bold, design: .serif))
+                 .foregroundStyle(appearance.ink)
+-            Text("当日累计第 6 次答错进入顽固单词，当前词订正后不再自动循环；按错误次数从高到低排序，独立记录复习会话。")
+-                .font(.system(size: 13))
+-                .foregroundStyle(appearance.ink.opacity(0.7))
+ 
+             if vm.storeSnapshot.stubbornWords.isEmpty {
+                 Text("暂无顽固单词记录。")
+--- /dev/null
++++ b/Deferred/StudyCenter/DictationPracticeLayout.swift
+@@ -0,0 +1,123 @@
++import SwiftUI
++import AppKit
++
++/// Presentation only. No answer normalization, session state or timer ownership.
++@MainActor
++enum DictationAnswerMetrics {
++    static let minimumSize: CGFloat = 36
++    static let maximumSize: CGFloat = 140
++    static let growthThreshold: CGFloat = 3
++
++    static func font(_ size: CGFloat) -> NSFont {
++        let base = NSFont.systemFont(ofSize: size, weight: .bold)
++        guard let descriptor = base.fontDescriptor.withDesign(.rounded),
++              let rounded = NSFont(descriptor: descriptor, size: size) else { return base }
++        return rounded
++    }
++
++    static func width(_ text: String, size: CGFloat) -> CGFloat {
++        text.components(separatedBy: .newlines).map {
++            ceil(($0 as NSString).size(withAttributes: [.font: font(size)]).width)
++        }.max() ?? 0
++    }
++
++    static func fittedSize(text: String, availableWidth: CGFloat, ceiling: CGFloat = maximumSize) -> CGFloat {
++        let upper = max(minimumSize, ceiling)
++        // Leave room for the caret, native field insets and measurement differences.
++        let safeWidth = max(1, availableWidth - 24)
++        if width(text, size: upper) <= safeWidth { return upper }
++        if width(text, size: minimumSize) > safeWidth { return minimumSize }
++        var low = minimumSize
++        var high = upper
++        for _ in 0..<12 {
++            let middle = (low + high) / 2
++            if width(text, size: middle) <= safeWidth { low = middle } else { high = middle }
++        }
++        return floor(low * 2) / 2
++    }
++
++    static func settledSize(current: CGFloat, target: CGFloat) -> CGFloat {
++        // Shrink immediately for safety; require 3pt of headroom before growing.
++        target < current || target - current >= growthThreshold ? target : current
++    }
++
++    static func shouldWrap(headroom: CGFloat, wasWrapped: Bool) -> Bool {
++        // Enter with 24pt spare, leave only after 48pt spare: a 24pt dead band.
++        headroom < (wasWrapped ? 48 : 24)
++    }
++}
++
++/// Explicitly animatable font size. The surrounding card does not animate its position.
++struct DictationAnswerFont: AnimatableModifier {
++    nonisolated var size: CGFloat
++    nonisolated var animatableData: CGFloat {
++        get { size }
++        set { size = newValue }
++    }
++    func body(content: Content) -> some View {
++        content.font(.system(size: size, weight: .bold, design: .rounded))
++    }
++}
++
++/// Three siblings: quiet context, answer, actions. Equal clearance above/below the
++/// answer keeps its center fixed when context or hints change. Short windows scroll
++/// the entire canvas instead of compressing or overlaying the text field.
++struct DictationPracticeLayout: Layout {
++    var minimumHeight: CGFloat
++    private let gap: CGFloat = 16
++
++    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
++        let width = max(1, proposal.width ?? 640)
++        guard subviews.count == 3 else { return CGSize(width: width, height: minimumHeight) }
++        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
++        let required = sizes[1].height + 2 * (max(sizes[0].height, sizes[2].height) + gap)
++        return CGSize(width: width, height: max(minimumHeight, required))
++    }
++
++    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
++        guard subviews.count == 3 else { return }
++        let child = ProposedViewSize(width: bounds.width, height: nil)
++        subviews[0].place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top, proposal: child)
++        subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: child)
++        subviews[2].place(at: CGPoint(x: bounds.midX, y: bounds.maxY), anchor: .bottom, proposal: child)
++    }
++}
++
++/// The same four groups stay in the same view tree and reading order during resize.
++struct GridLayoutForDictationActions: Layout {
++    private let gap: CGFloat = 10
++
++    private func metrics(width: CGFloat, subviews: Subviews) -> (sizes: [CGSize], columns: Int, widths: [CGFloat], rowHeights: [CGFloat]) {
++        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
++        let first = sizes.enumerated().filter { $0.offset % 2 == 0 }.map { $0.element.width }.max() ?? 0
++        let second = sizes.enumerated().filter { $0.offset % 2 == 1 }.map { $0.element.width }.max() ?? 0
++        let columns = first + second + gap <= width ? 2 : 1
++        let widths = columns == 2 ? [first, second] : [sizes.map(\.width).max() ?? 0]
++        var rows: [CGFloat] = []
++        for index in sizes.indices {
++            let row = index / columns
++            if row == rows.count { rows.append(sizes[index].height) }
++            else { rows[row] = max(rows[row], sizes[index].height) }
++        }
++        return (sizes, columns, widths, rows)
++    }
++
++    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
++        let width = proposal.width ?? 640
++        let m = metrics(width: width, subviews: subviews)
++        return CGSize(width: width, height: m.rowHeights.reduce(0, +) + CGFloat(max(0, m.rowHeights.count - 1)) * gap)
++    }
++
++    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
++        let m = metrics(width: bounds.width, subviews: subviews)
++        let totalWidth = m.widths.reduce(0, +) + CGFloat(m.columns - 1) * gap
++        let start = bounds.midX - totalWidth / 2
++        for index in subviews.indices {
++            let row = index / m.columns
++            let column = index % m.columns
++            let x = start + m.widths.prefix(column).reduce(0, +) + CGFloat(column) * gap + m.widths[column] / 2
++            let y = bounds.minY + m.rowHeights.prefix(row).reduce(0, +) + CGFloat(row) * gap + m.rowHeights[row] / 2
++            subviews[index].place(at: CGPoint(x: x, y: y), anchor: .center, proposal: ProposedViewSize(m.sizes[index]))
++        }
++    }
++}
+--- /dev/null
++++ b/Deferred/StudyCenter/Tests/DictationAnswerMetricsTests.swift
+@@ -0,0 +1,41 @@
++import Testing
++#if canImport(AppKit)
++import AppKit
++@testable import LumaReaderStudyKit
++
++@MainActor
++@Suite("Dictation presentation metrics — requires macOS")
++struct DictationAnswerMetricsTests {
++    @Test func shortWordUsesLargeType() {
++        #expect(DictationAnswerMetrics.fittedSize(text: "apple", availableWidth: 800) == 140)
++    }
++
++    @Test func fittingUsesActualRoundedFontWidth() {
++        for text in ["accommodation", "pneumonoultramicroscopicsilicovolcanoconiosis", String(repeating: "W", count: 31)] {
++            for available in [CGFloat(400), 640, 1000] {
++                let size = DictationAnswerMetrics.fittedSize(text: text, availableWidth: available)
++                #expect(size >= 36 && size <= 140)
++                if size > 36 {
++                    #expect(DictationAnswerMetrics.width(text, size: size) <= available - 24)
++                }
++            }
++        }
++    }
++
++    @Test func overflowKeepsReadableMinimumAndRequestsWrapping() {
++        let text = String(repeating: "W", count: 100)
++        #expect(DictationAnswerMetrics.fittedSize(text: text, availableWidth: 400) == 36)
++        let headroom = 400 - DictationAnswerMetrics.width(text, size: 36)
++        #expect(DictationAnswerMetrics.shouldWrap(headroom: headroom, wasWrapped: false))
++    }
++
++    @Test func deadBandsPreventSizeAndWrapOscillation() {
++        #expect(DictationAnswerMetrics.settledSize(current: 80, target: 82) == 80)
++        #expect(DictationAnswerMetrics.settledSize(current: 80, target: 83) == 83)
++        #expect(DictationAnswerMetrics.settledSize(current: 80, target: 79.5) == 79.5)
++        #expect(!DictationAnswerMetrics.shouldWrap(headroom: 30, wasWrapped: false))
++        #expect(DictationAnswerMetrics.shouldWrap(headroom: 30, wasWrapped: true))
++        #expect(!DictationAnswerMetrics.shouldWrap(headroom: 49, wasWrapped: true))
++    }
++}
++#endif
+--- a/Sources/LumaReader/ContentView.swift
++++ b/Sources/LumaReader/ContentView.swift
+@@ -37,6 +37,10 @@
+     // Luma fullscreen safe header v3
+     @State private var readerSafeTopInset: CGFloat = 0
+     private var readerHeaderTopInset: CGFloat { store.selectedBook == nil ? 0 : readerSafeTopInset }
++    private var workspaceHeaderHeight: CGFloat {
++        guard store.selectedBook != nil else { return 64 }
++        return readerWindowIsFullScreen ? max(52, min(88, trafficLightCenterY * 2)) : 60
++    }
+     @State private var titlebarInset: CGFloat = 88
+     @State private var trafficLightCenterY: CGFloat = 30
+     @State private var readerWindowIsFullScreen = false
+@@ -290,9 +294,9 @@
+             ZStack(alignment:.topTrailing) {
+             primaryContent
+                 .environment(\.lumaSurfacePolish,true)
+-                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-((store.immersive && store.selectedBook == nil) || studyPractice ? 0:64+readerHeaderTopInset)))
++                .modifier(ReadingLayoutSlot(width:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0),height:geometry.size.height-((store.immersive && store.selectedBook == nil) || studyPractice ? 0:workspaceHeaderHeight+readerHeaderTopInset)))
+                 .clipped()
+-                .padding(.top,(store.immersive && store.selectedBook == nil) || studyPractice ? 0:64+readerHeaderTopInset)
++                .padding(.top,(store.immersive && store.selectedBook == nil) || studyPractice ? 0:workspaceHeaderHeight+readerHeaderTopInset)
+                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
+                 .animation(nil,value:aiWidth)
+                 .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? LumaMotionSpring.panelOpen:LumaMotionSpring.panelClose),value:store.aiPanelVisible)
+@@ -470,31 +474,32 @@
+     private var glassActive:Bool { store.effectiveGlassEffectsEnabled && !reduceTransparency }
+     private func appHeader(availableWidth:CGFloat)->some View {
+         let isReadingBook = (store.selectedBook != nil)
+-        let itemWidth:CGFloat = isReadingBook
+-            ? (availableWidth >= 700 ? 42 : (availableWidth >= 520 ? 38 : (availableWidth < 400 ? 28 : 32)))
++        // Reserve the native window-control lane before distributing seven actions.
++        // Shrink horizontally only; keep a consistent 40pt-high reading target.
++        let readingControlLane = max(0, titlebarInset - 18)
++        let readingItemWidth = min(44, max(20, (availableWidth - readingControlLane - 88) / 7))
++        let itemWidth:CGFloat = isReadingBook ? readingItemWidth
+             : (availableWidth >= 520 ? 44 : (availableWidth < 400 ? 24 : 32))
+-        let itemHeight:CGFloat = isReadingBook ? 32 : 44
+-        let capsuleRadius:CGFloat = isReadingBook ? 20 : 25
+-        // Windowed mode moves the previous 22pt native center down by 8pt.
+-        // Full screen follows the system's measured native center, in the same top band.
+-        let readingBarHeight:CGFloat = isReadingBook
+-            ? (readerWindowIsFullScreen ? max(40, min(88, trafficLightCenterY * 2)) : 60)
+-            : 64
+-        let titleSpace = max(0, min(availableWidth * 0.36, availableWidth - 2 * (titlebarInset + 34 + 4 * itemWidth) - 24))
++        let itemHeight:CGFloat = isReadingBook ? 40 : 44
++        let capsuleRadius:CGFloat = isReadingBook ? 24 : 25
++        let readingBarHeight = workspaceHeaderHeight
++        // A centered title must clear the wider left cluster and traffic-light lane.
++        let titleReserve = readingControlLane + 4 * itemWidth + 44
++        let titleSpace = max(0, min(availableWidth * 0.32, availableWidth - 2 * titleReserve))
+         return LumaGlassCluster(enabled:glassActive) {
+         HStack(alignment: .center, spacing:availableWidth < 520 ? 4:8) {
+             Color.clear.frame(width:(columnVisibility == .detailOnly || isReadingBook) ? max(0, titlebarInset - (isReadingBook ? 18 : 12)) : 0, height:1).allowsHitTesting(false)
+             if isReadingBook && readerChromeVisible {
+-                HStack(spacing:4) {
++                HStack(spacing:2) {
+                     Button { closeReaderPanels(); store.returnToLibrary() } label: {
+                         Image(systemName:"chevron.left")
+-                            .font(.system(size:16.5,weight:.medium))
++                            .font(.system(size:17,weight:.medium))
+                             .frame(width:itemWidth,height:itemHeight)
+                             .contentShape(Rectangle())
+                     }.help(L10n.text("返回书库 · ⌘L")).accessibilityLabel(L10n.text("返回书库")).focused($readerBackFocused)
+                     Button { activeReaderPanel = nil; showBookSearch.toggle() } label: {
+                         Image(systemName:"magnifyingglass")
+-                            .font(.system(size:16.5,weight:.medium))
++                            .font(.system(size:17,weight:.medium))
+                             .frame(width:itemWidth,height:itemHeight)
+                             .contentShape(Rectangle())
+                     }.anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
+@@ -502,7 +507,7 @@
+                     readerPanelButton(.contents,symbol:"list.bullet",label:"目录",itemWidth:itemWidth,itemHeight:itemHeight)
+                     readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记",itemWidth:itemWidth,itemHeight:itemHeight)
+                 }
+-                .padding(.horizontal,8)
++                .padding(.horizontal,6)
+                 .padding(.vertical,4)
+                 .readerGlass(radius:capsuleRadius,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                 .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) {
+@@ -514,11 +519,11 @@
+             }
+             Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false)
+             if isReadingBook && readerChromeVisible {
+-                HStack(spacing:4) {
++                HStack(spacing:2) {
+                     readerUtilityActions(itemWidth:itemWidth,itemHeight:itemHeight)
+                     readerBookmarkAction(itemWidth:itemWidth,itemHeight:itemHeight)
+                 }
+-                .padding(.horizontal,8)
++                .padding(.horizontal,6)
+                 .padding(.vertical,4)
+                 .readerGlass(radius:capsuleRadius,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
+                 .opacity(readerChromeVisible ? 1:0).allowsHitTesting(readerChromeVisible).accessibilityHidden(!readerChromeVisible)
+@@ -542,20 +547,20 @@
+             #endif
+         }
+         .overlay(alignment:.center) {
+-            if let book = store.selectedBook {
++            if let book = store.selectedBook, titleSpace >= 72 {
+                 Text(book.title)
+-                    .font(store.homeFont(15.5,weight:.medium))
+-                    .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink.opacity(0.68))
++                    .font(store.homeFont(14,weight:.medium))
++                    .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
+                     .lineLimit(1)
+                     .frame(width:titleSpace)
+                     .clipped()
+                     .allowsHitTesting(false)
+                     .opacity(readerChromeVisible ? 1 : 0)
+-            } else {
++            } else if !isReadingBook {
+                 headerTitle.allowsHitTesting(false)
+             }
+         }
+-        .frame(height:64,alignment:.top)
++        .frame(height:readingBarHeight,alignment:.top)
+         .background {
+             if isReadingBook && readerWindowIsFullScreen && readerChromeVisible {
+                 Rectangle().fill(store.chrome(dark:colorScheme == .dark))
+@@ -600,10 +605,10 @@
+         }
+     }
+ 
+-    private func readerBookmarkAction(itemWidth:CGFloat,itemHeight:CGFloat = 32)->some View {
++    private func readerBookmarkAction(itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+         Button { controller.addBookmark() } label: {
+             Image(systemName:controller.currentBookmark == nil ? "bookmark":"bookmark.fill")
+-                .font(.system(size:16.5,weight:.medium))
++                .font(.system(size:17,weight:.medium))
+                 .frame(width:itemWidth,height:itemHeight)
+                 .phaseAnimator([false,true,false],trigger:controller.bookmarkPulse) { icon,pressed in
+                     icon.scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:pressed ? 0.96:1)
+@@ -611,10 +616,10 @@
+         }.foregroundStyle(controller.currentBookmark == nil ? store.readingPalette(dark:colorScheme == .dark).ink:store.accent)
+             .help(L10n.text("添加 / 移除本页书签 · ⌘D")).accessibilityLabel(L10n.text(controller.currentBookmark == nil ? "添加本页书签":"移除本页书签"))
+     }
+-    @ViewBuilder private func readerUtilityActions(itemWidth:CGFloat,itemHeight:CGFloat = 32)->some View {
++    @ViewBuilder private func readerUtilityActions(itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+         Button { closeReaderPanels(); showSettings = true } label: {
+             AnimatedSettingsGlyph(active:showSettings)
+-                .font(.system(size:16.5,weight:.medium))
++                .font(.system(size:17,weight:.medium))
+                 .frame(width:itemWidth,height:itemHeight)
+                 .clipped()
+                 .contentShape(Rectangle())
+@@ -622,8 +627,9 @@
+         }.help(L10n.text("设置")).accessibilityLabel(L10n.text("设置"))
+         Button { store.aiPanelVisible.toggle() } label: {
+             Image(systemName:"sparkles")
+-                .font(.system(size:16.5,weight:.medium))
++                .font(.system(size:17,weight:.medium))
+                 .frame(width:itemWidth,height:itemHeight)
++                .contentShape(Rectangle())
+         }.help(L10n.text("展开 / 收起 AI 助手 · ⌥⌘A")).accessibilityLabel(L10n.text("展开或收起 AI 助手"))
+     }
+ 
+@@ -720,14 +726,14 @@
+         }
+     }
+ 
+-    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String,itemWidth:CGFloat,itemHeight:CGFloat = 32)->some View {
++    private func readerPanelButton(_ panel:ReaderPanel,symbol:String,label:String,itemWidth:CGFloat,itemHeight:CGFloat = 40)->some View {
+         let pal = store.readingPalette(dark:colorScheme == .dark)
+         return Button {
+             showBookSearch = false
+             activeReaderPanel = activeReaderPanel == panel ? nil:panel
+         } label: {
+             Image(systemName:symbol)
+-                .font(.system(size:16.5,weight:.medium))
++                .font(.system(size:17,weight:.medium))
+                 .frame(width:itemWidth,height:itemHeight)
+                 .background(activeReaderPanel == panel ? pal.accent.opacity(0.22):.clear,in:Capsule())
+                 .contentShape(Rectangle())
+@@ -771,10 +777,10 @@
+         let tAccent = outlineThemeAccent
+         let tFill = outlineThemeSelectedFill
+         return VStack(spacing:0) {
+-            HStack(spacing: 8) {
+-                Text(L10n.text("阅读导航"))
+-                    .font(.system(size: 12.5, weight: .medium))
+-                    .foregroundStyle(pal.muted)
++            VStack(alignment: .leading, spacing: 12) {
++                Text(L10n.text(readerPanelTitle))
++                    .font(store.homeFont(18, weight: .semibold))
++                    .foregroundStyle(pal.ink)
+                 HStack(spacing: 2) {
+                     ForEach([(ReaderPanel.contents, "目录"), (.bookmarks, "书签"), (.notes, "笔记")], id: \.0) { tab, title in
+                         let isSel = ((activeReaderPanel ?? .contents) == tab)
+@@ -782,10 +788,9 @@
+                             activeReaderPanel = tab
+                         } label: {
+                             Text(L10n.text(title))
+-                                .font(.system(size: 12.5, weight: isSel ? .semibold : .regular))
+-                                .foregroundStyle(isSel ? pal.ink : pal.muted)
+-                                .padding(.horizontal, 12)
+-                                .padding(.vertical, 4)
++                                .font(.system(size: 13, weight: isSel ? .semibold : .regular))
++                                .foregroundStyle(pal.ink)
++                                .frame(maxWidth: .infinity, minHeight: 36)
+                                 .background(
+                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                         .fill(isSel ? tFill : Color.clear)
+@@ -802,8 +807,7 @@
+                 .padding(3)
+                 .background(pal.chrome.opacity(0.75), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+             }
+-            .padding(12)
+-            Text(L10n.text(readerPanelTitle)).font(store.homeFont(16,weight:.medium)).padding(.bottom,12)
++            .padding(16)
+             Divider().opacity(0.25)
+             ZStack {
+                 Group {
+@@ -826,7 +830,7 @@
+                 Group { if let book = store.selectedBook { notesInspector(book) } }
+                     .opacity(activeReaderPanel == .notes ? 1:0).allowsHitTesting(activeReaderPanel == .notes).accessibilityHidden(activeReaderPanel != .notes)
+             }.frame(maxWidth:.infinity,maxHeight:.infinity)
+-        }.frame(width:340,height:520)
++        }.frame(width:360,height:520)
+             .tint(tAccent)
+             .foregroundStyle(pal.ink)
+             .readerGlass(radius:16,enabled:glassActive,tint:store.chrome(dark:dark))
+@@ -1565,6 +1569,13 @@
+     @Environment(\.dismiss) private var dismiss
+     @Environment(\.openWindow) private var openWindow
+     private func close() { if let onClose { onClose() } else { dismiss() } }
++    private var cloudSyncScopeText: String {
++        let books = store.shelfBooks
++        let noteCount = books.reduce(0) { $0 + $1.notes.count }
++        let bookmarkCount = books.reduce(0) { $0 + ($1.bookmarks?.count ?? 0) }
++        return "\(books.count) 本书 · \(noteCount) 处批注 · \(bookmarkCount) 个书签 + 学习中心 (luma_study_store.json)"
++    }
++
+     var body: some View {
+         Form {
+             Picker(L10n.text("设置类别"),selection:$settingsCategory) {
+@@ -1657,7 +1668,7 @@
+             Section(L10n.text("云端同步")) {
+                 LabeledContent(L10n.text("字体资源")) { Text(L10n.text("\(store.importedFonts.count) 款已导入字体")).font(.caption) }
+                 LabeledContent(L10n.text("同步范围")) {
+-                    Text(L10n.text("\(store.shelfBooks.count) 本书 · \(store.shelfBooks.reduce(0) { $0 + $1.notes.count }) 处批注 · \(store.shelfBooks.reduce(0) { $0 + ($1.bookmarks?.count ?? 0) }) 个书签 + 学习中心 (luma_study_store.json)"))
++                    Text(L10n.text(cloudSyncScopeText))
+                         .font(.caption).monospacedDigit()
+                 }
+                 LabeledContent(L10n.text("学习中心云同步")) {
+--- a/Sources/LumaReader/ReadingOutlineView.swift
++++ b/Sources/LumaReader/ReadingOutlineView.swift
+@@ -129,7 +129,7 @@
+                     } label: {
+                         Image(systemName:"chevron.right").font(.system(size:10,weight:.semibold))
+                             .foregroundStyle(isActive ? accentColor : muted)
+-                            .rotationEffect(.degrees(expanded ? 90:0)).frame(width:30,height:38)
++                            .rotationEffect(.degrees(expanded ? 90:0)).frame(width:30,height:44)
+                     }.buttonStyle(.plain).disabled(forceExpanded)
+                         .accessibilityLabel(L10n.text((expanded ? "折叠":"展开")+item.title))
+                         .accessibilityValue(L10n.text(expanded ? "已展开":"已折叠"))
+@@ -137,10 +137,12 @@
+                 Button { onSelect(item) } label: {
+                     HStack(spacing:8) {
+                         Text(item.title)
+-                            .font(.system(size:13,weight:(isActive || !item.children.isEmpty) ? .medium : .regular))
+-                            .foregroundStyle(isActive ? ink : ink.opacity(0.88))
++                            .font(.system(size:14,weight:(isActive || !item.children.isEmpty) ? .semibold : .regular))
++                            .foregroundStyle(ink)
+                             .multilineTextAlignment(.leading)
+-                            .frame(maxWidth:.infinity,minHeight:38,alignment:.leading)
++                            .fixedSize(horizontal: false, vertical: true)
++                            .padding(.vertical, 6)
++                            .frame(maxWidth:.infinity,minHeight:44,alignment:.leading)
+                         if isActive {
+                             Circle()
+                                 .fill(accentColor)
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticArchive.swift
+@@ -0,0 +1,36 @@
++import Foundation
++import ZIPFoundation
++
++/// Blocking filesystem/ZIP work stays off the main actor. Raw SDK stores are never copied.
++actor DiagnosticArchive {
++    func writeMarkdown(_ report:DiagnosticReport,to destination:URL) throws { try report.markdown().write(to:destination,atomically:true,encoding:.utf8) }
++    func write(_ report:DiagnosticReport,to destination:URL) throws {
++        let staging = FileManager.default.temporaryDirectory.appendingPathComponent("LumaDiagnostics-"+UUID().uuidString,isDirectory:true)
++        let zip = staging.appendingPathExtension("zip")
++        defer { try? FileManager.default.removeItem(at:staging); try? FileManager.default.removeItem(at:zip) }
++        try FileManager.default.createDirectory(at:staging,withIntermediateDirectories:true)
++        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted,.sortedKeys]; encoder.dateEncodingStrategy = .millisecondsSince1970
++        try encoder.encode(report).write(to:staging.appendingPathComponent("diagnostics.json"),options:.atomic)
++        try report.markdown().write(to:staging.appendingPathComponent("BugReport.md"),atomically:true,encoding:.utf8)
++        var csv = "time_epoch,luma_cpu_percent_one_core,luma_rss_bytes,luma_footprint_bytes,system_cpu_percent,system_used_bytes_estimate,battery_percent,thermal,memory_pressure,sampler_wall_ms\n"
++        for row in report.samples {
++            var values: [String] = []
++            values.reserveCapacity(10)
++            values.append(String(row.time.timeIntervalSince1970))
++            values.append(row.processCPUPercent.map { String($0) } ?? "")
++            values.append(row.processResidentBytes.map { String($0) } ?? "")
++            values.append(row.processFootprintBytes.map { String($0) } ?? "")
++            values.append(row.systemCPUPercent.map { String($0) } ?? "")
++            values.append(row.systemUsedBytesEstimate.map { String($0) } ?? "")
++            values.append(row.batteryPercent.map { String($0) } ?? "")
++            values.append(row.thermal.map { String($0) } ?? "")
++            values.append(row.memoryPressure.map { String($0) } ?? "")
++            values.append(String(row.samplerWallMs))
++            csv += values.joined(separator:",")+"\n"
++        }
++        try csv.write(to:staging.appendingPathComponent("Performance.csv"),atomically:true,encoding:.utf8)
++        try FileManager.default.zipItem(at:staging,to:zip,shouldKeepParent:false)
++        // NSSavePanel has already obtained overwrite confirmation; atomic replacement keeps a prior report intact on failure.
++        try Data(contentsOf:zip,options:.mappedIfSafe).write(to:destination,options:.atomic)
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticManager.swift
+@@ -0,0 +1,215 @@
++import SwiftUI
++import Observation
++import CoreData
++import UniformTypeIdentifiers
++import Pulse
++import KSCrashRecording
++import KSCrashMonitors
++
++@MainActor @Observable
++final class DiagnosticManager {
++    static let shared = DiagnosticManager()
++    var enabled = UserDefaults.standard.bool(forKey:"diagnostics.enabled") { didSet { persist("enabled",enabled); configure(); if enabled { record(.enabled) } } }
++    var cpuMonitoring = UserDefaults.standard.object(forKey:"diagnostics.cpu") as? Bool ?? true { didSet { persist("cpu",cpuMonitoring); configure() } }
++    var memoryMonitoring = UserDefaults.standard.object(forKey:"diagnostics.memory") as? Bool ?? true { didSet { persist("memory",memoryMonitoring); configure() } }
++    var powerMonitoring = UserDefaults.standard.object(forKey:"diagnostics.power") as? Bool ?? true { didSet { persist("power",powerMonitoring); configure() } }
++    var automaticDetection = UserDefaults.standard.object(forKey:"diagnostics.auto") as? Bool ?? true { didSet { persist("auto",automaticDetection) } }
++    var backgroundRecording = UserDefaults.standard.bool(forKey:"diagnostics.background") { didSet { persist("background",backgroundRecording); configure() } }
++    var crashCaptureEnabled = UserDefaults.standard.bool(forKey:"diagnostics.crash") { didSet { persist("crash",crashCaptureEnabled) } }
++    var metricKitEnabled = UserDefaults.standard.bool(forKey:"diagnostics.metricKit") { didSet { persist("metricKit",metricKitEnabled) } }
++    private(set) var samples: [DiagnosticSample] = []
++    private(set) var events: [DiagnosticEvent] = []
++    private(set) var latest: DiagnosticSample?
++    private(set) var sampling = false
++    private(set) var crashActive = false
++    private(set) var crashReportCount: Int?
++    private(set) var previousTerminationCode: Int?
++    private(set) var status: String?
++    private(set) var exporting = false
++    @ObservationIgnored private var store: LoggerStore?
++    @ObservationIgnored private let sampler = DiagnosticSampler()
++    @ObservationIgnored private var samplingTask: Task<Void,Never>?
++    @ObservationIgnored private var pressureSource: (any DispatchSourceMemoryPressure)?
++    @ObservationIgnored private var pressure: Int?
++    @ObservationIgnored private var visibleCount = 0
++    @ObservationIgnored private var started = false
++    @ObservationIgnored private var observers: [NSObjectProtocol] = []
++    @ObservationIgnored private var pending: [DiagnosticOperation:(id:UUID,start:UInt64)] = [:]
++    @ObservationIgnored private var deadlines: [DiagnosticOperation:Task<Void,Never>] = [:]
++    @ObservationIgnored var aiHealthCheck: (() -> Void)?
++    @ObservationIgnored private var lastError: [DiagnosticCode:Date] = [:]
++    let root = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("LumaReader/Diagnostics",isDirectory:true)
++    private var storeURL: URL { root.appendingPathComponent("Events.pulse-store",isDirectory:true) }
++    enum DiagnosticOperation: Hashable { case aiBoot, bookLoad, viewport }
++
++    func applicationDidStart() {
++        guard !started else { return }; started = true
++        for name in [NSApplication.didBecomeActiveNotification,NSApplication.didResignActiveNotification] {
++            observers.append(NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main) { [weak self] _ in
++                MainActor.assumeIsolated { self?.configure() }
++            })
++        }
++        configure(); record(.appStarted)
++        if enabled && crashCaptureEnabled { installCrashReporter() }
++    }
++    private func persist(_ key:String,_ value:Bool) { UserDefaults.standard.set(value,forKey:"diagnostics."+key) }
++    private func openStore(readonly:Bool = false) throws -> LoggerStore {
++        // Remote logging is never enabled by this application, including a persisted SDK flag.
++        UserDefaults.standard.set(false,forKey:"com-github-kean-pulse-is-remote-logger-enabled")
++        RemoteLogger.shared.disable()
++        if !readonly { try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true) }
++        var configuration = LoggerStore.Configuration(sizeLimit:25*1_000_000)
++        configuration.maxAge = 7*86400; configuration.responseBodySizeLimit = 0
++        return try LoggerStore(storeURL:storeURL,options:readonly ? [.readonly]:[.create,.sweep],configuration:configuration)
++    }
++    private func configure() {
++        samplingTask?.cancel(); samplingTask = nil; sampling = false; latest = nil
++        if enabled, store == nil {
++            do { store = try openStore() } catch { status = "日志存储不可用"; record(.logStoreFailed,isError:true,fields:[.errorCode:Double((error as NSError).code)]) }
++        }
++        if !enabled {
++            deadlines.values.forEach { $0.cancel() }; deadlines = [:]; pending = [:]
++            pressureSource?.cancel(); pressureSource = nil; pressure = nil
++            try? store?.close(); store = nil
++            return
++        }
++        if memoryMonitoring && pressureSource == nil {
++            let source = DispatchSource.makeMemoryPressureSource(eventMask:[.normal,.warning,.critical],queue:.main)
++            pressureSource = source
++            source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.consumePressure() } }
++            source.resume()
++        } else if !memoryMonitoring { pressureSource?.cancel(); pressureSource = nil; pressure = nil }
++        guard (cpuMonitoring || memoryMonitoring || powerMonitoring), (visibleCount > 0 || backgroundRecording), NSApp.isActive else { return }
++        sampling = true
++        samplingTask = Task { [weak self] in
++            guard let self else { return }; await sampler.reset()
++            while !Task.isCancelled {
++                var sample = await sampler.sample(cpu:cpuMonitoring,memory:memoryMonitoring,power:powerMonitoring)
++                guard !Task.isCancelled, enabled else { break }
++                sample.memoryPressure = memoryMonitoring ? pressure:nil
++                latest = sample; samples.append(sample)
++                if samples.count > 600 { samples.removeFirst(samples.count-600) }
++                let thermal = ProcessInfo.processInfo.thermalState
++                var interval = thermal == .critical ? 8.0:thermal == .serious ? 4.0:2.0
++                if ProcessInfo.processInfo.isLowPowerModeEnabled { interval *= 2 }
++                do { try await Task.sleep(for:.seconds(interval)) } catch { break }
++            }
++        }
++    }
++    func viewAppeared() { visibleCount += 1; configure(); refreshCrashCount() }
++    func viewDisappeared() { visibleCount = max(0,visibleCount-1); configure() }
++    private func consumePressure() {
++        guard enabled, let source = pressureSource else { return }
++        let data = source.data
++        guard !data.intersection([.normal,.warning,.critical]).isEmpty else { return }
++        let value = data.contains(.critical) ? 4:data.contains(.warning) ? 2:1
++        if value != pressure { pressure = value; record(.memoryPressure,isError:value == 4,fields:[.pressure:Double(value)]) }
++    }
++    func record(_ code:DiagnosticCode,isError:Bool = false,fields:[DiagnosticField:Double] = [:]) {
++        guard DiagnosticCapturePolicy.shouldRecord(verbose:enabled,automatic:automaticDetection,isError:isError) else { return }
++        if isError, let previous = lastError[code], Date().timeIntervalSince(previous) < 1 { return }
++        if isError { lastError[code] = Date() }
++        let event = DiagnosticEvent(code:code,isError:isError,fields:fields)
++        events.append(event); if events.count > 500 { events.removeFirst(events.count-500) }
++        guard enabled else { if events.count > 128 { events.removeFirst(events.count-128) }; return }
++        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .millisecondsSince1970
++        guard let data = try? encoder.encode(event), let message = String(data:data,encoding:.utf8) else { return }
++        store?.storeMessage(label:isError ? "LumaReader.error":"LumaReader.event",level:isError ? .error:.info,message:message,file:"LumaReader",function:"diagnostic",line:0)
++    }
++    func begin(_ operation:DiagnosticOperation) {
++        guard enabled, pending[operation] == nil else { return }
++        let id = UUID(); pending[operation] = (id,DispatchTime.now().uptimeNanoseconds)
++        record(operation == .aiBoot ? .aiBootStart:operation == .bookLoad ? .bookLoadStart:.viewportStart)
++        if automaticDetection {
++            deadlines[operation] = Task { [weak self] in
++                do { try await Task.sleep(for:.seconds(operation == .bookLoad ? 20:10)) } catch { return }
++                guard let self, pending[operation]?.id == id else { return }
++                record(operation == .aiBoot ? .aiTimeout:operation == .bookLoad ? .bookTimeout:.viewportTimeout,isError:true)
++                pending.removeValue(forKey:operation); deadlines.removeValue(forKey:operation)
++            }
++        }
++    }
++    func finish(_ operation:DiagnosticOperation) {
++        guard enabled, let value = pending.removeValue(forKey:operation) else { return }
++        deadlines.removeValue(forKey:operation)?.cancel()
++        let elapsed = Double(DispatchTime.now().uptimeNanoseconds-value.start)/1_000_000
++        record(operation == .aiBoot ? .aiReady:operation == .bookLoad ? .bookReady:.viewportSettled,fields:[.durationMs:elapsed])
++    }
++    func cancel(_ operation:DiagnosticOperation) { deadlines.removeValue(forKey:operation)?.cancel(); pending.removeValue(forKey:operation) }
++    func aiVisibility(_ visible:Bool) { record(visible ? .aiOpen:.aiClose) }
++    func network(statusCode:Int?,receivedBytes:Int,errorCode:Int?,durationMs:Double) {
++        guard enabled || automaticDetection else { return }
++        var fields:[DiagnosticField:Double] = [.durationMs:durationMs,.receivedBytes:Double(receivedBytes)]
++        if let statusCode { fields[.statusCode] = Double(statusCode) }
++        if let errorCode { fields[.errorCode] = Double(errorCode) }
++        let failed = errorCode != nil || (statusCode ?? 200) >= 400
++        record(errorCode == NSURLErrorCancelled ? .networkCancelled:failed ? .networkFailed:.networkComplete,isError:failed && errorCode != NSURLErrorCancelled,fields:fields)
++        guard enabled else { return }
++        // Pulse receives a synthetic diagnostic URL and no original headers, errors or bodies.
++        let url = URL(string:"https://diagnostics.invalid/luma-ai")!
++        var request = URLRequest(url:url); request.httpMethod = "POST"
++        let response = statusCode.flatMap { HTTPURLResponse(url:url,statusCode:$0,httpVersion:nil,headerFields:nil) }
++        store?.storeRequest(request,response:response,error:nil,data:nil,label:"LumaReader.network",taskDescription:"Metadata only; original URL and content excluded")
++    }
++    func requestAIHealthCheck() {
++        guard let aiHealthCheck else { status = "AI 界面尚未加载，无法检查"; return }
++        status = "正在检查 AI 界面"; aiHealthCheck()
++    }
++    func receiveAIHealth(_ fields:[DiagnosticField:Double]) -> Bool {
++        let healthy = fields[.bridgeReady] == 1 && fields[.stylesReady] == 1 && fields[.missingNodes] == 0 && fields[.oversizedIcons] == 0 && fields[.overflow] == 0
++        record(healthy ? .aiHealthPassed:.aiHealthFailed,isError:!healthy,fields:fields)
++        status = healthy ? "AI 界面结构与样式检查通过":"AI 界面结构或样式异常"
++        return healthy
++    }
++    func validatePagination(_ value:[String:Any]) {
++        guard automaticDetection else { return }
++        guard let columns = value["columns"] as? Int, let count = value["count"] as? Int, let index = value["index"] as? Int else { record(.invalidPagination,isError:true); return }
++        if !(1...2).contains(columns) || count < 1 || index < 0 || index >= count || index % max(1,columns) != 0 {
++            record(.invalidPagination,isError:true,fields:[.columns:Double(columns),.pages:Double(count),.index:Double(index)])
++        }
++    }
++    private func installCrashReporter() {
++        guard NSGetUncaughtExceptionHandler() == nil else { record(.crashHandlerConflict,isError:true); status = "已有异常处理器，未安装第二个崩溃处理器"; return }
++        let configuration = KSCrashConfiguration()
++        configuration.installPath = root.appendingPathComponent("Crashes").path
++        configuration.enableMemoryIntrospection = false; configuration.enableQueueNameSearch = false
++        configuration.enableHangReporting = true; configuration.enableCPUExceptionReporting = false
++        configuration.enableCompactBinaryImages = true; configuration.reportStoreConfiguration.maxReportCount = 5
++        if metricKitEnabled { configuration.plugins = [MetricKitMonitor()] }
++        do { try KSCrash.shared.install(with:configuration); crashActive = true; record(.crashInstalled); refreshCrashCount() }
++        catch { record(.crashInstallFailed,isError:true,fields:[.errorCode:Double((error as NSError).code)]) }
++    }
++    func refreshCrashCount() { if crashActive { crashReportCount = KSCrash.shared.reportStore?.reportCount; previousTerminationCode = Int(KSCrash.shared.previousTerminationReason.rawValue) } }
++    func storedEvents(errorsOnly:Bool = false) -> [DiagnosticEvent] {
++        var temporary: LoggerStore?
++        var combined = events.filter { !errorsOnly || $0.isError }
++        do {
++            let active: LoggerStore
++            if let store { active = store }
++            else if FileManager.default.fileExists(atPath:storeURL.path) { let opened = try openStore(readonly:true); temporary = opened; active = opened }
++            else { return combined.sorted { $0.time > $1.time } }
++            defer { try? temporary?.close() }
++            let request = NSFetchRequest<LoggerMessageEntity>(entityName:"LoggerMessageEntity")
++            request.fetchLimit = 500; request.sortDescriptors = [NSSortDescriptor(key:"createdAt",ascending:false)]
++            request.predicate = NSPredicate(format:errorsOnly ? "label == %@":"label BEGINSWITH %@",errorsOnly ? "LumaReader.error":"LumaReader.")
++            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .millisecondsSince1970
++            for entity in try active.viewContext.fetch(request) {
++                if let data = entity.text.data(using:.utf8), let event = try? decoder.decode(DiagnosticEvent.self,from:data) { combined.append(event) }
++            }
++        } catch { status = "读取日志失败" }
++        var ids = Set<UUID>()
++        return combined.sorted { $0.time > $1.time }.filter { ids.insert($0.id).inserted }.prefix(500).map { $0 }
++    }
++    func exportReport(markdownOnly:Bool = false) async {
++        let panel = NSSavePanel(); panel.allowedContentTypes = markdownOnly ? [.plainText]:[.zip]
++        panel.nameFieldStringValue = "LumaReader-Diagnostics-\(Int(Date().timeIntervalSince1970))."+(markdownOnly ? "md":"zip")
++        guard panel.runModal() == .OK, let url = panel.url else { return }
++        exporting = true; defer { exporting = false }
++        refreshCrashCount()
++        let version = Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development"
++        let os = ProcessInfo.processInfo.operatingSystemVersion
++        let report = DiagnosticReport(appVersion:version,osVersion:"\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",samples:samples,events:Array(storedEvents().reversed()),crashReportsStored:crashReportCount,crashCaptureActive:crashActive,previousTerminationCode:previousTerminationCode)
++        do { if markdownOnly { try await DiagnosticArchive().writeMarkdown(report,to:url) } else { try await DiagnosticArchive().write(report,to:url) }; record(.exportComplete); status = "诊断报告已导出" }
++        catch { status = "诊断报告导出失败"; record(.exportFailed,isError:true,fields:[.errorCode:Double((error as NSError).code)]) }
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticModels.swift
+@@ -0,0 +1,81 @@
++import Foundation
++
++enum DiagnosticCode: String, Codable, Sendable {
++    case aiHealthPassed, aiHealthFailed
++    case enabled, appStarted, aiOpen, aiClose, aiBootStart, aiReady, aiBootFailed, aiScriptFailed, aiPromiseFailed, aiContentPolicyFailed, aiResponseInvalid, aiRequestInvalid, aiNavigationFailed, aiProcessTerminated, aiTimeout
++    case bookImportFailed, cloudSyncFailed
++    case bookLoadStart, bookReady, bookClose, bookLoadFailed, bookTimeout, viewportStart, viewportSettled, viewportTimeout, invalidPagination
++    case networkComplete, networkFailed, networkCancelled, crashInstalled, crashInstallFailed, crashHandlerConflict, memoryPressure, logStoreFailed, exportFailed, exportComplete
++}
++enum DiagnosticField: String, Sendable {
++    case missingNodes, oversizedIcons, overflow, layoutReady
++    case terminationReason, bridgeReady, stylesReady, durationMs, statusCode, errorCode, receivedBytes, width, height, columns, pages, index, epoch, pressure, thermal, format
++}
++struct DiagnosticEvent: Codable, Identifiable, Sendable {
++    let id: UUID
++    let time: Date
++    let code: DiagnosticCode
++    let isError: Bool
++    let fields: [String:Double]
++    init(code:DiagnosticCode,isError:Bool = false,fields:[DiagnosticField:Double] = [:]) {
++        id = UUID(); time = Date(); self.code = code; self.isError = isError
++        self.fields = Dictionary(uniqueKeysWithValues:fields.compactMap { $0.value.isFinite ? ($0.key.rawValue,$0.value):nil })
++    }
++    enum CodingKeys:String,CodingKey { case id,time,code,isError,fields }
++    init(from decoder:Decoder) throws {
++        let values = try decoder.container(keyedBy:CodingKeys.self)
++        id = try values.decode(UUID.self,forKey:.id); time = try values.decode(Date.self,forKey:.time)
++        code = try values.decode(DiagnosticCode.self,forKey:.code); isError = try values.decode(Bool.self,forKey:.isError)
++        let incoming = try values.decode([String:Double].self,forKey:.fields)
++        fields = incoming.filter { DiagnosticField(rawValue:$0.key) != nil && $0.value.isFinite }
++    }
++}
++struct DiagnosticSample: Codable, Identifiable, Sendable {
++    var id = UUID()
++    var time = Date()
++    var processCPUPercent: Double?
++    var processResidentBytes: UInt64?
++    var processFootprintBytes: UInt64?
++    var systemCPUPercent: Double?
++    var systemUsedBytesEstimate: UInt64?
++    var batteryPercent: Double?
++    var thermal: Int?
++    var lowPowerMode: Bool?
++    var memoryPressure: Int?
++    var samplerWallMs: Double = 0
++}
++struct DiagnosticReport: Codable, Sendable {
++    var schemaVersion = 1
++    var generatedAt = Date()
++    var appVersion: String
++    var osVersion: String
++    var samples: [DiagnosticSample]
++    var events: [DiagnosticEvent]
++    var crashReportsStored: Int?
++    var crashCaptureActive: Bool
++    var previousTerminationCode: Int? = nil
++    var unavailable = ["webkitAuxiliaryCPU":"Not Available: no reliable ownership attribution; Safari/other apps are not aggregated.","webkitAuxiliaryMemory":"Not Available: no reliable ownership attribution.","processGPUPercent":"Not Available: no private GPU counters enabled.","systemGPUPercent":"Not Available: no private GPU counters enabled.","systemPowerWatts":"Not Available: no IOReport/SMC or privileged helper.","debugCPUOverhead":"Not measured: requires native A/B profiling.","debugMemoryOverhead":"Not measured: requires native A/B profiling."]
++    var privacy = "Allowlisted event codes and numeric fields only. No book text, title, paths, queries, notes, conversations, URLs, headers, keys, request/response bodies, host name or raw crash/Pulse files."
++    func markdown() -> String {
++        var text = "# LumaReader Diagnostic Report\n\nApp: \(appVersion)\nmacOS: \(osVersion)\nSamples: \(samples.count)\nStored crash reports: \(crashReportsStored.map(String.init) ?? "Not Available")\n\n## Scope\n\nLumaReader CPU is percent of one core and can exceed 100%. RSS and physical footprint are separate process metrics; WebKit is excluded. System memory is an active+wired+compressed estimate, not Activity Monitor's exact accounting. Battery charge and thermal state are not power in watts. Missing readings are Not Available.\n\n## Privacy\n\n\(privacy)\n\n## Unavailable\n\n"
++        for key in unavailable.keys.sorted() { text += "- \(key): \(unavailable[key] ?? "Not Available")\n" }
++        text += "\n## Observed samples (not continuous peaks)\n\n"
++        if let cpu = samples.compactMap(\.processCPUPercent).max() { text += "- LumaReader maximum observed CPU (one core = 100%): \(cpu)%\n" }
++        if let memory = samples.compactMap(\.processFootprintBytes).max() { text += "- LumaReader maximum observed footprint: \(memory) bytes\n" }
++        text += "- Previous termination code: \(previousTerminationCode.map(String.init) ?? "Not Available")\n"
++        text += "\n## Timeline\n\n| Time (UTC) | Event | Error | Numeric context |\n| --- | --- | --- | --- |\n"
++        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime,.withFractionalSeconds]
++        for event in events {
++            let values = event.fields.keys.sorted().map { "\($0)=\(event.fields[$0] ?? 0)" }.joined(separator:", ")
++            text += "| \(formatter.string(from:event.time)) | \(event.code.rawValue) | \(event.isError) | \(values) |\n"
++        }
++        return text
++    }
++}
++
++/// Basic errors are a bounded in-memory ring; verbose logging is opt-in.
++enum DiagnosticCapturePolicy {
++    static func shouldRecord(verbose:Bool,automatic:Bool,isError:Bool) -> Bool {
++        isError ? automatic:verbose
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticSampler.swift
+@@ -0,0 +1,37 @@
++import Foundation
++import DiagnosticsC
++
++/// One actor owns all prior counters; one caller task drives the whole sampling session.
++actor DiagnosticSampler {
++    private var previousTicks: CPUTicks?
++    private var previousProcess: (time:UInt64,cpu:UInt64)?
++    func reset() { previousTicks = nil; previousProcess = nil }
++    func sample(cpu:Bool,memory:Bool,power:Bool) -> DiagnosticSample {
++        let started = DispatchTime.now().uptimeNanoseconds
++        var result = DiagnosticSample()
++        if cpu || memory {
++            var counters = LumaProcessCounters()
++            if luma_process_counters(&counters) == 0 {
++                if cpu, let previous = previousProcess, started > previous.time, counters.cpu_nanoseconds >= previous.cpu {
++                    result.processCPUPercent = Double(counters.cpu_nanoseconds-previous.cpu)/Double(started-previous.time)*100
++                }
++                previousProcess = (started,counters.cpu_nanoseconds)
++                if memory { result.processResidentBytes = counters.resident_bytes; result.processFootprintBytes = counters.footprint_bytes }
++            } else { previousProcess = nil }
++        }
++        if cpu {
++            if let ticks = DiagnosticSystemReaders.cpuTicks() {
++                if let previousTicks, ticks.user >= previousTicks.user, ticks.system >= previousTicks.system, ticks.idle >= previousTicks.idle, ticks.nice >= previousTicks.nice, ticks != previousTicks { result.systemCPUPercent = CPUCalculator.usage(from:previousTicks,to:ticks).total }
++                previousTicks = ticks
++            } else { previousTicks = nil }
++        }
++        if memory { result.systemUsedBytesEstimate = DiagnosticSystemReaders.memoryUsage()?.usedBytes }
++        if power {
++            result.thermal = ProcessInfo.processInfo.thermalState.rawValue
++            result.lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
++            result.batteryPercent = DiagnosticSystemReaders.batteryPercent()
++        }
++        result.samplerWallMs = Double(DispatchTime.now().uptimeNanoseconds-started)/1_000_000
++        return result
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticSystemReaders.swift
+@@ -0,0 +1,39 @@
++// Public-API subset adapted from Desktop-Overlay v2.0, SystemMetricsService.swift.
++// Copyright (c) 2026 Al Hanashi, MIT; see ThirdParty/Diagnostics.
++import Foundation
++import Darwin
++import IOKit.ps
++
++enum DiagnosticSystemReaders {
++    static func cpuTicks() -> CPUTicks? {
++        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.stride / MemoryLayout<integer_t>.stride)
++        var info = host_cpu_load_info_data_t()
++        let host = mach_host_self(); defer { mach_port_deallocate(mach_task_self_,host) }
++        let result = withUnsafeMutablePointer(to:&info) { pointer in
++            pointer.withMemoryRebound(to:integer_t.self,capacity:Int(count)) { host_statistics(host,HOST_CPU_LOAD_INFO,$0,&count) }
++        }
++        guard result == KERN_SUCCESS else { return nil }
++        return CPUTicks(user:UInt64(info.cpu_ticks.0),system:UInt64(info.cpu_ticks.1),idle:UInt64(info.cpu_ticks.2),nice:UInt64(info.cpu_ticks.3))
++    }
++    static func memoryUsage() -> MemoryUsage? {
++        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.stride / MemoryLayout<integer_t>.stride)
++        var info = vm_statistics64_data_t(), size:vm_size_t = 0
++        let host = mach_host_self(); defer { mach_port_deallocate(mach_task_self_,host) }
++        guard host_page_size(host,&size) == KERN_SUCCESS else { return nil }
++        let result = withUnsafeMutablePointer(to:&info) { pointer in
++            pointer.withMemoryRebound(to:integer_t.self,capacity:Int(count)) { host_statistics64(host,HOST_VM_INFO64,$0,&count) }
++        }
++        guard result == KERN_SUCCESS else { return nil }
++        return MemoryCalculator.usage(sample:MemorySample(active:UInt64(info.active_count),wired:UInt64(info.wire_count),compressed:UInt64(info.compressor_page_count),free:UInt64(info.free_count),inactive:UInt64(info.inactive_count)),pageSize:UInt64(size),physical:ProcessInfo.processInfo.physicalMemory)
++    }
++    static func batteryPercent() -> Double? {
++        guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(), let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
++        for source in sources {
++            guard let description = IOPSGetPowerSourceDescription(snapshot,source)?.takeUnretainedValue() as? [String:Any],
++                  let current = (description[kIOPSCurrentCapacityKey] as? NSNumber)?.doubleValue,
++                  let maximum = (description[kIOPSMaxCapacityKey] as? NSNumber)?.doubleValue, maximum > 0 else { continue }
++            return min(100,max(0,current/maximum*100))
++        }
++        return nil
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/DiagnosticsSettingsView.swift
+@@ -0,0 +1,133 @@
++import SwiftUI
++import Charts
++
++struct DiagnosticsSettingsView: View {
++    @State private var manager = DiagnosticManager.shared
++    @State private var errorsOnly = false
++    @State private var logs: [DiagnosticEvent] = []
++    @State private var metric = "processCPU"
++    private func binding(_ key:ReferenceWritableKeyPath<DiagnosticManager,Bool>) -> Binding<Bool> {
++        Binding(get:{ manager[keyPath:key] },set:{ manager[keyPath:key] = $0 })
++    }
++    var body: some View {
++        VStack(alignment:.leading,spacing:14) {
++            Toggle(L10n.text("Debug 模式"),isOn:binding(\.enabled))
++            Text(L10n.text("详细日志与性能采样默认关闭。基础错误只保存在本次会话内存中，最多 128 条，不自动上传。"))
++                .font(.caption).foregroundStyle(.secondary)
++            Group {
++                Toggle(L10n.text("CPU 监测"),isOn:binding(\.cpuMonitoring))
++                Toggle(L10n.text("内存占用与内存压力"),isOn:binding(\.memoryMonitoring))
++                Toggle(L10n.text("电池与热状态"),isOn:binding(\.powerMonitoring))
++                Toggle(L10n.text("后台记录性能（可选）"),isOn:binding(\.backgroundRecording))
++                Text(L10n.text("默认离开此页就暂停性能采样；后台记录开启后，仅在应用处于活跃状态时继续。热压力高时降低采样频率。"))
++                    .font(.caption).foregroundStyle(.secondary)
++            }.disabled(!manager.enabled)
++            Toggle(L10n.text("自动错误检测"),isOn:binding(\.automaticDetection))
++            Button(L10n.text("检查 AI 界面")) { manager.requestAIHealthCheck() }
++            Toggle(L10n.text("GPU 监测（当前不可用）"),isOn:.constant(false)).disabled(true)
++            Divider()
++            Toggle(L10n.text("崩溃与卡死捕获（重启生效）"),isOn:binding(\.crashCaptureEnabled)).disabled(!manager.enabled)
++            Toggle(L10n.text("MetricKit 延迟诊断（重启生效）"),isOn:binding(\.metricKitEnabled)).disabled(!manager.enabled || !manager.crashCaptureEnabled)
++            Text(L10n.text("只使用 KSCrash。原始报告可能包含系统路径，内存内容探测关闭；原始报告不会加入导出文件。关闭已安装的捕获器需要重启。CPU 开关不控制 KSCrash 自身的资源跟踪器。"))
++                .font(.caption).foregroundStyle(.secondary)
++            LabeledContent(L10n.text("本次捕获状态")) { Text(L10n.text(manager.crashActive ? "已安装，完全停用需重启":"未安装，更改下次启动生效")) }
++            LabeledContent(L10n.text("本地崩溃报告")) { Text(manager.crashReportCount.map(String.init) ?? "Not Available") }
++            LabeledContent(L10n.text("上次终止原因代码")) { Text(manager.previousTerminationCode.map(String.init) ?? "Not Available") }
++            Button(L10n.text("刷新崩溃计数")) { manager.refreshCrashCount() }
++            Divider()
++            Text(L10n.text("LumaReader 进程（不含 WebKit）")).font(.headline)
++            LabeledContent("CPU") { Text(percent(manager.latest?.processCPUPercent)) }
++            LabeledContent("RSS") { Text(bytes(manager.latest?.processResidentBytes)) }
++            LabeledContent(L10n.text("物理占用")) { Text(bytes(manager.latest?.processFootprintBytes)) }
++            Text(L10n.text("进程 CPU 按单核 100% 计，可超过 100%；RSS 与物理占用是不同指标。"))
++                .font(.caption).foregroundStyle(.secondary)
++            LabeledContent(L10n.text("LumaReader GPU")) { Text("Not Available") }
++            LabeledContent(L10n.text("WebKit 辅助进程 CPU / 内存 / GPU")) { Text("Not Available") }
++            Text(L10n.text("整机系统")).font(.headline)
++            LabeledContent("CPU") { Text(percent(manager.latest?.systemCPUPercent)) }
++            LabeledContent(L10n.text("已用内存（估计）")) { Text(bytes(manager.latest?.systemUsedBytesEstimate)) }
++            LabeledContent(L10n.text("内存压力（系统通知）")) { Text(pressure(manager.latest?.memoryPressure)) }
++            LabeledContent(L10n.text("电池电量")) { Text(percent(manager.latest?.batteryPercent)) }
++            LabeledContent(L10n.text("热状态")) { Text(thermal(manager.latest?.thermal)) }
++            LabeledContent(L10n.text("低电量模式")) { Text(manager.latest?.lowPowerMode.map { L10n.text($0 ? "开启":"关闭") } ?? "Not Available") }
++            LabeledContent(L10n.text("GPU 利用率 / 功耗 W")) { Text("Not Available") }
++            Text(L10n.text("不启用 IOReport、SMC 或特权助手。电池百分比与热状态不是瓦特数；不能可靠归属的 WebKit CPU、内存及 GPU 均为 Not Available。"))
++                .font(.caption).foregroundStyle(.secondary)
++            LabeledContent(L10n.text("采样状态")) { Text(L10n.text(manager.sampling ? "正在采样":"已暂停")) }
++            LabeledContent(L10n.text("单次采样墙钟耗时")) { Text(manager.latest.map { String(format:"%.3f ms",$0.samplerWallMs) } ?? "Not Available") }
++            Text(L10n.text("这不是 Debug 的 CPU 或内存开销测量；需要原生 A/B 性能测试。"))
++                .font(.caption).foregroundStyle(.secondary)
++            Divider()
++            Text(L10n.text("性能历史（本次会话，最多 600 点）")).font(.headline)
++            Picker(L10n.text("历史指标"),selection:$metric) {
++                Text(L10n.text("进程 CPU %")).tag("processCPU")
++                Text(L10n.text("整机 CPU %")).tag("systemCPU")
++                Text(L10n.text("进程物理占用 MiB")).tag("processMemory")
++                Text(L10n.text("整机内存估计 MiB")).tag("systemMemory")
++            }
++            if points.isEmpty { Text(L10n.text("尚无有效采样，缺失数据不会显示为零。")).font(.caption).foregroundStyle(.secondary) }
++            else {
++                Chart(points) { point in
++                    LineMark(x:.value("Time",point.time),y:.value("Value",point.value),series:.value("Segment",point.segment))
++                        .foregroundStyle(Color.accentColor)
++                }.frame(height:140)
++            }
++            Divider()
++            HStack {
++                Text(L10n.text("Bug 日志（Pulse）")).font(.headline)
++                Spacer()
++                Button(L10n.text("刷新")) { refresh() }
++            }
++            Toggle(L10n.text("只看错误"),isOn:$errorsOnly)
++            ForEach(Array(logs.prefix(60))) { event in
++                VStack(alignment:.leading,spacing:3) {
++                    HStack { Text(event.code.rawValue).font(.system(.caption,design:.monospaced)); Spacer(); Text(event.time,style:.time).font(.caption2) }
++                    if !event.fields.isEmpty {
++                        Text(event.fields.keys.sorted().map { "\($0)=\(event.fields[$0] ?? 0)" }.joined(separator:" · "))
++                            .font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
++                    }
++                }
++            }
++            if logs.isEmpty { Text(L10n.text("暂无诊断事件")).font(.caption).foregroundStyle(.secondary) }
++            HStack {
++                Button(L10n.text("导出诊断 ZIP")) { Task { await manager.exportReport() } }
++                Button(L10n.text("导出 Markdown")) { Task { await manager.exportReport(markdownOnly:true) } }
++                if manager.exporting { ProgressView().controlSize(.small) }
++            }.disabled(manager.exporting)
++            Text(L10n.text("导出只含白名单事件与数值，不含书籍正文、笔记、AI 对话、URL、密钥、路径、主机名、原始 Pulse 或原始崩溃报告。"))
++                .font(.caption).foregroundStyle(.secondary)
++            if let status = manager.status { Text(L10n.text(status)).font(.caption) }
++        }
++        .font(.callout)
++        .onAppear { manager.viewAppeared(); refresh() }
++        .onDisappear { manager.viewDisappeared() }
++        .onChange(of:errorsOnly) { _,_ in refresh() }
++        .onChange(of:manager.events.last?.id) { _,_ in refresh() }
++    }
++    private func refresh() { logs = manager.storedEvents(errorsOnly:errorsOnly) }
++    private func percent(_ value:Double?) -> String { value.map { String(format:"%.1f%%",$0) } ?? "Not Available" }
++    private func bytes(_ value:UInt64?) -> String { value.map { ByteCountFormatter.string(fromByteCount:Int64(clamping:$0),countStyle:.memory) } ?? "Not Available" }
++    private func pressure(_ value:Int?) -> String { value.flatMap { MemoryPressure(rawValue:$0)?.label } ?? "Not Available" }
++    private func thermal(_ value:Int?) -> String {
++        guard let value, let state = ProcessInfo.ThermalState(rawValue:value) else { return "Not Available" }
++        switch state { case .nominal:return "Nominal";case .fair:return "Fair";case .serious:return "Serious";case .critical:return "Critical";@unknown default:return "Not Available" }
++    }
++    private struct Point: Identifiable { var id:UUID; var time:Date; var value:Double; var segment:Int }
++    private var points: [Point] {
++        var result:[Point] = [], segment = 0, previous:Date?
++        for sample in manager.samples {
++            let value:Double?
++            switch metric {
++            case "systemCPU":value = sample.systemCPUPercent
++            case "processMemory":value = sample.processFootprintBytes.map { Double($0)/1_048_576 }
++            case "systemMemory":value = sample.systemUsedBytesEstimate.map { Double($0)/1_048_576 }
++            default:value = sample.processCPUPercent
++            }
++            if let value {
++                if let previous, sample.time.timeIntervalSince(previous) > 20 { segment += 1 }
++                result.append(Point(id:sample.id,time:sample.time,value:value,segment:segment)); previous = sample.time
++            } else { segment += 1; previous = nil }
++        }
++        return result
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/Vendor/CPUCalculator.swift
+@@ -0,0 +1,50 @@
++// Adapted/reused from alhanashi/Desktop-Overlay v2.0 (cbcf539a), MIT.
++// Copyright (c) 2026 Al Hanashi. See ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt.
++import Foundation
++
++/// Cumulative CPU tick counters, as reported by `HOST_CPU_LOAD_INFO`.
++struct CPUTicks: Equatable, Sendable {
++    var user: UInt64
++    var system: UInt64
++    var idle: UInt64
++    var nice: UInt64
++}
++
++/// CPU usage over an interval, as percentages that sum to ~100.
++struct CPUUsage: Equatable, Sendable {
++    var user: Double
++    var system: Double
++    var idle: Double
++    /// Total non-idle usage (`100 - idle`).
++    var total: Double
++}
++
++/// Pure CPU-usage math, unit-tested with synthetic tick deltas (spec §28).
++enum CPUCalculator {
++
++    static func usage(from previous: CPUTicks, to current: CPUTicks) -> CPUUsage {
++        let dUser = Double(RateCalculator.delta(previous: previous.user, current: current.user))
++        let dSystem = Double(RateCalculator.delta(previous: previous.system, current: current.system))
++        let dIdle = Double(RateCalculator.delta(previous: previous.idle, current: current.idle))
++        let dNice = Double(RateCalculator.delta(previous: previous.nice, current: current.nice))
++
++        let totalTicks = dUser + dSystem + dIdle + dNice
++        guard totalTicks > 0 else {
++            return CPUUsage(user: 0, system: 0, idle: 100, total: 0)
++        }
++
++        let user = (dUser + dNice) / totalTicks * 100
++        let system = dSystem / totalTicks * 100
++        let idle = dIdle / totalTicks * 100
++        return CPUUsage(user: user,
++                        system: system,
++                        idle: idle,
++                        total: (100 - idle).clamped(to: 0...100))
++    }
++}
++
++extension Comparable {
++    func clamped(to range: ClosedRange<Self>) -> Self {
++        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/Vendor/MemoryCalculator.swift
+@@ -0,0 +1,54 @@
++// Adapted/reused from alhanashi/Desktop-Overlay v2.0 (cbcf539a), MIT.
++// Copyright (c) 2026 Al Hanashi. See ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt.
++import Foundation
++
++/// Selected fields from `vm_statistics64`, in pages.
++struct MemorySample: Equatable, Sendable {
++    var active: UInt64
++    var wired: UInt64
++    var compressed: UInt64
++    var free: UInt64
++    var inactive: UInt64
++}
++
++/// Derived memory figures.
++struct MemoryUsage: Equatable, Sendable {
++    var usedBytes: UInt64
++    var availableBytes: UInt64
++    var totalBytes: UInt64
++    var usedPercent: Double
++}
++
++/// Overall memory pressure, mirroring `kern.memorystatus_vm_pressure_level`
++/// (spec §5). Not a color alone — the label is always shown too (spec §26).
++enum MemoryPressure: Int, Sendable {
++    case normal = 1
++    case warning = 2
++    case critical = 4
++
++    var label: String {
++        switch self {
++        case .normal: return "Normal"
++        case .warning: return "Warning"
++        case .critical: return "Critical"
++        }
++    }
++}
++
++/// Pure memory math, unit-tested with synthetic `vm_statistics64` values (spec §28).
++enum MemoryCalculator {
++
++    /// "Used" follows Activity Monitor's model closely enough for a glanceable
++    /// readout: resident app pages + wired (kernel) + compressor pool.
++    static func usage(sample: MemorySample, pageSize: UInt64, physical: UInt64) -> MemoryUsage {
++        let used = (sample.active &+ sample.wired &+ sample.compressed) &* pageSize
++        let available = physical > used ? physical - used : 0
++        let percent = physical > 0
++            ? (Double(used) / Double(physical) * 100).clamped(to: 0...100)
++            : 0
++        return MemoryUsage(usedBytes: used,
++                           availableBytes: available,
++                           totalBytes: physical,
++                           usedPercent: percent)
++    }
++}
+--- /dev/null
++++ b/Sources/LumaReader/Diagnostics/Vendor/RateCalculator.swift
+@@ -0,0 +1,25 @@
++// Adapted/reused from alhanashi/Desktop-Overlay v2.0 (cbcf539a), MIT.
++// Copyright (c) 2026 Al Hanashi. See ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt.
++import Foundation
++
++/// Pure helpers for turning monotonically-increasing byte counters into a
++/// per-second rate. Shared by the Disk and Network metrics and unit-tested
++/// directly (spec §28).
++enum RateCalculator {
++
++    /// Bytes per second between two cumulative counter readings.
++    ///
++    /// Returns `0` when the interval is non-positive, or when the counter went
++    /// backwards (a device reset, an unplugged interface, or a 32-bit wrap) —
++    /// one dropped sample is preferable to a spurious spike.
++    static func bytesPerSecond(previous: UInt64, current: UInt64, interval: TimeInterval) -> Double {
++        guard interval > 0 else { return 0 }
++        guard current >= previous else { return 0 }
++        return Double(current - previous) / interval
++    }
++
++    /// Non-negative delta between two unsigned counters (`0` if it went backwards).
++    static func delta(previous: UInt64, current: UInt64) -> UInt64 {
++        current >= previous ? current - previous : 0
++    }
++}
+--- /dev/null
++++ b/ThirdParty/Diagnostics/Zesty0wl_mac-performance-monitor-LICENSE.txt
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 Mac Performance Monitor contributors
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+--- /dev/null
++++ b/ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 Al Hanashi
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+--- /dev/null
++++ b/ThirdParty/Diagnostics/exelban_stats-LICENSE.txt
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2019 Serhiy Mytrovtsiy
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+--- /dev/null
++++ b/ThirdParty/Diagnostics/kean_Pulse-LICENSE.txt
+@@ -0,0 +1,20 @@
++
++Copyright (c) 2020-2024 Alexander Grebenyuk
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+--- /dev/null
++++ b/ThirdParty/Diagnostics/kstenerud_KSCrash-LICENSE.txt
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2012 Karl Stenerud
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+--- /dev/null
++++ b/ThirdParty/Diagnostics/repositories-reviewed.json
+@@ -0,0 +1,87 @@
++{
++  "kean/Pulse": {
++    "full_name": "kean/Pulse",
++    "archived": false,
++    "pushed_at": "2026-10-11T11:56:25Z",
++    "license": {
++      "key": "mit",
++      "name": "MIT License",
++      "spdx_id": "MIT",
++      "url": "https://api.github.com/licenses/mit",
++      "node_id": "MDc6TGljZW5zZTEz"
++    },
++    "default_branch": "main",
++    "tag": "5.2.3",
++    "published_at": "2026-06-10T16:11:29Z",
++    "commit": "94b92731d370c129bb771e9c18f69b0a44ccca5c",
++    "ref": "5.2.3"
++  },
++  "kstenerud/KSCrash": {
++    "full_name": "kstenerud/KSCrash",
++    "archived": false,
++    "pushed_at": "2026-11-06T00:49:33Z",
++    "license": {
++      "key": "mit",
++      "name": "MIT License",
++      "spdx_id": "MIT",
++      "url": "https://api.github.com/licenses/mit",
++      "node_id": "MDc6TGljZW5zZTEz"
++    },
++    "default_branch": "master",
++    "tag": "2.6.1",
++    "published_at": "2026-10-30T18:12:58Z",
++    "commit": "c3882b4db5e810a8ed4148b79cab29a173d4c5c5",
++    "ref": "2.6.1"
++  },
++  "exelban/stats": {
++    "full_name": "exelban/stats",
++    "archived": false,
++    "pushed_at": "2026-11-05T15:34:03Z",
++    "license": {
++      "key": "mit",
++      "name": "MIT License",
++      "spdx_id": "MIT",
++      "url": "https://api.github.com/licenses/mit",
++      "node_id": "MDc6TGljZW5zZTEz"
++    },
++    "default_branch": "master",
++    "tag": "v3.0.25",
++    "published_at": "2026-11-04T09:57:29Z",
++    "commit": "27fa75a53d57072ec06adc730dcfe67633d639d2",
++    "ref": "v3.0.25"
++  },
++  "Zesty0wl/mac-performance-monitor": {
++    "full_name": "Zesty0wl/mac-performance-monitor",
++    "archived": false,
++    "pushed_at": "2026-11-05T16:45:06Z",
++    "license": {
++      "key": "mit",
++      "name": "MIT License",
++      "spdx_id": "MIT",
++      "url": "https://api.github.com/licenses/mit",
++      "node_id": "MDc6TGljZW5zZTEz"
++    },
++    "default_branch": "main",
++    "tag": "v2.6.0.306",
++    "published_at": "2026-11-01T15:12:41Z",
++    "commit": "2a6fe67ff16e63b1a7e5d523727758772c5cfdb1",
++    "ref": "v2.6.0.306"
++  },
++  "alhanashi/Desktop-Overlay": {
++    "full_name": "alhanashi/Desktop-Overlay",
++    "archived": false,
++    "pushed_at": "2026-10-28T08:40:27Z",
++    "license": {
++      "key": "mit",
++      "name": "MIT License",
++      "spdx_id": "MIT",
++      "url": "https://api.github.com/licenses/mit",
++      "node_id": "MDc6TGljZW5zZTEz"
++    },
++    "default_branch": "main",
++    "tag": "v2.0",
++    "published_at": "2026-10-28T08:40:28Z",
++    "commit": "cbcf539aee9e405c3f2aefb95a244ede5f9d9731",
++    "ref": "v2.0"
++  }
++}

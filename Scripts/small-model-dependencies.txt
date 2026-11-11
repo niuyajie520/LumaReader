@@ -1,0 +1,8 @@
+# Lightweight ONNX runtime dependencies, without the large KittenTTS 2/PyTorch stack.
+# Install in your own Python 3.10+ virtual environment:
+# python3 -m pip install numpy soundfile onnxruntime espeakng_loader phonemizer huggingface_hub
+# python3 -m pip install --no-deps kittenml==0.9.7
+# Kokoro 82M is retired; only Kitten Nano/Micro are supported.
+# Download the two small models into the runtime's base directory:
+# python3 Scripts/setup_kitten.py "/absolute/path/to/runtime/base"
+# This file is guidance, not a pip requirements file (to preserve --no-deps installation).

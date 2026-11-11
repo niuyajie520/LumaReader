@@ -1,0 +1,826 @@
+Best time to contact----最好的打电话时间
+midday----中午
+after lunch----午饭后
+morning----早上
+afternoon----下午
+evening----晚上
+General level of English----英语等级
+elementary----初级
+intermediate----中级
+advanced----高级
+Special diet----特殊的饮食
+vegetarian----素食主义者
+no red meat----不要红肉
+allergic to nuts----坚果过敏
+cheese----奶酪
+seafood----海鲜
+peanut----花生
+pepper----胡椒
+Payment----支付方式；支付；报酬
+cash----现金
+deposit----押金；定金；沉积
+check（----美式写法
+cheque（----英式写法
+credit card----信用卡
+on credit----赊账
+in installments----分期付款
+mortgage----抵押借款
+next to----建筑
+cinema----电影院
+library----图书馆
+school----学校
+hospital----医院
+river----河流
+forest----森林
+castle----城堡
+park----公园
+museum----博物馆
+station----车站
+bus stop----公交车站
+sea----大海
+theater----电影院；戏院
+shops----商店们
+clubs----俱乐部们
+restaurants----餐馆们
+concerts----音乐会们
+Course enrolled in----注册的课程
+English----英语
+business----商业
+politics----政治
+biology----生物
+physics----物理
+philosophy----哲学
+chemistry----化学
+economics----经济学
+history----历史
+Family preference----家庭偏好
+no） pets----宠物们
+children----孩子们
+old people----来年人
+mature adult----成年人
+no，----是家庭偏好可能喜欢这些，也可能不喜欢这些
+Sport----运动
+tennis----网球
+badminton----羽毛球
+soccer----英式足球；足球
+basketball----篮球
+football----足球
+swimming----游泳
+running----跑步
+jogging----慢跑
+yoga----瑜伽
+stretch----拉伸
+Transport----交通
+bus----公交车
+electric tram----电动有轨电车
+subway----地铁
+walking----走路
+on foot----步行
+train----火车
+plane----飞机
+car----汽车；车
+bike----自行车
+In the __area of town----在城市的哪一部分？
+southeast----东南部
+northern----北方的
+southern----南方的
+eastern----东方的
+western----西方的
+central----中心的
+southwest） Rooms & Facilities----房间以及设施
+dining room----饭厅
+kitchen----厨房
+living room----客厅
+bathroom----卫生间；浴室
+cloakroom----衣帽间
+garage----车库
+balcony----阳台
+garden----花园；做园艺工作
+study----书房
+Interests----兴趣爱好
+piano----钢琴
+violin----小提琴
+cello----大提琴
+flute----长笛
+radio----收音机
+conference room facilities----会议室设施
+microphone----麦克风
+projector----幻灯机；投影仪
+stage----舞台；时期；阶段
+parking----停车
+band----乐队
+decorations----装饰们
+computer----电脑
+wifi----无线局域网；无线网络
+barbecue----烤肉；烧烤
+swimming pool----游泳池
+tables----桌子们
+chairs----椅子们
+sound system----音响系统
+Accommodation----住宿
+hotel rooms----酒店房间
+cabin----小屋；小棚屋
+lodge----山林小屋；乡间小屋
+campsite----野营地；露营地
+tent----帐篷
+cottage----农舍；村舍
+free of charge----免费
+no charge----免费；不收费
+without charge----免费
+at no extra charge----不额外收费
+administrative fee----管理费
+additional payment----额外付钱
+pay by the hour----按小时付钱
+commission charges----服务费
+small fee----小额费用
+stoves burn----炉子烧的东西
+wood----木头
+coal----煤炭；煤
+oil----石油
+gas----汽油；气体；气体，煤气，汽油；天然气
+view of hilltop----山顶能看见什么
+sculpture----雕塑；雕塑雕刻开头
+statue----雕像
+monument----纪念碑
+roommate----室友
+flatmate----公寓房客
+dorm mate----室友
+housemate----同屋（非家庭人员
+housing coordinator----家庭协调员
+real estate agency----房屋中介
+landlord----房东
+landlady----女房东
+tenant----房客
+student accommodation center----学生住宿中心
+student accommodation officer----学生住宿管理员
+newspaper advertisements----报纸广告（租房广告
+for lease----出租
+for rent----出租
+for sale----售卖
+surroundings----周边环境
+flat----公寓房；平坦的
+apartment----公寓套房
+dormitory----宿舍
+dorm----宿舍
+student hostel----学生招待所
+youth hostel----青年人旅社
+homestay----在当地居民家居住的时期
+unit----装置
+townhouse----市政厅
+motel----汽车旅馆
+bedsit----卧室兼起居室地址类
+rural areas----农村地区
+outskirts----郊外
+suburban----城郊的
+suburb----郊区
+downtown----商业区
+road----道路
+streets----街道
+lane----小巷
+avenue----林荫道，大街
+floor number----楼层号
+room number----房间号房屋内部
+hall----门厅，走廊
+lobby----前厅，厅堂
+bedroom----卧室
+double bedroom----双人间
+twin bedroom----双人间
+single bedroom----单人间
+laundry room----洗衣房
+shower----淋浴
+hallway----门厅，玄关；走廊
+corridor----走廊
+storeroom----储藏室
+house----大房子
+yard----院子
+foyer----休息厅，门厅；门厅
+fence----栅栏家具电器；栅栏；围栏
+unfurnished----无家具设备的
+furnished----配备有家具
+furniture----家具
+stove----火炉
+fridge----冰箱
+refrigerator----冰箱
+microwave oven----微波炉
+washing machine----洗衣机
+air conditioner----空调
+electric fan----电风扇
+radiator----散热器
+pillow----枕头
+pillowcase----枕套
+bedspread----床单
+sheet----床单
+mattress----床垫
+blanket----毛毯，毯子；毛毯
+towel----毛巾
+curtain----窗帘
+carpet----地毯
+wardrobe----衣柜
+light bulbs----灯泡
+drawers----抽屉
+detergent----清洁剂
+cupboard----橱柜
+chest----衣柜箱子；胸部
+cooker----厨具
+stereo----音响
+toaster----烤箱
+utilities----公用事业（如燃气，电力等
+gas（----燃气
+bill----账单
+electricity bill----电费
+power bill----电费
+water bill----水费
+phone bill----电话账单
+rent----租金
+blackout----停电
+pet----宠物
+insects haunting----闹虫子的
+leaking pipe----管道泄漏
+cockroach----蟑螂
+mosquito----蚊子
+flash （----灯）闪烁
+flicker （----灯）忽隐忽现
+part-time----兼职的
+full-time----全职的
+temporary----临时的
+permanent----长期的；永久的
+day shift----白班
+late shift----晚班
+night shift----夜班工作职位
+post----职位
+position----职位
+role----职责；职位
+accountant----会计
+artist----画家
+advisor----顾问
+assistant----助理
+cook----厨师
+cleaner----清洁工
+dentist----牙医
+doctor----医生
+designer----设计师
+engineer----工程师
+guide----导游；指向；引导
+hairdresser----理发师
+journalist----记者
+reporter----记者
+lawyer----律师
+leader----领导
+manager----经理
+receptionist----接待员
+veterinarian----兽医工作需带的资料
+reference----推荐信
+ID card----身份证
+passport----护照
+work permit----工作许可
+name of referee----推荐人名字工作必备技能
+communication skills----交际能力
+computer skills----电脑技能
+study skills----学习能力
+software skills----软件技能
+interpersonal skills----人际交往能力
+IT skills----信息技术工作福利
+training----培训
+discounts----折扣
+taxi provided after midnight----下晚班提供的士
+coffee break----咖啡歇息
+meal----餐食
+a free dinner----免费晚餐
+extra pay on holidays----节假日额外工资
+transport home when you work late----下班晚提供交通
+opportunities----机会
+convenient location----方便的位置工作信息来源
+friend----朋友
+website----网站
+magazine----杂志
+newspaper----报纸俱乐部；报纸
+lunch club----午餐俱乐部
+fitness club----健身俱乐部
+health club----健康俱乐部
+soccer club----足球俱乐部
+youth club----青年俱乐部
+a short story----一个短小的故事
+report----报告
+speech----演讲
+presentation----表演；演示
+talk----交谈
+white shirt----白衬衣 +
+dark trousers----黑色裤子
+suit----套装；西装
+Smile----微笑
+Don’t be late----不要迟到
+Don’t wear jeans----不要穿牛仔裤
+casually----不要穿的太随意
+a calm and confident manner----一个冷静且自信的态度工作内容
+manage deliveries----管理快递
+stock management----库存管理
+work with numbers----数据工作
+take notes----做笔记
+manage diary----管理日记
+general admin----普通行政
+data entry----数据录入
+teleconference----电话会议
+handle the calls----处理来电
+distribute entrance tickets----分发入口门票
+stamp the tickets----门票盖戳
+check the tickets----检查票
+customer service----客户服务
+collect books----收集书籍
+design the poster----设计海报
+provide refreshments----提供茶点工资
+starting salary----入职工资
+annual salary----年工资
+extra pay----额外的钱清洁保洁
+surface----表面
+carpets----地毯
+floor----地面
+oven----烤箱
+iron clothes----熨烫衣服
+microwave----微波炉
+window----窗户
+curtains----窗帘
+sink----水槽
+toilet----厕所
+vacuum cleaner----吸尘器志愿者的
+dance----跳舞；舞蹈
+party----聚会；当事人
+chat----聊天
+quiz----问答游戏
+butler----男管家
+chemist----化学家
+chef----大厨
+consultant----顾问
+deputy----代理人
+surgeon----外科医生
+physician----内科医生
+director----主管；导演
+staff----员工
+clerk----职员
+trainee----实习生
+apprentice----学徒
+typist----打字员
+telephone operator----话务员
+shorthand typist----速记打字员
+key puncher----电脑操作员
+hospitality staff----酒店服务员
+delivery boy----送货员
+secretary----秘书
+model----模特；做模特；模型；样式，型号；榜样，典范，模范
+kitchen hand----厨房帮手
+mailman----送信员
+newspaper boy----送报纸男孩
+milkman----送牛奶的人
+florist----花商，种花人
+baker----面包师
+plumber----水管工
+electrician----电工工作类型
+labor market----劳动力市场
+seasonal work----季节性工作
+piecework----计件工作
+timework----计时工作
+vocational guidance----就业指导
+vocational training----就业培训工资事项
+wage----工资
+salary----工资
+bonus----奖金
+premium----奖金，津贴，保险费，额外奖励
+payday----发薪日
+payslip----工资单
+payroll----工资名单
+pension----退休金，养老金
+remuneration----报酬工作任务
+safety hazard----安全隐患
+direct the traffic----交通指挥
+give out publicity leaflets----分发宣传单
+organize backstage tours----组织后台参观
+hire out costumes----租服装
+physically demanding----费体力的
+follow orders immediately----立即执行命令
+spreadsheets----电子数据表；电子表格
+slides----幻灯片
+check portions----检查比例
+support senior chefs----帮助大厨
+make appointments----预约
+maintain database----维护数据库
+deal with inquiries----处理问询
+reschedule appointments----重新预约工作要求
+remove rings and bracelets----摘掉戒指手镯
+footwear----鞋类
+waistcoat----西装背心
+jacket----夹克
+a plain shirt----简单朴素的衬衣
+uniform----制服
+time off----休假
+organized----有条理的
+driving license----驾照
+check criminal background----犯罪记录调查
+send a review----写评价
+give a test----考试需要资料
+CV----简历
+certificates----证书
+vouch from referee----推荐人担保工作人员
+employment agency----职业介绍所
+personnel----人事部门
+labor exchange----劳工介绍所
+employment exchange----职业介绍所
+historical interest----历史古迹
+Spanish music----西班牙音乐
+Greece paintings----希腊绘画
+cathedral----大教堂
+beach----沙滩
+forests----森林
+fountain----喷泉
+hot spring----温泉
+temple----古庙
+village----村
+tower----塔
+art gallery----美术馆；画廊
+markets----市场
+natural wetland----自然湿地资料来源
+read the book----书上
+booklet----小册子
+leaflet----传单
+poster----海报
+travel agency----旅行社
+tour guide----导游
+guided tour----导游
+reception block----接待中心旅游时间
+peak time----旺季
+off-peak time----淡季
+summer holiday----暑假接送人地点
+airport----机场
+city center----市中心
+hotel----旅馆
+square----广场；正方形；方块
+shopping center----购物中心交通方式
+taxi----出租汽车
+cab----出租汽车
+shuttle----机场穿梭巴士
+departure----起飞，出发
+coach----长途车；四轮大马车
+minibus----面包车
+underground----地铁；地下铁路系统
+metro----地铁
+single ticket=one-way ticket----单程票
+return ticket----往返票提前预定
+book a seat=reserve a seat----预订座位
+make a provisional booking----做一个临时预定
+in advance----提前预定旅游可玩；提前
+fishing trip----钓鱼
+shopping----购物
+guided bushwalk----带导游的丛林漫步
+reptile park----爬行动物园；爬行动物公园旅游住宿
+table tennis----桌球；乒乓球
+ride on a camel----骆驼
+horse----马
+donkey----驴子（也会考到
+feed sheep----喂羊
+sunbathing----晒太阳
+take photos----照相
+cruise----巡航
+steamship----汽船
+play----戏剧
+surfing----冲浪
+whale watch experience----观赏鲸鱼
+boat race----赛船
+nature reserve----自然保护区旅游包含；自然保护区
+door-to-door service----按户送地
+flight----机票；航班
+dinner----正餐
+refreshments----点心饮料
+tea----茶
+coffee----咖啡
+juice----果汁
+mineral water----矿泉水
+discount----折扣
+insurance----保险
+nice view----好的风景音乐节
+concert----音乐会
+guitar----吉他
+piano(pianist----钢琴（钢琴家
+drum----鼓
+jazz----爵士；爵士乐
+pop music----流行音乐
+traditional dance----传统舞蹈
+modern dance----现代舞蹈
+Spanish dance----西班牙舞蹈
+swing----摇摆乐
+oboe----双簧管公园类型
+theme park----主题公园
+national park----国家公园
+botanical park----植物园
+cancellation----取消
+missed departure----错过的飞机起飞
+personal belongings----个人物品
+make a claim----索赔（保险方面；索赔
+currency----货币
+Visa----签证
+MasterCard----万事达信用卡
+American Express----美国运通
+make a reservation----预定
+confirm a reservation----确认预定
+cancel one's reservation----取消预订
+first come first serve----先来先得
+fully booked----全定满了；预订满了
+seat arrangement----座位安排旅游地点
+desert----沙漠
+hilly areas----山区
+aquarium----水族馆
+circus----马戏团
+vineyard----葡萄园
+bushland----丛林地，灌木地
+tropical rain forest----热带雨林
+resort----度假胜地
+tourist attraction----景点
+coastal areas----沿海地区
+fair----展览会；清楚公平
+spotlight tour----集中精华游
+backpacker----背包客
+waterfall----瀑布交通工具
+four-wheel drive----四轮驱动车
+ferry----轮渡
+caravan----有篷马车
+solar car----太阳能车；太阳能汽车
+tram----有轨电车
+light rail----轻轨
+hiking----徒步旅行
+hitchhike （----搭便车）旅行
+van----厢式货车
+airport limousine----豪华轿车
+berth----卧铺
+platform----站台水上运动；站台
+scuba diving----带水肺潜水
+skiing----滑雪运动
+waterskiing （----用快艇拖着在水上滑行
+hang gliding----悬挂式滑翔运动
+water polo----水球运动
+souvenir----纪念品；犯罪场景
+beach towel----沙滩浴巾
+telescope----望远镜
+walking boots----便靴；徒步鞋
+sunscreen----防晒霜飞机相关
+saver ticket----打折票
+open ticket----标准开放票
+round trip----往返旅行
+first class----头等舱
+business class----商务舱
+economy class----经济舱
+layover----中途短暂的停留，终点停车处
+stopover （----尤指飞行旅途中的）中间停留
+nonstop flight----不着陆飞行
+connecting flight----转接班机
+take off----起飞；突然流行
+land （----飞机）着陆
+check-in （----机场）登记处
+airport tax----机场税
+duty-free shop----免税店
+excess baggage charge----行李超重费
+vacant seat----空位
+destination----目的地
+surcharge----附加费
+ETA estimated time of arrival----预计到达时间
+ETD estimated time of departure----预计离港时间自驾游
+toll----高速公路收费处
+expressway----高速公路
+parking meter----停车计价
+parking permit----停车许可
+sticker----张贴物；贴纸
+pay a fine----罚款
+tow away----拖走
+clamp the wheel----夹紧轮子
+automatic gears----自动挡
+manual gears----手动挡
+light blue----浅蓝色
+bright blue----亮蓝色
+navy blue----深蓝色
+royal blue----尊贵蓝
+sky blue----天蓝色
+metallic grey----金属灰
+part exchange----以旧换新
+lion----狮子
+fox----狐狸
+leopard----豹子
+tiger----老虎
+mileage----里程数
+reasonable condition----不错的状况运动俱乐部
+judo----柔道
+weightlifting----举重
+golf----高尔夫
+kick-boxing----拳击
+restaurant----餐馆
+café----咖啡店
+salad bar----沙拉吧
+juice bar----饮料吧
+membership scheme----会员方案
+assessment----评估
+trial session----试课
+helmet----头盔
+bicycle----自行车
+repair kit----修理包
+surfing trips----冲浪旅程
+wetsuit----潜水服
+surfboard----冲浪板
+bay----海湾
+boots----靴子保险场景
+ship agent----船运中介
+reference number----编号；参考编号
+item----物件
+cabinet----橱柜
+plates----盘子诊所场景
+clinic----诊所
+good with babies----擅长婴儿治疗
+offer evening appointment----提供晚间看病
+small charges----小小的收费
+on a paying basis----在付费基础上
+pay-to-use service----付费使用服务
+heart disease----心脏病
+lung problems----肺部问题
+for all ages----针对所有年龄段
+injuries----受伤
+knee----膝盖
+shoulder----肩
+ankle----踝关节
+neck----脖子
+arm----手臂
+elbow----肘部
+back----后背
+toe----脚趾
+foot----脚；的复数
+heel----脚后跟
+thigh----大腿
+leg----腿
+painkillers----镇痛药
+applied ice----冰敷
+allergies----过敏
+vitamin----维生素交通采访；维生素
+better lighting----更好的灯光
+have more footpaths----有更多小路
+bus routes----公交路线
+safety----安全
+more frequent trains----列车更多一些
+cycle lanes----自行车道
+safe parking places----安全的停车位置
+cycling training----自行车培训
+ticket office----售票厅
+ticket machine----售票机
+e-ticket online----在线电子客票
+box office----售票处
+shops with logo----带
+logo----的商店
+behind schedule----进程落后
+not reliable----不可靠
+delay----延期耽搁；延误；延期
+late----迟到
+frequency of buses----公交车频率
+lack of storage----缺少储藏所
+air pollution----空气污染图书馆场景
+magazines----杂志
+travel books----旅游书籍
+teenagers----青少年
+fictions----小说
+novel----小说
+reference books----参考书
+meetings----会议
+cards----卡片
+stamp----邮票；印章
+crime----犯罪
+theft----盗窃
+robbery----抢劫
+wallet----钱夹
+purse----钱包
+phone----电话
+keys----钥匙
+curly hair----卷发
+dark hair----黑发
+blonde hair----金发
+straight hair----直发
+digits----电子照片
+disk----磁盘
+size----尺寸
+digital format----数字格式
+frame----相框
+album----相册
+folder----文件夹
+fragile----易碎的；脆弱的
+basic service----基本服务
+scan photos----扫描照片
+parcel----包裹
+box----盒子
+make improvements----作出改进
+touch up color----调整色彩
+alter the background----修改背景
+remove an object----移除物体
+improve the contrast----提高对比度
+in focus----对焦清晰
+composition----构图；构成
+timing----时机；时间选择
+bright----明亮的
+dark----深色的
+eye doctor----眼科医生
+vet----兽医
+send for a doctor----派人去请医生
+make an appointment----预约
+symptom----症状
+catch a cold----感冒
+have a sore throat----喉咙痛
+stomachache----胃痛
+fever----发烧
+cough----咳嗽
+headache----头痛
+toothache----牙疼
+have a runny nose----流鼻涕
+depression----抑郁；抑郁（症；抑郁症
+vomit----呕吐
+throw up----呕吐恶心
+dizzy----眩晕的
+feel chilly----感觉冷的
+liver trouble----肝脏
+flu----流感
+twisted----扭伤
+asthma----哮喘；气喘
+diabetic----糖尿病
+cramp----抽筋
+have a stuffed nose----鼻子堵了
+Stiff neck----脖子僵硬
+yellow fever----黄热病
+hay fever----花粉过敏
+pill----药丸
+tablet----药片；平板电脑
+capsule----胶囊
+mixture----混合物
+eyedrop----眼药水
+syrup----枫糖类药品；糖浆
+pad----护具；垫
+penicillin----青霉素
+antibiotic----抗生素
+ointment----软膏，药膏
+medication----药物，敷药
+aspirin----阿司匹林
+cold cure----冷治疗
+sweating medicine----发汗药物
+bandage----绷带
+stethoscope----听诊器
+injection----注射
+preventative injection----疫苗
+extract----取出，提取；取出
+take one's temperature----测体温
+feel one’s pulse----脉搏，跳动
+check one's blood pressure----测血压
+give a prescription----开处方
+have an operation----做手术银行场景机经词汇
+ATM（automatic teller machine）----自助取款机
+cashier----出纳员
+loan----借款
+withdraw money----取钱
+password----密码
+code----密码编码
+current account----活期存款账户
+deposit account----储蓄存款
+open a student's account----开一个学生账户
+bank statement----银行结单
+apply for a personal loan----申请个人贷款
+change pounds into dollars----英镑换美元
+the current rate----当前汇率
+give the money in fives----找 5 块 5 块的
+check the balance----查询余额
+signature----签名
+direct transfer----直接转账
+a minimum sum----最低金额图书馆场景机经词汇
+catalogue----目录；系列
+admission card----入门卡
+date slip----日期单
+deadline----截止日期；截止时间；最后期限
+date of expiry----到期日期
+due----到期的
+overdue and pay a fine----过期罚款
+renew----续借
+out on loan----租借出去
+closed reserved----已关闭，保留
+in circulation----流通中
+not for circulation----不流通
+classification----分类；归类，分类，分级
+category----种类；类型
+bibliography----参考书目
+periodical----期刊
+journals----学术期刊
+return in time----及时还回
+open shelves----开放性资料
+closed shelves----封闭性资料
+photocopying facilities----复印机
+a sheet----一张纸
+black-and-white copies----黑白复印
+wall-chart----挂画运动俱乐部
+robes----浴袍
+hairdryer----吹风机
+free entry----免费入场
+Premier membership----优先会员
+joint membership----联名会员
+individual membership----个人会员
+fitness manager----健身经理
+questionnaire----调查问卷；问卷
+sports injuries----运动伤害
+junior competition----初级赛事
+senior competitions----高级比赛
+collect the fees----收集费用
+supervise the teams----监督队伍
+Rooms & Facilities----房间及设施

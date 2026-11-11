@@ -1,0 +1,341 @@
+{
+  "commit": "fbc23dc07e2a2c89698554c255dd462fce4359ba",
+  "files": [
+    {
+      "path": "Sources/DiagnosticsC/ProcessCounters.c",
+      "sha": "d3e3abec56bab06eb327c765fcd708197e128af7"
+    },
+    {
+      "path": "Sources/DiagnosticsC/include/DiagnosticsC.h",
+      "sha": "eda3b55f3dfdf98f821ae0802e5893fc2f40c1f0"
+    },
+    {
+      "path": "Sources/LumaReader/AIChatStore.swift",
+      "sha": "cb03cb3597759ab0d609f3fe0260e69cfc66367d"
+    },
+    {
+      "path": "Sources/LumaReader/AIChatView.swift",
+      "sha": "73068cd29392a3662f0d2b94c43d084f6a6ef482"
+    },
+    {
+      "path": "Sources/LumaReader/AIClient.swift",
+      "sha": "4802dea3dca16b51d1ed321bb8401c5b59efa48f"
+    },
+    {
+      "path": "Sources/LumaReader/AIConversationHistory.swift",
+      "sha": "1832d6d9e438b75540d3619906a75d63318912f0"
+    },
+    {
+      "path": "Sources/LumaReader/AIKeychain.swift",
+      "sha": "041c9857376e16fc02519c67fdc9f5a0506e65f8"
+    },
+    {
+      "path": "Sources/LumaReader/AIPanelMotion.swift",
+      "sha": "41f87a11c911301ca201b56618ce6676daa88541"
+    },
+    {
+      "path": "Sources/LumaReader/AIResizeHandle.swift",
+      "sha": "fd1375bc4e5728d807b51f3df295e2413e21642a"
+    },
+    {
+      "path": "Sources/LumaReader/AppLanguage.swift",
+      "sha": "6c19bdc9694194ac2fe95b61b2d40adf59370d3d"
+    },
+    {
+      "path": "Sources/LumaReader/AppResources.swift",
+      "sha": "048169f44e993083e428be9b8820a1606ddb2ec7"
+    },
+    {
+      "path": "Sources/LumaReader/BookMonetFooter.swift",
+      "sha": "e0ebc3a319f1b3141a0b0f9a980d4a886e3ced71"
+    },
+    {
+      "path": "Sources/LumaReader/BookReadingPreferences.swift",
+      "sha": "edc0fc23389b7a5741b4f20e5679e397512c4fa3"
+    },
+    {
+      "path": "Sources/LumaReader/BookSearchEngine.swift",
+      "sha": "d1377cc5cd0786ea98d9f187244eff3e94bb7354"
+    },
+    {
+      "path": "Sources/LumaReader/CloudProviderIcon.swift",
+      "sha": "8edf2c894d347f1ceb34454686effb7e0774596e"
+    },
+    {
+      "path": "Sources/LumaReader/CloudSyncEngine.swift",
+      "sha": "62baf64d8916bc532b3649504e0bf28c0f5a3658"
+    },
+    {
+      "path": "Sources/LumaReader/CollectionDisplayOrder.swift",
+      "sha": "830ed0349b8618002f6e1d0f1a538bc81e03e349"
+    },
+    {
+      "path": "Sources/LumaReader/ContentView.swift",
+      "sha": "b0adfa92415ed5535cd85ec81ae406e7dca344bd"
+    },
+    {
+      "path": "Sources/LumaReader/CustomizationPanel.swift",
+      "sha": "b169572658a329cbbe8f78dd6baeb65f6b99937e"
+    },
+    {
+      "path": "Sources/LumaReader/DebugReaderAcceptance.swift",
+      "sha": "8798562ad6709c3f3f9826793614c4a5dc2531a7"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticArchive.swift",
+      "sha": "d6d869bb6c7b8bfa7f1fcd03ba8ac24a7b1b73ca"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticManager.swift",
+      "sha": "7318b15574749d4ab0fab69e05faf418a57c9a85"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticModels.swift",
+      "sha": "47d463b307261020c4e97ff1bf78b6fe2f1d6d7e"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticSampler.swift",
+      "sha": "8addd7b5143731957a33b909a0ff8c6a72ac0d82"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticSystemReaders.swift",
+      "sha": "196e30e9f15604e39e17f648f5a45668ffbd6eef"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticsSettingsView.swift",
+      "sha": "8c3e91d5ec729f0fe51bcc217f8f542584a32895"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/CPUCalculator.swift",
+      "sha": "f7967c067d217ca154e93ac53229eb4c52cd3d16"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/MemoryCalculator.swift",
+      "sha": "db43ffbaace950733a40608fbab37fda025a6368"
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/RateCalculator.swift",
+      "sha": "3daf01d5d6cfb6d28d0c50b901a32c7ff7e96822"
+    },
+    {
+      "path": "Sources/LumaReader/EPUBLoader.swift",
+      "sha": "8eb9ab10734686ec5811132b2715ae85e40d5a51"
+    },
+    {
+      "path": "Sources/LumaReader/FontFileSync.swift",
+      "sha": "b75d6b55f57dabe23800c914fab6c2ff1facee4f"
+    },
+    {
+      "path": "Sources/LumaReader/GearSettingsSurface.swift",
+      "sha": "e609bbcade2be01c1483e3b9c9a0d8d455e70883"
+    },
+    {
+      "path": "Sources/LumaReader/GlassControls.swift",
+      "sha": "f434dd163bd96c01494b59b5199d5f41e3ff8262"
+    },
+    {
+      "path": "Sources/LumaReader/ImportedFonts.swift",
+      "sha": "00c87147a1e8e43292883ede1f2d0b58d092a171"
+    },
+    {
+      "path": "Sources/LumaReader/LibraryGroups.swift",
+      "sha": "e0f94891d043b64926d6bd46ec24f8892a6f92a9"
+    },
+    {
+      "path": "Sources/LumaReader/LibraryStore.swift",
+      "sha": "d228dbbdef36214b810d24e5128222e99a892056"
+    },
+    {
+      "path": "Sources/LumaReader/LiveTextImage.swift",
+      "sha": "a4278dcb9c7e5a774bd89e1c120b7979e433ad68"
+    },
+    {
+      "path": "Sources/LumaReader/LumaAppIcon.swift",
+      "sha": "4a3c0c92aec83a7e1af75cc7c7d4cd7cbcfc6022"
+    },
+    {
+      "path": "Sources/LumaReader/LumaPanel.swift",
+      "sha": "7f8f78cb0eefbf3cbe40d1074cbe3be730a46ad0"
+    },
+    {
+      "path": "Sources/LumaReader/LumaReaderApp.swift",
+      "sha": "1f2404453c2753a7609c8a5378980ee73fe7e24c"
+    },
+    {
+      "path": "Sources/LumaReader/LumaThemeScope.swift",
+      "sha": "a70f9f261cd0da0c225de6cfa65a69810a422169"
+    },
+    {
+      "path": "Sources/LumaReader/Models.swift",
+      "sha": "d9a43db978fd4f592c10c608528a475e00efb562"
+    },
+    {
+      "path": "Sources/LumaReader/MonetLiquidGlass.swift",
+      "sha": "b075026467aa1342794b9472860233a6c88923e1"
+    },
+    {
+      "path": "Sources/LumaReader/MonetTheme.swift",
+      "sha": "7622772d0328ff0705a4ad46ce5d2ad7de296f5c"
+    },
+    {
+      "path": "Sources/LumaReader/NativeWindowControls.swift",
+      "sha": "375f609ec9c44547c98a47d2c7555bed4944cc25"
+    },
+    {
+      "path": "Sources/LumaReader/NoteActions.swift",
+      "sha": "5685444c1c4084d6a352d5c75b8e9759511c7e15"
+    },
+    {
+      "path": "Sources/LumaReader/PageTurnCover.swift",
+      "sha": "d6a7135c8f1eeffac9b8fe43d040401687493818"
+    },
+    {
+      "path": "Sources/LumaReader/PagedWebView.swift",
+      "sha": "f8ef05f4c10884331083828199ceb06103f1ebe8"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderChromeMonitor.swift",
+      "sha": "c220db7b8a59895a254c4da0dc6429a3fc36a8cd"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderController.swift",
+      "sha": "99073e1229427abac219ff41fd716d30dad37ad4"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderEdgeTurnView.swift",
+      "sha": "318ec20d197deb7b05fc5981153372ca3fa919cb"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderFileNavigation.swift",
+      "sha": "dd801753608c75ca004859c47f68e90740db6142"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderImageView.swift",
+      "sha": "cedd5a31fef91b1193eff2d6eb160207bd6e81d2"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderKeyboard.swift",
+      "sha": "58cdced7555aecbc1e8ea13db7960e241a134586"
+    },
+    {
+      "path": "Sources/LumaReader/ReaderMotionPolicy.swift",
+      "sha": "bf12eb652e2a41bc63cd15b45d60c96182b572e6"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingActivityStore.swift",
+      "sha": "22dbdf70eb7ca8644cadcf94fb6f3d495590e480"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingJumpHistory.swift",
+      "sha": "032fee5a7f2282eed1e8c7db6d37cd69d1f9a1e5"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingOutline.swift",
+      "sha": "0d701ef866b945f259d2b0b8d39be36b27a66bda"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingOutlineView.swift",
+      "sha": "040858139e001e290d63ea151eceb98150e919f8"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingPosition.swift",
+      "sha": "9492b04dd2ec0c72ba30e051738081a229725d1f"
+    },
+    {
+      "path": "Sources/LumaReader/ReadingStatistics.swift",
+      "sha": "94dbc3347a4e9c2e672f4fbc3706f575ca1797aa"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AIChat.css",
+      "sha": "18f1e2916471ae6b97367e7132f9376057a251fb"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AIChat.html",
+      "sha": "2f5a659f864159730397b49f9690e4ed294c42a3"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AIChat.js",
+      "sha": "a7a5815a1e403149abb9845b8952b635dba3198b"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AIHealth.js",
+      "sha": "d3e965843d0848e2e804882f993ca7f76a8cf694"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AppStrings.js",
+      "sha": "6ba9f045619d0dfc6b4b2b4cc4a4ef6cb05a3b0e"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/AppStrings.json",
+      "sha": "2259c44e901fba43bec58772a5802a41a2166c23"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/Localizable.xcstrings",
+      "sha": "0642e67d1e632655bc9cc5b23bc0a8b6084a3ba5"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/Reader.css",
+      "sha": "333fe27d92ef5117ebfe3d6e6e7702cb0b95ceba"
+    },
+    {
+      "path": "Sources/LumaReader/Resources/Reader.js",
+      "sha": "01b2ff9024d5c5c1ca1368f7b88587a382d13b64"
+    },
+    {
+      "path": "Sources/LumaReader/ShelfCategoryDrop.swift",
+      "sha": "80e73beb89ff59482746693a0c06e3df8df78036"
+    },
+    {
+      "path": "Sources/LumaReader/ShelfManagement.swift",
+      "sha": "b1da26a08193ad1de9332f009cafb15fa5961201"
+    },
+    {
+      "path": "Sources/LumaReader/StatisticsView.swift",
+      "sha": "27d3d680cfe9a713c278655d3f75dc2fa20167da"
+    },
+    {
+      "path": "Sources/LumaReader/StudyCenterScreen.swift",
+      "sha": "62b53139c7257ed094f6b074b8badabd98017853"
+    },
+    {
+      "path": "Sources/LumaReader/StudyWritingEvaluation.swift",
+      "sha": "211715a9f4b1c34cd8d5b89457b1948e46aa3c10"
+    },
+    {
+      "path": "Sources/LumaReader/SurfaceMotion.swift",
+      "sha": "4c7eab9b863c34ca91aa6cf2993a457a2859f603"
+    },
+    {
+      "path": "Sources/LumaReader/Theme.swift",
+      "sha": "e7b6ac01454bd02620e18bd9996295b3a423a865"
+    },
+    {
+      "path": "Sources/LumaReader/VisualEffectsPolicy.swift",
+      "sha": "1a34d6ef16ec6d47c91d57915f00358ca5389c54"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/Zesty0wl_mac-performance-monitor-LICENSE.txt",
+      "sha": "3c80768e3020fe89c26fed5411c989f11ed43f80"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt",
+      "sha": "6d0f683c1cab5dd743c03b254051c79e6f1912a0"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/exelban_stats-LICENSE.txt",
+      "sha": "8d52fad8031dcc174be72b302f6e3bebf74eb58b"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/kean_Pulse-LICENSE.txt",
+      "sha": "a80aca921604ad14750d9f73f0b096c3401adca5"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/kstenerud_KSCrash-LICENSE.txt",
+      "sha": "277b6e021903c32f14d70e0598b9812831121a1a"
+    },
+    {
+      "path": "ThirdParty/Diagnostics/repositories-reviewed.json",
+      "sha": "33a3c81c798732516881e41598ad2384e39599a0"
+    }
+  ]
+}

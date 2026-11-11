@@ -1,0 +1,4 @@
+Repository: https://github.com/niuyajie520/LumaReader
+Branch: work/study-center-integration
+Commit: fbc23dc07e2a2c89698554c255dd462fce4359ba
+Includes local conversation patches; not a pristine Git checkout.

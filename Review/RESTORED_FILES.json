@@ -1,0 +1,80 @@
+{
+  "source_commit": "fbc23dc07e2a2c89698554c255dd462fce4359ba",
+  "files": [
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticArchive.swift",
+      "sha": "d6d869bb6c7b8bfa7f1fcd03ba8ac24a7b1b73ca",
+      "size": 2657
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticManager.swift",
+      "sha": "7318b15574749d4ab0fab69e05faf418a57c9a85",
+      "size": 15867
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticModels.swift",
+      "sha": "47d463b307261020c4e97ff1bf78b6fe2f1d6d7e",
+      "size": 5561
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticSampler.swift",
+      "sha": "8addd7b5143731957a33b909a0ff8c6a72ac0d82",
+      "size": 2101
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticSystemReaders.swift",
+      "sha": "196e30e9f15604e39e17f648f5a45668ffbd6eef",
+      "size": 2632
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/DiagnosticsSettingsView.swift",
+      "sha": "8c3e91d5ec729f0fe51bcc217f8f542584a32895",
+      "size": 9892
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/CPUCalculator.swift",
+      "sha": "f7967c067d217ca154e93ac53229eb4c52cd3d16",
+      "size": 1869
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/MemoryCalculator.swift",
+      "sha": "db43ffbaace950733a40608fbab37fda025a6368",
+      "size": 1874
+    },
+    {
+      "path": "Sources/LumaReader/Diagnostics/Vendor/RateCalculator.swift",
+      "sha": "3daf01d5d6cfb6d28d0c50b901a32c7ff7e96822",
+      "size": 1161
+    },
+    {
+      "path": "ThirdParty/Diagnostics/Zesty0wl_mac-performance-monitor-LICENSE.txt",
+      "sha": "3c80768e3020fe89c26fed5411c989f11ed43f80",
+      "size": 1093
+    },
+    {
+      "path": "ThirdParty/Diagnostics/alhanashi_Desktop-Overlay-LICENSE.txt",
+      "sha": "6d0f683c1cab5dd743c03b254051c79e6f1912a0",
+      "size": 1067
+    },
+    {
+      "path": "ThirdParty/Diagnostics/exelban_stats-LICENSE.txt",
+      "sha": "8d52fad8031dcc174be72b302f6e3bebf74eb58b",
+      "size": 1074
+    },
+    {
+      "path": "ThirdParty/Diagnostics/kean_Pulse-LICENSE.txt",
+      "sha": "a80aca921604ad14750d9f73f0b096c3401adca5",
+      "size": 1069
+    },
+    {
+      "path": "ThirdParty/Diagnostics/kstenerud_KSCrash-LICENSE.txt",
+      "sha": "277b6e021903c32f14d70e0598b9812831121a1a",
+      "size": 1070
+    },
+    {
+      "path": "ThirdParty/Diagnostics/repositories-reviewed.json",
+      "sha": "33a3c81c798732516881e41598ad2384e39599a0",
+      "size": 2482
+    }
+  ]
+}
