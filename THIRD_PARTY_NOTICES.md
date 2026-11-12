@@ -28,6 +28,7 @@ Its complete MIT license is reproduced in `ZIPFoundation-LICENSE.txt`.
    - Repository: https://github.com/Nodlik/StPageFlip
    - Demo & Docs: https://nodlik.github.io/StPageFlip/
    - License: MIT License (`ThirdParty/PageTurn/StPageFlip-LICENSE.txt`)
+   - The v2.0.7 browser distribution is included as `Sources/LumaReader/Resources/StPageFlip.js` for the optional snapshot-only EPUB animation.
    - Adapted calculations:
      - `FlipCalculation` and `Shadow` 3-component dynamic shadow model (`castShadow` drop shadow on the revealed page, `creaseShadow` along the fold tangent, and paper-tinted `backPage` specular highlight) and `PageDensity.HARD` rigid spine rotation (`Page Flip` / `整页翻转`) in `PageTurnCover.swift`.
 
@@ -65,3 +66,9 @@ The app-specific image decoder, cache and semantic-role bridge are Luma Reader c
 ## 0.9.3 compatibility adjustment
 
 MaterialColorUtilities Package.swift tools-version directive is moved to its first line; upstream algorithm sources and licenses are unchanged. Luma Reader serializes accesses at its own palette-generation boundary.
+
+
+## Bundled Kitten speech
+
+- [Kitten Nano INT8](https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8) and [Kitten Micro](https://huggingface.co/KittenML/kitten-tts-micro-0.8) weights and voices are in `Assets/KittenSpeech`, with the model license included.
+- The Python speech worker uses the same `kittenml==0.9.7` synthesis path as B82. Its installer installs the runtime dependencies and loads weights directly from the app bundle.

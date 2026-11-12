@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "defaultModel": "kitten-tts-micro-0.8",
+  "models": {
+    "kitten-tts-nano-0.8-int8": {
+      "onnx": "Nano/kitten_tts_nano_v0_8.onnx",
+      "voices": "Nano/voices.npz"
+    },
+    "kitten-tts-micro-0.8": {
+      "onnx": "Micro/kitten_tts_micro_v0_8.onnx",
+      "voices": "Micro/voices.npz"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 """One loaded neural backend. Supports switching models, persisting per-model voice slots, and deleting unwanted model files on request."""
 import gc
 import json
+import os
 from pathlib import Path
 import shutil
 import threading
@@ -9,7 +10,14 @@ MODEL_IDS = {
     'kitten-nano': 'KittenML/kitten-tts-nano-0.8-int8',
     'kitten-micro': 'KittenML/kitten-tts-micro-0.8',
 }
-KITTEN_VOICES = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo']
+KITTEN_FEMALE_VOICES = ('Bella', 'Luna', 'Rosie', 'Kiki')
+KITTEN_MALE_VOICES = ('Jasper', 'Bruno', 'Hugo', 'Leo')
+KITTEN_VOICES_BY_SLOT = {
+    'US_Female': KITTEN_FEMALE_VOICES,
+    'UK_Female': KITTEN_FEMALE_VOICES,
+    'US_Male': KITTEN_MALE_VOICES,
+    'UK_Male': KITTEN_MALE_VOICES,
+}
 KITTEN_DEFAULT_SLOTS = {
     'US_Female': 'Bella',
     'US_Male': 'Jasper',
@@ -25,7 +33,16 @@ class KittenAdapter:
             local = json.loads((Path(cache).parent / 'models-installed.json').read_text()).get(name)
         except (OSError, ValueError):
             local = None
-        source = local if local and Path(local).is_dir() else MODEL_IDS[name]
+        bundle = os.environ.get('LUMA_KITTEN_BUNDLE')
+        self.bundle_root = Path(bundle) if bundle else None
+        self.cache = Path(cache)
+        self.cleaned_downloads = False
+        if self.bundle_root:
+            source = str(self.bundle_root / ('Nano' if name == 'kitten-nano' else 'Micro'))
+            if not (Path(source) / 'config.json').is_file():
+                raise FileNotFoundError(f'内嵌模型配置缺失: {source}')
+        else:
+            source = local if local and Path(local).is_dir() else MODEL_IDS[name]
         from bounded_onnx import bounded_sessions
         with bounded_sessions():
             self.model = KittenTTS(source, cache_dir=str(cache), backend='cpu')
@@ -34,7 +51,27 @@ class KittenAdapter:
         return list(self.model.available_voices)
 
     def create(self, text, voice, speed=1.0, lang=None):
-        return self.model.generate(text, voice=voice, speed=1.0), 24000
+        samples = self.model.generate(text, voice=voice, speed=1.0)
+        if self.bundle_root and not self.cleaned_downloads and len(samples):
+            self.cleaned_downloads = self._remove_downloaded_models()
+        return samples, 24000
+
+    def _remove_downloaded_models(self):
+        parent = self.cache.parent.parent
+        clean = True
+        for runtime in ('KokoroEngine', 'KokoroTTS'):
+            cache = parent / runtime / 'kitten-cache'
+            if cache.resolve() != cache.absolute():
+                continue
+            for model in MODEL_IDS.values():
+                target = cache / ('models--' + model.replace('/', '--'))
+                if target.is_dir() and not target.is_symlink():
+                    try:
+                        shutil.rmtree(target)
+                    except OSError as exc:
+                        print(f"[Kitten] 旧模型副本清理失败: {exc}", flush=True)
+                        clean = False
+        return clean
 
 
 class ExclusiveModels:
@@ -64,7 +101,7 @@ class ExclusiveModels:
         self.voice_sets.pop('kokoro', None)
         for k_model in ('kitten-micro', 'kitten-nano'):
             existing = self.voice_sets.get(k_model)
-            if not isinstance(existing, dict) or len(set(existing.values())) <= 1:
+            if not isinstance(existing, dict):
                 self.voice_sets[k_model] = KITTEN_DEFAULT_SLOTS.copy()
         engine.selected_model = self.selected
         engine.active_slots = self._defaults_for(self.selected)
@@ -79,11 +116,9 @@ class ExclusiveModels:
         base_defaults = KITTEN_DEFAULT_SLOTS.copy()
         saved_slots = self.voice_sets.get(model_name)
         if isinstance(saved_slots, dict):
-            if len(set(saved_slots.values())) <= 1:
-                return base_defaults
             merged = base_defaults.copy()
             for k in base_defaults:
-                if saved_slots.get(k):
+                if saved_slots.get(k) in KITTEN_VOICES_BY_SLOT[k]:
                     merged[k] = saved_slots[k]
             return merged
         return base_defaults
@@ -209,7 +244,7 @@ class ExclusiveModels:
             return result
 
     def voices(self):
-        return {slot: KITTEN_VOICES.copy() for slot in self.engine.DEFAULT_SLOTS}
+        return {slot: list(voices) for slot, voices in KITTEN_VOICES_BY_SLOT.items()}
 
     def validate(self, name):
         if name is not None and name != self.selected:
@@ -219,7 +254,11 @@ class ExclusiveModels:
 
     def save_slots(self, slots):
         with self.lock:
-            self.old_save_slots(slots)
+            valid_slots = {
+                slot: voice for slot, voice in slots.items()
+                if voice in KITTEN_VOICES_BY_SLOT.get(slot, ())
+            }
+            self.old_save_slots(valid_slots)
             self._persist()
 
     def status(self):

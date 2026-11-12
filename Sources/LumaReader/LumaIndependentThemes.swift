@@ -2,13 +2,13 @@ import SwiftUI
 import AppKit
 import LumaReaderStudyKit
 
-// Fourteen independent visual theme worlds:
-// Monet, Space, Upgraded Manga + 3 Fresh Manga Worlds (Ocean, City, Forest) + 2 Iconic Game Worlds (NieR:Automata YoRHa, Zelda:Sheikah/Hyrule) + 6 Anime-Fresh Worlds.
-// The five original ReaderTheme palettes remain untouched.
+// Fifteen independent visual theme worlds:
+// Monet, Space, Upgraded Manga + 3 Fresh Manga Worlds (Ocean, City, Forest) + 3 Game Worlds (NieR YoRHa ruins, Zelda Sheikah, Wasteland phosphor terminal) + 6 Anime-Fresh Worlds.
+// 1.8.0: every world also carries a LumaThemeLayout (LumaThemeLayout.swift) so layouts differ per theme, not only colours.
 enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendable {
     case monet, space, manga
     case mangaOcean, mangaCity, mangaForest
-    case nier, zelda
+    case nier, zelda, wasteland
     case shinkai, chihiro, kanagawa, roseDawn, akari, matcha
 
     static let storageKey = "luma.visualThemeSystem"
@@ -23,6 +23,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
         case .mangaForest: return "森之漫绘 · Forest Manga"
         case .nier: return "尼尔机械纪元 · YoRHa UI"
         case .zelda: return "塞尔达传说 · Sheikah UI"
+        case .wasteland: return "废土终端 · Wasteland Terminal"
         case .shinkai: return "晴空夏影 · Shinkai Sky"
         case .chihiro: return "千与千寻 · Spirited Away"
         case .kanagawa: return "镰仓海风 · Kanagawa Lotus"
@@ -39,8 +40,9 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
         case .mangaOcean: return "蔚蓝海平面分镜、青蓝网点、海面碎光星芒与海鸥速度线"
         case .mangaCity: return "黄昏天际线分镜、霓虹双色硬阴影、电线杆飞鸟与晚霞网点"
         case .mangaForest: return "木漏日树冠分镜、叶脉网点、森林萤光孢子与微风叶影"
-        case .nier: return "寄叶部队米灰/暗夜终端、战术重型边条、CRT扫描线与几何准星"
+        case .nier: return "苔绿废墟都市、坍塌高楼与藤蔓、米灰战术界面与几何准星"
         case .zelda: return "希卡之石夜光蓝、海拉鲁双层角框、三角神力与静谧公主辉光"
+        case .wasteland: return "绿色荧光 CRT、铆钉钢板边框、指针仪表与锈蚀废土天际线"
         case .shinkai: return "新海诚盛夏积雨云、丁达尔光束与天蓝赛璐璐"
         case .chihiro: return "琥珀川白龙碧玉、油屋红桥提灯与海上列车铁轨"
         case .kanagawa: return "镰仓海浪浮世绘青海波、浪花飞沫与落款朱印"
@@ -59,6 +61,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
         case .mangaForest: return "森林漫风"
         case .nier: return "尼尔·寄叶"
         case .zelda: return "塞尔达·希卡"
+        case .wasteland: return "废土·终端"
         case .shinkai: return "新海诚风"
         case .chihiro: return "千与千寻"
         case .kanagawa: return "镰仓和风"
@@ -77,6 +80,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
         case .mangaForest: return "tree.fill"
         case .nier: return "cpu.fill"
         case .zelda: return "shield.lefthalf.filled"
+        case .wasteland: return "gauge.with.dots.needle.33percent"
         case .shinkai: return "cloud.sun.fill"
         case .chihiro: return "tram.fill.tunnel"
         case .kanagawa: return "water.waves"
@@ -93,14 +97,14 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
     }
     var isGameLegendSeries: Bool {
         switch self {
-        case .nier, .zelda: return true
+        case .nier, .zelda, .wasteland: return true
         default: return false
         }
     }
     var isAnimeFreshSeries: Bool {
         switch self {
         case .shinkai, .chihiro, .kanagawa, .roseDawn, .akari, .matcha,
-             .mangaOcean, .mangaCity, .mangaForest, .nier, .zelda:
+             .mangaOcean, .mangaCity, .mangaForest, .nier, .zelda, .wasteland:
             return true
         case .monet, .space, .manga:
             return false
@@ -109,9 +113,9 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
 }
 
 enum ThemeGalleryCategory: String, CaseIterable, Identifiable {
-    case all = "全部主题 (14)"
+    case all = "全部主题 (15)"
     case freshManga = "清新漫画 (4)"
-    case gameLegends = "游戏殿堂 (2)"
+    case gameLegends = "游戏殿堂 (3)"
     case animeFresh = "日漫小清新 (6)"
     case immersive = "深空与莫奈 (2)"
     var id: String { rawValue }
@@ -200,15 +204,30 @@ enum MangaForestPreset: String, CaseIterable, Identifiable, Codable, Sendable {
 }
 
 enum NierYorhaPreset: String, CaseIterable, Identifiable, Codable, Sendable {
-    case yorhaBunker, automata2BDark, redGirlsTerminal
+    case overgrownCity, yorhaBunker, automata2BDark, redGirlsTerminal
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .overgrownCity: return "废墟都市 · 苔绿藤蔓 (#5E6F45)"
         case .yorhaBunker: return "寄叶基地终端 · 经典米灰 (#DAD4BB)"
         case .automata2BDark: return "2B 战术目镜 · 暗夜炭褐 (#24221E)"
         case .redGirlsTerminal: return "逻辑病毒警报 · 机械绯红 (#CD664D)"
         }
     }
+}
+
+enum WastelandTerminalPreset: String, CaseIterable, Identifiable, Codable, Sendable {
+    case phosphorGreen, amberTerminal, bunkerDaylight
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .phosphorGreen: return "荧光绿终端 · 腕载显示 (#1BFF80)"
+        case .amberTerminal: return "琥珀终端 · 旧式 CRT (#FFB642)"
+        case .bunkerDaylight: return "地堡日光 · 机械钢绿 (#2E7D5B)"
+        }
+    }
+    /// Light preset only for daylight; both CRT presets are always dark.
+    var forcesDark: Bool { self != .bunkerDaylight }
 }
 
 enum ZeldaRealmPreset: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -463,6 +482,14 @@ enum NierThemePaletteGenerator {
         let muted: String
         let outline: String
         switch preset {
+        case .overgrownCity:
+            // Beige-moss interface floating over a green, overgrown city.
+            baseAccent = dark ? "9DB577" : "5E6F45"
+            paper = dark ? "1D221B" : "DCDDC8"
+            chrome = dark ? "262D24" : "CDD2B8"
+            ink = dark ? "D6DCC4" : "373C2E"
+            muted = dark ? "97A089" : "65705A"
+            outline = dark ? "3E4A36" : "A3AC8C"
         case .yorhaBunker:
             if dark {
                 baseAccent = "DAD4BB"
@@ -495,6 +522,23 @@ enum NierThemePaletteGenerator {
             outline = dark ? "5E3B36" : "B39A94"
         }
         return ReadingPalette(paperHex: paper, inkHex: ink, mutedHex: muted, accentHex: overrideAccentHex ?? baseAccent, chromeHex: chrome, outlineHex: outline)
+    }
+}
+
+/// Wasteland phosphor terminal palette: monochrome CRT phosphor on near-black, riveted steel chrome.
+enum WastelandThemePaletteGenerator {
+    static func makePalette(preset: WastelandTerminalPreset, dark: Bool, overrideAccentHex: String? = nil) -> ReadingPalette {
+        let p: (accent: String, paper: String, chrome: String, ink: String, muted: String, outline: String)
+        switch preset {
+        case .phosphorGreen:
+            p = ("1BFF80", "07120B", "0E1F14", "9DFFC0", "4E9E6A", "1D5233")
+        case .amberTerminal:
+            p = ("FFB642", "120D05", "1E1609", "FFD796", "A8823F", "5A4520")
+        case .bunkerDaylight:
+            p = dark ? ("5FD39A", "141A15", "1D251E", "CFE6D4", "7C9A84", "34473A")
+                     : ("2E7D5B", "E3E6D6", "D2D7C2", "1D2A21", "4D5E50", "98A38C")
+        }
+        return ReadingPalette(paperHex: p.paper, inkHex: p.ink, mutedHex: p.muted, accentHex: overrideAccentHex ?? p.accent, chromeHex: p.chrome, outlineHex: p.outline)
     }
 }
 
@@ -884,6 +928,7 @@ struct LumaThemeSystemSelectorView: View {
         case .manga: return Color.white
         case .nier: return Color(hex: "DAD4BB")
         case .zelda: return Color(hex: "3CD3FC")
+        case .wasteland: return Color(hex: "1BFF80")
         case .mangaCity: return Color(hex: "C0CAF5")
         default: return Color(hex: "1C2836")
         }
@@ -895,6 +940,7 @@ struct LumaThemeSystemSelectorView: View {
         case .manga: return Color(hex: "0A0A0A").opacity(0.88)
         case .nier: return Color(hex: "454138").opacity(0.92)
         case .zelda: return Color(hex: "0A1428").opacity(0.92)
+        case .wasteland: return Color(hex: "07120B").opacity(0.94)
         case .mangaCity: return Color(hex: "1A1B26").opacity(0.90)
         default: return Color.white.opacity(0.86)
         }
@@ -917,8 +963,9 @@ private struct ThemeGalleryThumbnail: View {
         case .mangaOcean: return [Color(hex:"D8F1FD"), Color(hex:"F2F9FC"), Color(hex:"0284C7")]
         case .mangaCity: return [Color(hex:"1A1B26"), Color(hex:"2E2B4F"), Color(hex:"F7768E")]
         case .mangaForest: return [Color(hex:"E5F2DC"), Color(hex:"F4F8F0"), Color(hex:"3A9428")]
-        case .nier: return [Color(hex:"DAD4BB"), Color(hex:"CDC8B0"), Color(hex:"454138")]
+        case .nier: return [Color(hex:"C9D3B4"), Color(hex:"DCDDC8"), Color(hex:"5E6F45")]
         case .zelda: return [Color(hex:"0A1428"), Color(hex:"162C46"), Color(hex:"3CD3FC")]
+        case .wasteland: return [Color(hex:"0E1F14"), Color(hex:"07120B"), Color(hex:"1BFF80")]
         case .shinkai: return [Color(hex:"BFE3FF"), Color(hex:"E6F3FE"), Color(hex:"2B7DE9")]
         case .chihiro: return [Color(hex:"DDF3EC"), Color(hex:"EEF8F5"), Color(hex:"248F7D")]
         case .kanagawa: return [Color(hex:"F4EFE0"), Color(hex:"EAE2CE"), Color(hex:"3E6899")]
@@ -1019,6 +1066,18 @@ private struct ThemeGalleryThumbnail: View {
                 Rectangle().fill(Color(hex:"454138")).frame(width: 6, height: 6).rotationEffect(.degrees(45))
                 Rectangle().strokeBorder(Color(hex:"454138").opacity(0.65), lineWidth: 1.0).padding(8)
             }
+        case .wasteland:
+            ZStack {
+                // Phosphor gauge + riveted plate
+                Circle().trim(from: 0.12, to: 0.88).stroke(Color(hex:"1BFF80").opacity(0.85), lineWidth: 1.4)
+                    .frame(width: 34, height: 34).rotationEffect(.degrees(90))
+                Rectangle().fill(Color(hex:"1BFF80")).frame(width: 1.6, height: 15).offset(y: -6).rotationEffect(.degrees(38))
+                RoundedRectangle(cornerRadius: 3).strokeBorder(Color(hex:"6B7A5E").opacity(0.8), lineWidth: 1.6).padding(7)
+                ForEach(0..<4, id: \.self) { i in
+                    Circle().fill(Color(hex:"8E9A7E")).frame(width: 3.5, height: 3.5)
+                        .offset(x: i % 2 == 0 ? -60 : 60, y: i < 2 ? -28 : 28)
+                }
+            }
         case .zelda:
             ZStack {
                 // Sheikah Slate blue glow ring + golden Triforce + angular double border
@@ -1091,6 +1150,19 @@ struct LumaThemePreferences: View {
     var body: some View {
         VStack(alignment:.leading,spacing:14) {
             LumaThemeSystemSelectorView(store:store)
+
+            Toggle(isOn: $store.themeSpecificLayout) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.text("主题专属布局"))
+                    Text(L10n.text("侧栏位置、阅读顶栏排布、书库标题区与书封装饰随主题变化；听写输入框不受影响"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if store.visualThemeSystem != .monet {
+                LumaHeroImageControls(systemKey: store.visualThemeSystem == .manga ? store.mangaStyleSystemKey : store.visualThemeSystem.rawValue)
+            }
+            LumaUIPersonalizationControls()
 
             if store.visualThemeSystem != .monet {
                 ZStack(alignment: .bottomLeading) {
@@ -1207,9 +1279,17 @@ struct LumaThemePreferences: View {
                 Picker(L10n.text("寄叶部队终端制式"), selection: $store.nierPreset) {
                     ForEach(NierYorhaPreset.allCases) { Text(L10n.text($0.title)).tag($0) }
                 }
-                slider("CRT 扫描线与战术准星对比度", value: $store.animeAtmosphereIntensity, range: 0.15...1.0)
-                Toggle(L10n.text("显示 YoRHa 几何刻度线与雷达环"), isOn: $store.animeShowCanvasDetails)
+                slider("废墟绿意与扫描线浓度", value: $store.animeAtmosphereIntensity, range: 0.15...1.0)
+                Toggle(L10n.text("显示坍塌高楼、藤蔓与战术刻度"), isOn: $store.animeShowCanvasDetails)
                 animeOptionalFusionSection(title: "尼尔机械纪元")
+
+            case .wasteland:
+                Picker(L10n.text("终端显像管"), selection: $store.wastelandPreset) {
+                    ForEach(WastelandTerminalPreset.allCases) { Text(L10n.text($0.title)).tag($0) }
+                }
+                slider("荧光余辉与扫描线强度", value: $store.animeAtmosphereIntensity, range: 0.15...1.0)
+                Toggle(L10n.text("显示仪表盘、铆钉与废土天际线"), isOn: $store.animeShowCanvasDetails)
+                animeOptionalFusionSection(title: "废土终端")
 
             case .zelda:
                 Picker(L10n.text("海拉鲁圣物形态"), selection: $store.zeldaPreset) {

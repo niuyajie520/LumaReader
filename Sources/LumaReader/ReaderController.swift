@@ -127,7 +127,7 @@ final class ReaderController: NSObject {
         let expectedKey = currentSnapshotCacheKey
         if preparedPageSnapshot?.key == expectedKey { return }
         snapshotWarmupTask = Task { [weak self, weak view] in
-            do { try await Task.sleep(for: .milliseconds(140)) } catch { return }
+            do { try await Task.sleep(for: .milliseconds(8)) } catch { return }
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard let self, let view, self.webView === view, self.snapshotGeneration == generation, NSApp.isActive, !LumaAppDelegate.displaySuspended,
@@ -708,7 +708,7 @@ final class ReaderController: NSObject {
         }
         if autoFinish {
             viewportFinishTask = Task { [weak self] in
-                do { try await Task.sleep(for:.milliseconds(180)) } catch { return }
+                do { try await Task.sleep(for:.milliseconds(8)) } catch { return }
                 self?.finishViewportChange()
             }
         }
@@ -816,7 +816,7 @@ final class ReaderController: NSObject {
         }
         lastDragReleaseVelocity = 0
         let activeTargetView: NSView? = webView ?? pdfView
-        cover.turn(forward: forward, style: style, duration: duration, targetView: activeTargetView) { [weak self] in
+        let complete: () -> Void = { [weak self] in
             guard let self, self.navigationID == token else { return }
             self.pageCover = nil
             self.isTurning = false
@@ -824,6 +824,12 @@ final class ReaderController: NSObject {
                 self.scheduleIdleSnapshotWarmup()
             }
             self.drainQueuedMove()
+        }
+        if style == .paperFlip, let webView, pdfView == nil {
+            cover.turnWithPaperFlip(forward: forward, duration: duration, columns: pageColumns, webView: webView, completion: complete)
+        } else {
+            cover.turn(forward: forward, style: style == .paperFlip ? .curl : style,
+                       duration: duration, targetView: activeTargetView, completion: complete)
         }
     }
 
@@ -853,6 +859,11 @@ final class ReaderController: NSObject {
         DispatchQueue.main.async { [weak self] in self?.move(direction) }
     }
 
+    private var edgePreviewStyle: PageTurnStyle {
+        let style = store?.pageTurnStyle ?? .slide
+        return style == .paperFlip ? .curl : style
+    }
+
     private func installEdgeGestures(in container:NSView) {
         let edges = ReaderEdgeTurnView(frame:container.bounds)
         edges.autoresizingMask = [.width,.height]
@@ -860,7 +871,7 @@ final class ReaderController: NSObject {
         edges.onChange = { [weak self] progress in
             guard let self, var drag = self.edgeDrag else { return }
             drag.progress = progress; self.edgeDrag = drag
-            self.pageCover?.preview(progress, forward: drag.forward, style: self.store?.pageTurnStyle ?? .slide, interactive: true)
+            self.pageCover?.preview(progress, forward: drag.forward, style: self.edgePreviewStyle, interactive: true)
         }
         edges.onEnd = { [weak self] progress,velocity in
             guard let self, var drag = self.edgeDrag else { return }
@@ -883,7 +894,7 @@ final class ReaderController: NSObject {
             // Fast path (Readest #5288): use pre-warmed idle surface immediately on pointer-down.
             if let warmImage = consumePreparedSnapshot() {
                 installCover(warmImage, in: container)
-                pageCover?.preview(0, forward: forward, style: store?.pageTurnStyle ?? .slide, interactive: true)
+                pageCover?.preview(0, forward: forward, style: edgePreviewStyle, interactive: true)
                 return
             }
             let configuration = WKSnapshotConfiguration(); configuration.rect = webView.bounds
@@ -891,7 +902,7 @@ final class ReaderController: NSObject {
                 MainActor.assumeIsolated {
                     guard let self, let container, let drag = self.edgeDrag, drag.id == token else { return }
                     self.installCover(image,in:container)
-                    self.pageCover?.preview(drag.progress, forward: drag.forward, style: self.store?.pageTurnStyle ?? .slide, interactive: true)
+                    self.pageCover?.preview(drag.progress, forward: drag.forward, style: self.edgePreviewStyle, interactive: true)
                     if drag.commit != nil { self.resolveEdgeDrag() }
                 }
             }
@@ -902,7 +913,7 @@ final class ReaderController: NSObject {
                 let picture = NSImage(size:view.bounds.size); picture.addRepresentation(bitmap); image = picture
             }
             installCover(image,in:container)
-            pageCover?.preview(0, forward: forward, style: store?.pageTurnStyle ?? .slide, interactive: true)
+            pageCover?.preview(0, forward: forward, style: edgePreviewStyle, interactive: true)
         }
     }
 
@@ -1097,7 +1108,7 @@ final class ReaderController: NSObject {
         if let store, let book = store.selectedBook, book.kind == "pdf" { pdfURL = store.fileURL(book) } else { pdfURL = nil }
         searchTask = Task { [weak self] in
             do {
-                try await Task.sleep(for:.milliseconds(250))
+                try await Task.sleep(for:.milliseconds(8))
                 let worker = Task.detached(priority:.utility) { () throws -> ([SearchChapter],[BookSearchHit]) in
                     let index: [SearchChapter]
                     if let existingIndex { index = existingIndex }
@@ -1165,7 +1176,7 @@ final class ReaderController: NSObject {
         else { content = original }
         let css = try ReaderResources.text(name:"Reader",fileExtension:"css")
         // Book scripts, remote requests, frames and forms are blocked; local images remain available.
-        let appearanceCSS = ":root{--paper:\(paperColor.lumaCSSHex);--text:#\(store.readerPalette(dark:usesDarkPaper).inkHex);--reader-leading:\(store.readerLineHeight);--reader-paragraph:\(store.readerParagraphSpacing)em;--reader-indent:\(store.readerIndent ? "2em":"0");--reader-size:\(store.effectiveReaderSize)px;--reader-width:\(store.readerWidth)px;--reader-font:\(store.readerFontFamily.cssStack);color-scheme:\(usesDarkPaper ? "dark":"light")}"
+        let appearanceCSS = ":root{--paper:\(paperColor.lumaCSSHex);--text:#\(store.readerPalette(dark:usesDarkPaper).inkHex);--accent:#\(store.readerPalette(dark:usesDarkPaper).accentHex);--reader-leading:\(store.readerLineHeight);--reader-paragraph:\(store.readerParagraphSpacing)em;--reader-indent:\(store.readerIndent ? "2em":"0");--reader-size:\(store.effectiveReaderSize)px;--reader-width:\(store.readerWidth)px;--reader-font:\(store.readerFontFamily.cssStack);color-scheme:\(usesDarkPaper ? "dark":"light")}"
         let customFontCSS = store.readerFontCSS(in:epub.root)
         let html = """
         <!doctype html><html data-paged data-focus="\(store.immersive)"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; font-src file: data:; script-src 'none'; form-action 'none'; base-uri 'none'"><style>\(css)\n\(appearanceCSS)</style><style id="luma-custom-font">\(customFontCSS)</style></head><body><div id="luma-viewport"><main id="luma-content">\(content)</main></div></body></html>

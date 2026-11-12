@@ -180,6 +180,16 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
                     wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
                     return .promotedToStubbornWords(errorCountForWordToday: max(currentErrors, stubbornWordsMap[targetWord.id]?.errorCount ?? 6))
                 }
+                // 1.9.4 — normal dictation passes each word exactly once. A misspelled
+                // word is recorded in the wrong-word book and leaves this session;
+                // its expanding retrieval loop belongs to the separate wrong-word
+                // review session, which still uses the 4-cycle ladder below.
+                if mode == .newTask {
+                    activeWrongRetrySet.remove(targetWord.id)
+                    wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
+                    completedWordIDs.insert(targetWord.id)
+                    return .correct(exitedWrongQueue: true)
+                }
                 pendingQueue.removeAll { $0.id == targetWord.id }
                 wrongRetryCycleByWordID[targetWord.id] = 1
                 let chosenOffset = retryOffset ?? Self.expandingRetryOffsets[0] // 第 1 轮：+10 词

@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import WebKit
 
 /// Hardware-accelerated multi-mode page-turn visual surface (`Slide`, `Push`, `Page Curl`, `Page Flip`, `Fade`).
 ///
@@ -23,6 +24,7 @@ import QuartzCore
 @MainActor
 final class PageTurnCover: NSView {
     private let image: NSImage?
+    private var paperFlipSurface: PaperFlipSurface?
     private let paper: NSColor
     private var strips: [CALayer] = []
     private var shades: [CALayer] = []
@@ -255,6 +257,7 @@ final class PageTurnCover: NSView {
     /// When `interactive == true`, `underlaySheet` stays visible so dragging before the
     /// underlying WebView turns does not expose a duplicate of the un-turned page.
     func preview(_ value: Double, forward: Bool, style: PageTurnStyle, interactive: Bool = false) {
+        let style: PageTurnStyle = style == .paperFlip ? .curl : style
         prepare(forward: forward, style: style)
         progress = min(1, max(0, value))
         CATransaction.begin()
@@ -271,7 +274,7 @@ final class PageTurnCover: NSView {
             case .fade, .none: return 0
             case .push: return 0.14
             case .slide: return 0.22
-            case .curl: return 0.28
+            case .curl, .paperFlip: return 0.28
             case .flip: return 0.26
             }
         }()
@@ -334,7 +337,7 @@ final class PageTurnCover: NSView {
                 backPage.isHidden = true
                 picture.opacity = Float(max(0, 1 - progress))
                 transform = CATransform3DMakeScale(1 - 0.008 * CGFloat(progress), 1 - 0.008 * CGFloat(progress), 1)
-            case .curl, .none:
+            case .curl, .paperFlip, .none:
                 picture.isHidden = true
             }
             if style != .flip {
@@ -368,6 +371,41 @@ final class PageTurnCover: NSView {
         animate(to: 1, forward: forward, style: style, duration: duration, targetView: targetView, completion: completion)
     }
 
+    func turnWithPaperFlip(
+        forward: Bool, duration: Double, columns: Int, webView: WKWebView,
+        completion: @escaping () -> Void
+    ) {
+        guard let image, duration > 0, progress <= 0.01 else {
+            turn(forward: forward, style: .curl, duration: duration, targetView: webView, completion: completion)
+            return
+        }
+        isAnimatingTurn = true
+        let settings = WKSnapshotConfiguration()
+        settings.rect = webView.bounds
+        webView.takeSnapshot(with: settings) { [weak self, weak webView] nextImage, _ in
+            MainActor.assumeIsolated {
+                guard let self, self.superview != nil else { return }
+                guard let nextImage, let webView else {
+                    self.turn(forward: forward, style: .curl, duration: duration, targetView: webView, completion: completion)
+                    return
+                }
+                let surface = PaperFlipSurface(in: self)
+                self.paperFlipSurface = surface
+                surface.play(old: image, new: nextImage, columns: min(2, max(1, columns)), forward: forward, duration: duration) { [weak self, weak webView] played in
+                    guard let self, self.superview != nil else { return }
+                    self.paperFlipSurface = nil
+                    if played {
+                        self.isAnimatingTurn = false
+                        self.removeFromSuperview()
+                        completion()
+                    } else {
+                        self.turn(forward: forward, style: .curl, duration: duration, targetView: webView, completion: completion)
+                    }
+                }
+            }
+        }
+    }
+
     func cancel(duration: Double = 0.20, completion: @escaping () -> Void) {
         animate(to: 0, forward: forward, style: style, duration: duration, targetView: nil, completion: completion)
     }
@@ -379,7 +417,7 @@ final class PageTurnCover: NSView {
             return CAMediaTimingFunction(controlPoints: 0.22, 0.61, 0.36, 1.0)
         case .push:
             return CAMediaTimingFunction(controlPoints: 0.20, 0.72, 0.24, 1.0)
-        case .curl:
+        case .curl, .paperFlip:
             return CAMediaTimingFunction(controlPoints: 0.22, 0.72, 0.18, 1.0)
         case .flip:
             return CAMediaTimingFunction(controlPoints: 0.30, 0.08, 0.20, 1.0)
@@ -489,7 +527,7 @@ final class PageTurnCover: NSView {
             case .fade, .none: return 0
             case .push: return 0.14
             case .slide: return 0.22
-            case .curl: return 0.28
+            case .curl, .paperFlip: return 0.28
             case .flip: return 0.26
             }
         }()

@@ -9,9 +9,14 @@ assert info['LSMinimumSystemVersion']=='26.0'
 assert info['CFBundleShortVersionString']==release['version'], 'Unexpected app version: '+str(info.get('CFBundleShortVersionString'))
 assert str(info['CFBundleVersion'])==str(release['build']), 'Unexpected build: '+str(info.get('CFBundleVersion'))
 exe=app/'Contents/MacOS'/info['CFBundleExecutable']; assert exe.is_file() and exe.stat().st_size>0
-for name in ['Reader.js','Reader.css','AIChat.html','AIChat.css','AIChat.js','AIHealth.js','AppStrings.js','AppStrings.json']:
+for name in ['Reader.js','Reader.css','AIChat.html','AIChat.css','AIChat.js','AIHealth.js','AppStrings.js','AppStrings.json','StPageFlip.js','PaperFlip.js']:
     source=root/'Sources/LumaReader/Resources'/name; installed=app/'Contents/Resources'/name
     assert installed.is_file(), 'Missing installed asset '+name
     assert hashlib.sha256(source.read_bytes()).digest()==hashlib.sha256(installed.read_bytes()).digest(), 'Stale installed asset '+name
+for source in (root/'Assets/KittenSpeech').rglob('*'):
+    if source.is_file():
+        installed = app/'Contents/Resources/KittenSpeech'/source.relative_to(root/'Assets/KittenSpeech')
+        assert installed.is_file(), 'Missing installed Kitten asset '+source.name
+        assert hashlib.sha256(source.read_bytes()).digest()==hashlib.sha256(installed.read_bytes()).digest(), 'Stale installed Kitten asset '+source.name
 assert (app/'Contents/Resources/LumaReader_LumaReader.bundle').is_dir(), 'SwiftPM resource bundle missing'
 print('Generated app bundle metadata/assets: PASS (does not prove GUI startup)')

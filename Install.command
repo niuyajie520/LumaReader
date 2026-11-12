@@ -33,7 +33,7 @@ find "$PWD/Sources" "$PWD/Deferred" -name "* 2.swift" -delete 2>/dev/null || tru
 mkdir -p Logs
 BUILD_LOG="$PWD/Logs/build-$(date +%Y%m%d-%H%M%S).log"
 echo "=========================================================="
-echo "🚀 Luma Reader V${APP_VERSION} · build ${APP_BUILD} · 正在编译完整整合版（三套独立视觉主题+特色错误反馈+三级分类+错词中心+红线保护）（暗莓听写UI + 阅读顶栏水平中心对齐 + 目录主题色 + Apple语音修复）"
+echo "🚀 Luma Reader V${APP_VERSION} · build ${APP_BUILD} · 正在编译主题重设计版（15 套独立主题+主题专属布局+废土终端+特色错误反馈+三级分类+错词中心+红线保护）（暗莓听写UI + 阅读顶栏水平中心对齐 + 目录主题色 + Apple语音修复）"
 echo "=========================================================="
 export LUMA_TOOLCHAIN_LOG="$BUILD_LOG"
 source "$PWD/Scripts/select-developer-tools.sh"
@@ -115,38 +115,18 @@ if [[ -x "$LSREGISTER" ]]; then
   "$LSREGISTER" -f "$PRIMARY_DEST" >/dev/null 2>&1 || true
 fi
 
-# Sync local speech daemon scripts & auto-repair pip in KokoroEngine/venv if present
-MODEL_ROOT="$HOME/Library/Application Support/LumaReader/KokoroEngine"
-TTS_ROOT="$HOME/Library/Application Support/LumaReader/KokoroTTS"
-for runtime in "$MODEL_ROOT" "$TTS_ROOT"; do
-  if [[ -d "$runtime" ]]; then
-    cp -f "$PWD/Scripts/kokoro_neural_daemon.py" "$runtime/kokoro_neural_daemon.py" 2>/dev/null || true
-    cp -f "$PWD/Scripts/audio_priority_queue.py" "$runtime/audio_priority_queue.py" 2>/dev/null || true
-    cp -f "$PWD/Scripts/audio_cache_budget.py" "$runtime/audio_cache_budget.py"
-    cp -f "$PWD/Scripts/bounded_onnx.py" "$runtime/bounded_onnx.py"
-    cp -f "$PWD/Scripts/exclusive_tts.py" "$runtime/exclusive_tts.py" 2>/dev/null || true
-  fi
-done
-if [[ -x "$MODEL_ROOT/venv/bin/python3" ]]; then
-  if ! "$MODEL_ROOT/venv/bin/python3" -m pip --version >/dev/null 2>&1; then
-    "$MODEL_ROOT/venv/bin/python3" -m ensurepip --upgrade >/dev/null 2>&1 || true
-  fi
-fi
-
+# Keep the original Kitten synthesis runtime. Model weights are in the signed app.
 /usr/bin/python3 "$PWD/Scripts/remove-legacy-kokoro.py"
- 
-# Keep a successful app installation usable if optional model downloads fail.
-VOICE_SETUP_LOG="$PWD/neural-voice-install.log"
-VOICE_RUNTIME="$MODEL_ROOT"
-if [[ ! -f "$MODEL_ROOT/models-installed.json" && -f "$TTS_ROOT/models-installed.json" ]]; then
-    VOICE_RUNTIME="$TTS_ROOT"
+VOICE_SUPPORT="$HOME/Library/Application Support/LumaReader"
+VOICE_RUNTIME="$VOICE_SUPPORT/KokoroEngine"
+if [[ ! -x "$VOICE_RUNTIME/venv/bin/python3" && -x "$VOICE_SUPPORT/KokoroTTS/venv/bin/python3" ]]; then
+    VOICE_RUNTIME="$VOICE_SUPPORT/KokoroTTS"
 fi
-echo "正在检查 Kitten Nano / Micro 本地语音…"
-if ! /bin/bash "$PWD/Scripts/install-neural-voices.sh" "$VOICE_RUNTIME" >"$VOICE_SETUP_LOG" 2>&1; then
-    echo "本地语音配置未完成。可在发音设置里重试。日志：$VOICE_SETUP_LOG"
+VOICE_SETUP_LOG="$PWD/neural-voice-install.log"
+if ! /bin/bash "$PWD/Scripts/install-neural-voices.sh" "$VOICE_RUNTIME" "$PRIMARY_DEST/Contents/Resources/KittenSpeech" >"$VOICE_SETUP_LOG" 2>&1; then
+    echo "Kitten 运行环境配置未完成。可在发音设置中重试。日志：$VOICE_SETUP_LOG"
     tail -n 12 "$VOICE_SETUP_LOG"
 fi
-
 
 # Also create a ready-to-upload GitHub Release zip on Desktop
 DESKTOP_REL_DIR="$HOME/Desktop/LumaReader_GitHub_Release_v${APP_VERSION}"

@@ -215,6 +215,7 @@ public struct WrongWordsCenterView: View {
     private let onGoToDictation: () -> Void
     private let onExportRecords: () -> Void
     private let onStartTodayQueue: () -> Void
+    private let onStartAllWrongWords: () -> Void
     private let onStartMicroDrill: ([String]) -> Void
     private let renderMode: Bool
 
@@ -242,6 +243,7 @@ public struct WrongWordsCenterView: View {
                 onGoToDictation: @escaping () -> Void,
                 onExportRecords: @escaping () -> Void = {},
                 onStartTodayQueue: @escaping () -> Void = {},
+                onStartAllWrongWords: @escaping () -> Void = {},
                 onStartMicroDrill: @escaping ([String]) -> Void = { _ in },
                 renderMode: Bool = false) {
         self.model = model
@@ -255,6 +257,7 @@ public struct WrongWordsCenterView: View {
         self.onGoToDictation = onGoToDictation
         self.onExportRecords = onExportRecords
         self.onStartTodayQueue = onStartTodayQueue
+        self.onStartAllWrongWords = onStartAllWrongWords
         self.onStartMicroDrill = onStartMicroDrill
         self.renderMode = renderMode
     }
@@ -349,6 +352,15 @@ public struct WrongWordsCenterView: View {
             .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: model.dueWords > 0, horizontalPadding: 13, height: 32))
             .disabled(model.dueWords == 0)
 
+            Button {
+                onStartAllWrongWords()
+            } label: {
+                Label("全部错词听写 \(model.totalWords)", systemImage: "text.badge.xmark")
+            }
+            .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: false, horizontalPadding: 12, height: 32))
+            .disabled(model.totalWords == 0)
+            .help("把错词本里的全部 \(model.totalWords) 个错词放进同一个循环听写")
+
             Menu {
                 if let entry = model.allEntries.first(where:{ $0.wordID == selectedEntryID }) {
                     Section("已选单词：\(entry.word)") {
@@ -362,6 +374,8 @@ public struct WrongWordsCenterView: View {
                 Section("复习方式") {
                     Button("复习错词（优先当前词库）") { if let deck = preferredDeck() { onStartAll(deck) } }
                     Button("今日错词队列") { onStartTodayQueue() }
+                    Button("全部错词听写（\(model.totalWords)）") { onStartAllWrongWords() }
+                        .disabled(model.totalWords == 0)
                     Button("多词本合练…") { onStartMixed() }
                 }
                 Section("专项强化") {

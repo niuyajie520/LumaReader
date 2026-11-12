@@ -26,6 +26,7 @@ let package = Package(
                 "StudyAppearance.swift",
                 "LumaTextScale.swift",
                 "VisualThemeBackdrop.swift",
+                "HeroScenes.swift", "HeroImageOverride.swift",
                 "StudyHome.swift",
                 "StudyPersistence.swift",
                 "StudyPromptView.swift",

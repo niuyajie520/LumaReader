@@ -123,6 +123,7 @@ struct CloudFileManagerView: View {
     @State private var name = ""
     @State private var target: CloudFileEntry?
     @State private var showTrash = false
+    @State private var collapseHovered = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -139,14 +140,19 @@ struct CloudFileManagerView: View {
                     withTransaction(transaction) { expanded.toggle() }
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(palette.muted)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: expanded)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                        .frame(width: 30, height: 30)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(collapseHovered ? palette.accent.opacity(0.12) : Color.clear)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .onHover { collapseHovered = $0 }
                 .disabled(false)
                 .help(L10n.text(expanded ? "折叠云盘文件" : "展开云盘文件"))
                 .accessibilityLabel(L10n.text(expanded ? "折叠云盘文件" : "展开云盘文件"))

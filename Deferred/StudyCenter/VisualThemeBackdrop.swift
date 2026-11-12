@@ -18,9 +18,11 @@ public struct VisualThemeBackdrop: View {
         self.system = system; self.paper = paper; self.accent = accent
         self.glow = glow; self.orbitals = orbitals; self.density = density; self.lineWeight = lineWeight
     }
+    @AppStorage(HeroImageStore.revisionKey) private var heroRevision = 0
     public var body: some View {
         VisualThemeBackdropDrawing(system: system, paper: paper, accent: accent, glow: glow,
-                                   orbitals: orbitals, density: density, lineWeight: lineWeight).equatable()
+                                   orbitals: orbitals, density: density, lineWeight: lineWeight,
+                                   heroRevision: heroRevision).equatable()
     }
 }
 
@@ -32,27 +34,73 @@ private struct VisualThemeBackdropDrawing: View, Equatable {
     var orbitals: Bool
     var density: Double
     var lineWeight: Double
+    /// Plain Int instead of @AppStorage: a property wrapper is not Equatable, which
+    /// broke the synthesized conformance and prevented the view from compiling.
+    var heroRevision: Int
     init(system: String, paper: Color, accent: Color, glow: Double = 0.55,
-                orbitals: Bool = true, density: Double = 0.35, lineWeight: Double = 1.5) {
+                orbitals: Bool = true, density: Double = 0.35, lineWeight: Double = 1.5,
+                heroRevision: Int = 0) {
         self.system = system; self.paper = paper; self.accent = accent
         self.glow = glow; self.orbitals = orbitals; self.density = density; self.lineWeight = lineWeight
+        self.heroRevision = heroRevision
     }
 
     var body: some View {
+        let custom = system == "monet" ? nil : HeroImageStore.load(system: system)
         ZStack {
             paper
-            if system != "monet" {
+            if system != "monet" && !(custom?.replaceBuiltIn ?? false) {
                 scenicIllustrationLayer
                     .drawingGroup()
             }
+            #if canImport(AppKit)
+            if let custom { HeroImageLayer(settings: custom, paper: paper).id(heroRevision) }
+            #endif
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
+    /// 1.8.0：有主视觉的主题（地标建筑 + 原创角色）直接用大尺寸 HeroScenes，不再叠加旧的小插画。
+    private var heroInk: Color {
+        #if canImport(AppKit)
+        if let c = NSColor(paper).usingColorSpace(.sRGB) {
+            if c.alphaComponent < 0.5 { return accent }
+            let lum = 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent
+            return lum < 0.5 ? Color(white: 0.93) : Color(white: 0.10)
+        }
+        #endif
+        return Color(white: 0.10)
+    }
+
+    private func heroLayer(alpha: Double) -> some View {
+        ZStack {
+            RadialGradient(colors: [accent.opacity(0.14 * alpha), .clear], center: .topTrailing, startRadius: 20, endRadius: 640)
+            if system == "wasteland" {
+                RadialGradient(colors: [.clear, Color.black.opacity(0.30 * alpha)], center: .center, startRadius: 260, endRadius: 980)
+            }
+            if system == "nier" || system == "wasteland" {
+                // CRT 扫描线：单个 Path，一次绘制。
+                Canvas { context, size in
+                    var scan = Path()
+                    var y: CGFloat = 0
+                    let step: CGFloat = system == "wasteland" ? 3 : 5
+                    while y < size.height { scan.move(to: CGPoint(x: 0, y: y)); scan.addLine(to: CGPoint(x: size.width, y: y)); y += step }
+                    context.stroke(scan, with: .color((system == "wasteland" ? Color.black : accent).opacity(system == "wasteland" ? 0.14 * alpha : 0.03 * alpha)), lineWidth: 0.7)
+                }
+            }
+            if orbitals && (system != "manga" || density > 0.01) {
+                HeroSceneLayer(system: system, accent: accent, ink: heroInk, alpha: alpha)
+            }
+        }
+    }
+
     @ViewBuilder
     private var scenicIllustrationLayer: some View {
         let alpha = max(0.25, min(1.0, glow))
+        if HeroScenes.has(system) {
+            heroLayer(alpha: alpha)
+        } else {
         ZStack {
             switch system {
             case "space":
@@ -71,6 +119,8 @@ private struct VisualThemeBackdropDrawing: View, Equatable {
                 nierAutomataIllustration(alpha: alpha)
             case "zelda":
                 zeldaHyruleIllustration(alpha: alpha)
+            case "wasteland":
+                wastelandTerminalIllustration(alpha: alpha)
             case "shinkai":
                 shinkaiSkyIllustration(alpha: alpha)
             case "chihiro":
@@ -87,161 +137,321 @@ private struct VisualThemeBackdropDrawing: View, Equatable {
                 EmptyView()
             }
         }
+        }
     }
 
-    // MARK: - 1. NieR:Automata YoRHa Scenic Illustration (2B + Virtuous Contract Katana + Pod 042 + Engels Ruins + YoRHa Crest + Lunar Tear)
+    // MARK: - 1. NieR 废墟都市（1.8.0 重绘）
+    // 苔绿色的坍塌城市：远景高楼剪影、断裂高架桥、垂落藤蔓与树冠、斜射光束；
+    // 上层叠加米灰色战术 HUD（细线、方块标记、准星刻度）。不绘制任何角色形象。
+
+    /// 固定种子的伪随机数，保证每次绘制完全一致（静态背景，无闪烁）。
+    private struct SeededRandom {
+        var state: UInt64
+        mutating func next() -> CGFloat {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return CGFloat((state >> 33) & 0xFFFF) / 65535
+        }
+    }
 
     private func nierAutomataIllustration(alpha: Double) -> some View {
-        ZStack {
-            RadialGradient(
-                colors: [accent.opacity(0.16 * alpha), .clear],
-                center: .topTrailing,
-                startRadius: 20,
-                endRadius: 620
-            )
+        let moss = Color(red: 0.34, green: 0.46, blue: 0.29)
+        let leaf = Color(red: 0.45, green: 0.60, blue: 0.34)
+        let concrete = Color(red: 0.55, green: 0.56, blue: 0.50)
+        let sun = Color(red: 0.98, green: 0.96, blue: 0.86)
+        return ZStack {
+            // 雾气天空 + 左上角太阳眩光
+            LinearGradient(colors: [moss.opacity(0.10 * alpha), leaf.opacity(0.06 * alpha), moss.opacity(0.22 * alpha)],
+                           startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [sun.opacity(0.42 * alpha), .clear], center: UnitPoint(x: 0.16, y: 0.08), startRadius: 4, endRadius: 520)
             Canvas { context, size in
                 let w = size.width
                 let h = size.height
-                let mainCol = accent.opacity(0.26 * alpha)
-                let strongCol = accent.opacity(0.42 * alpha)
-                let faintCol = accent.opacity(0.12 * alpha)
-                let crimsonCol = Color(red: 0.80, green: 0.36, blue: 0.28).opacity(0.38 * alpha)
+                var rng = SeededRandom(state: 0x9E3779B97F4A7C15)
+                let groundY = h * 0.94
 
-                // 1. Subtle CRT phosphor horizontal scanlines
-                var scan = Path()
-                for y in stride(from: CGFloat(0), to: h, by: 6) {
-                    scan.move(to: CGPoint(x: 0, y: y))
-                    scan.addLine(to: CGPoint(x: w, y: y))
+                // 1. 斜射光束（丁达尔效应）
+                for i in 0..<4 {
+                    let x0 = w * (0.06 + CGFloat(i) * 0.13)
+                    var beam = Path()
+                    beam.move(to: CGPoint(x: x0, y: 0))
+                    beam.addLine(to: CGPoint(x: x0 + 34 + CGFloat(i) * 10, y: 0))
+                    beam.addLine(to: CGPoint(x: x0 + w * 0.42 + CGFloat(i) * 30, y: h))
+                    beam.addLine(to: CGPoint(x: x0 + w * 0.30 + CGFloat(i) * 22, y: h))
+                    beam.closeSubpath()
+                    context.fill(beam, with: .color(sun.opacity(0.07 * alpha)))
                 }
-                context.stroke(scan, with: .color(accent.opacity(0.032 * alpha)), lineWidth: 0.6)
+
+                // 2. 远景：灰绿色高楼剪影（部分顶部断裂）
+                var x: CGFloat = -10
+                while x < w {
+                    let bw = 34 + rng.next() * 46
+                    let bh = h * (0.30 + rng.next() * 0.34)
+                    var b = Path()
+                    let top = groundY - bh
+                    b.move(to: CGPoint(x: x, y: groundY))
+                    b.addLine(to: CGPoint(x: x, y: top + rng.next() * 18))
+                    b.addLine(to: CGPoint(x: x + bw * 0.45, y: top + rng.next() * 30))
+                    b.addLine(to: CGPoint(x: x + bw * 0.62, y: top + 12 + rng.next() * 26))
+                    b.addLine(to: CGPoint(x: x + bw, y: top + rng.next() * 14))
+                    b.addLine(to: CGPoint(x: x + bw, y: groundY))
+                    b.closeSubpath()
+                    context.fill(b, with: .color(concrete.opacity(0.13 * alpha)))
+                    x += bw + 6 + rng.next() * 18
+                }
 
                 guard orbitals else { return }
 
-                // 2. Upper-Right Sky: Ornate YoRHa Winged Crest & Sword Emblem (寄叶部队徽章)
-                let crestCenter = CGPoint(x: w * 0.82, y: h * 0.26)
-                for (idx, r) in [CGFloat(42), CGFloat(78), CGFloat(116)].enumerated() {
-                    let rect = CGRect(x: crestCenter.x - r, y: crestCenter.y - r, width: r * 2, height: r * 2)
-                    context.stroke(
-                        Path(ellipseIn: rect),
-                        with: .color(idx == 1 ? strongCol : mainCol),
-                        style: StrokeStyle(lineWidth: idx == 1 ? 1.3 : 0.9, dash: idx == 2 ? [8, 4, 2, 4] : [])
-                    )
-                }
-                // YoRHa spread mechanical wings (left & right 7-blade fan)
-                for side in [-1.0, 1.0] {
-                    let s = CGFloat(side)
-                    for b in 0..<7 {
-                        let bf = CGFloat(b)
-                        var feather = Path()
-                        let rootPt = CGPoint(x: crestCenter.x + s * 16, y: crestCenter.y - 10 + bf * 5)
-                        let tipPt = CGPoint(x: crestCenter.x + s * (115 - bf * 11), y: crestCenter.y - 48 + bf * 14)
-                        let ctrlPt = CGPoint(x: crestCenter.x + s * (70 - bf * 5), y: crestCenter.y - 36 + bf * 10)
-                        feather.move(to: rootPt)
-                        feather.addQuadCurve(to: tipPt, control: ctrlPt)
-                        feather.addLine(to: CGPoint(x: tipPt.x - s * 8, y: tipPt.y + 6))
-                        feather.closeSubpath()
-                        context.fill(feather, with: .color(accent.opacity((0.22 - Double(b) * 0.02) * alpha)))
-                        context.stroke(feather, with: .color(strongCol), lineWidth: 0.8)
-                    }
-                }
-                // Central vertical YoRHa ritual sword axis
-                var crestSword = Path()
-                crestSword.move(to: CGPoint(x: crestCenter.x, y: crestCenter.y - 135))
-                crestSword.addLine(to: CGPoint(x: crestCenter.x + 5, y: crestCenter.y + 95))
-                crestSword.addLine(to: CGPoint(x: crestCenter.x, y: crestCenter.y + 125))
-                crestSword.addLine(to: CGPoint(x: crestCenter.x - 5, y: crestCenter.y + 95))
-                crestSword.closeSubpath()
-                context.fill(crestSword, with: .color(mainCol))
-
-                // 3. Bottom-Left Midground: Overgrown City Ruins & Dormant Engels Goliath Machine Lifeform (废墟都市与巨型机械生命体)
-                let ruinBaseY = h - 14
-                let ruinBlocks: [(CGFloat, CGFloat, CGFloat, Double)] = [
-                    (28, 52, 130, -0.04), (74, 64, 175, 0.03), (132, 48, 115, -0.02), (176, 58, 148, 0.05)
+                // 3. 中景：带窗格的倾斜高楼、楼顶树冠与垂落藤蔓
+                let mid: [(CGFloat, CGFloat, CGFloat, Double)] = [
+                    (0.04, 0.10, 0.62, -0.035), (0.17, 0.08, 0.48, 0.02), (0.63, 0.09, 0.56, 0.03),
+                    (0.76, 0.11, 0.70, -0.02), (0.90, 0.08, 0.44, 0.05)
                 ]
-                for (rx, rw, rh, tilt) in ruinBlocks {
-                    var bldg = Path(CGRect(x: 0, y: -rh, width: rw, height: rh))
-                    let tr = CGAffineTransform(translationX: rx, y: ruinBaseY).rotated(by: tilt)
-                    context.fill(bldg.applying(tr), with: .color(faintCol))
-                    context.stroke(bldg.applying(tr), with: .color(mainCol), lineWidth: 1.0)
-                    // Broken window grid
-                    for wy in stride(from: -rh + 14, to: -18, by: 16) {
-                        for wx in stride(from: CGFloat(8), to: rw - 10, by: 12) {
-                            let wRect = Path(CGRect(x: wx, y: wy, width: 6, height: 8)).applying(tr)
-                            context.fill(wRect, with: .color(accent.opacity(0.08 * alpha)))
+                for (fx, fw, fh, tilt) in mid {
+                    let bw = w * fw
+                    let bh = h * fh
+                    let tr = CGAffineTransform(translationX: w * fx, y: groundY).rotated(by: tilt)
+                    var body = Path()
+                    body.move(to: CGPoint(x: 0, y: 0))
+                    body.addLine(to: CGPoint(x: 0, y: -bh))
+                    body.addLine(to: CGPoint(x: bw * 0.55, y: -bh - 10))
+                    body.addLine(to: CGPoint(x: bw * 0.70, y: -bh + 22))
+                    body.addLine(to: CGPoint(x: bw, y: -bh + 8))
+                    body.addLine(to: CGPoint(x: bw, y: 0))
+                    body.closeSubpath()
+                    context.fill(body.applying(tr), with: .color(concrete.opacity(0.20 * alpha)))
+                    context.stroke(body.applying(tr), with: .color(moss.opacity(0.40 * alpha)), lineWidth: 0.9)
+                    // 窗格（单一 Path，降低绘制调用）
+                    var windows = Path()
+                    var wy = -bh + 30
+                    while wy < -16 {
+                        var wx: CGFloat = 7
+                        while wx < bw - 10 {
+                            if rng.next() > 0.22 { windows.addRect(CGRect(x: wx, y: wy, width: 5, height: 7)) }
+                            wx += 11
                         }
+                        wy += 15
+                    }
+                    context.fill(windows.applying(tr), with: .color(moss.opacity(0.22 * alpha)))
+                    // 楼顶树冠
+                    var canopy = Path()
+                    for k in 0..<5 {
+                        let cx = bw * (0.08 + CGFloat(k) * 0.2)
+                        let r = 9 + rng.next() * 10
+                        canopy.addEllipse(in: CGRect(x: cx - r, y: -bh - r * 0.6, width: r * 2, height: r * 1.3))
+                    }
+                    context.fill(canopy.applying(tr), with: .color(leaf.opacity(0.42 * alpha)))
+                    // 垂落藤蔓
+                    var vines = Path()
+                    for k in 0..<4 {
+                        let vx = bw * (0.12 + CGFloat(k) * 0.24)
+                        let len = bh * (0.18 + rng.next() * 0.42)
+                        vines.move(to: CGPoint(x: vx, y: -bh + 4))
+                        vines.addQuadCurve(to: CGPoint(x: vx + 4, y: -bh + len), control: CGPoint(x: vx - 9, y: -bh + len * 0.5))
+                    }
+                    context.stroke(vines.applying(tr), with: .color(leaf.opacity(0.55 * alpha)), lineWidth: 1.6)
+                }
+
+                // 4. 断裂高架桥 + 垂落钢筋
+                let deckY = h * 0.70
+                var deckL = Path(CGRect(x: -10, y: deckY, width: w * 0.40, height: 12))
+                deckL = deckL.applying(CGAffineTransform(translationX: 0, y: 0))
+                var deckR = Path()
+                deckR.move(to: CGPoint(x: w * 0.52, y: deckY + 26))
+                deckR.addLine(to: CGPoint(x: w + 10, y: deckY - 4))
+                deckR.addLine(to: CGPoint(x: w + 10, y: deckY + 8))
+                deckR.addLine(to: CGPoint(x: w * 0.52, y: deckY + 38))
+                deckR.closeSubpath()
+                context.fill(deckL, with: .color(concrete.opacity(0.30 * alpha)))
+                context.fill(deckR, with: .color(concrete.opacity(0.30 * alpha)))
+                var rebar = Path()
+                for k in 0..<6 {
+                    let rx = w * 0.40 - CGFloat(k) * 5
+                    rebar.move(to: CGPoint(x: rx, y: deckY + 12))
+                    rebar.addLine(to: CGPoint(x: rx + 6, y: deckY + 24 + CGFloat(k % 3) * 8))
+                }
+                context.stroke(rebar, with: .color(moss.opacity(0.45 * alpha)), lineWidth: 0.8)
+                for px in [w * 0.12, w * 0.30, w * 0.70, w * 0.88] {
+                    let pierTop = px < w * 0.5 ? deckY + 12 : deckY + 30 - (px - w * 0.52) / (w * 0.48) * 30
+                    context.fill(Path(CGRect(x: px - 7, y: pierTop, width: 14, height: groundY - pierTop)), with: .color(concrete.opacity(0.24 * alpha)))
+                }
+
+                // 5. 地面草丛
+                var grass = Path()
+                var gx: CGFloat = -12
+                while gx < w + 12 {
+                    let r = 10 + rng.next() * 16
+                    grass.addEllipse(in: CGRect(x: gx, y: groundY - r * 0.9, width: r * 2.2, height: r * 1.6))
+                    gx += r * 1.4
+                }
+                grass.addRect(CGRect(x: 0, y: groundY, width: w, height: h - groundY))
+                context.fill(grass, with: .color(leaf.opacity(0.36 * alpha)))
+
+                // 6. 米灰战术 HUD：上方细线 + 方块、右侧准星刻度、淡扫描线
+                let hud = accent.opacity(0.55 * alpha)
+                var line = Path()
+                line.move(to: CGPoint(x: 24, y: 22)); line.addLine(to: CGPoint(x: w * 0.42, y: 22))
+                line.move(to: CGPoint(x: w * 0.58, y: 22)); line.addLine(to: CGPoint(x: w - 24, y: 22))
+                context.stroke(line, with: .color(hud), lineWidth: 0.8)
+                for k in 0..<3 {
+                    context.fill(Path(CGRect(x: 24 + CGFloat(k) * 10, y: 28, width: 6, height: 6)), with: .color(hud))
+                }
+                let reticle = CGPoint(x: w * 0.84, y: h * 0.24)
+                for (i, r) in [CGFloat(26), CGFloat(52)].enumerated() {
+                    context.stroke(Path(ellipseIn: CGRect(x: reticle.x - r, y: reticle.y - r, width: r * 2, height: r * 2)),
+                                   with: .color(hud), style: StrokeStyle(lineWidth: 0.9, dash: i == 1 ? [3, 5] : []))
+                }
+                var ticks = Path()
+                for k in 0..<4 {
+                    let a = Double(k) * .pi / 2
+                    ticks.move(to: CGPoint(x: reticle.x + CGFloat(cos(a)) * 58, y: reticle.y + CGFloat(sin(a)) * 58))
+                    ticks.addLine(to: CGPoint(x: reticle.x + CGFloat(cos(a)) * 70, y: reticle.y + CGFloat(sin(a)) * 70))
+                }
+                context.stroke(ticks, with: .color(hud), lineWidth: 1.1)
+                var diamond = Path()
+                diamond.move(to: CGPoint(x: reticle.x, y: reticle.y - 5)); diamond.addLine(to: CGPoint(x: reticle.x + 5, y: reticle.y))
+                diamond.addLine(to: CGPoint(x: reticle.x, y: reticle.y + 5)); diamond.addLine(to: CGPoint(x: reticle.x - 5, y: reticle.y))
+                diamond.closeSubpath()
+                context.fill(diamond, with: .color(hud))
+                var scan = Path()
+                var sy: CGFloat = 0
+                while sy < h { scan.move(to: CGPoint(x: 0, y: sy)); scan.addLine(to: CGPoint(x: w, y: sy)); sy += 5 }
+                context.stroke(scan, with: .color(accent.opacity(0.025 * alpha)), lineWidth: 0.6)
+            }
+        }
+    }
+
+    // MARK: - 1b. 废土终端（1.8.0 新增）
+    // 荧光单色 CRT：暗角、细网格、扫描线；四角铆钉钢框、指针仪表、条形读数、
+    // 线框式锈蚀天际线（水塔、电塔与下垂电线、断桥）。全部为一次性静态绘制。
+
+    private func wastelandTerminalIllustration(alpha: Double) -> some View {
+        let steel = Color(red: 0.37, green: 0.43, blue: 0.32)
+        return ZStack {
+            RadialGradient(colors: [accent.opacity(0.13 * alpha), .clear], center: .center, startRadius: 10, endRadius: 760)
+            RadialGradient(colors: [.clear, Color.black.opacity(0.32 * alpha)], center: .center, startRadius: 280, endRadius: 980)
+            Canvas { context, size in
+                let w = size.width
+                let h = size.height
+                let phosphor = accent
+
+                // 1. 细网格 + 扫描线
+                var grid = Path()
+                var gx: CGFloat = 0
+                while gx < w { grid.move(to: CGPoint(x: gx, y: 0)); grid.addLine(to: CGPoint(x: gx, y: h)); gx += 36 }
+                var gy: CGFloat = 0
+                while gy < h { grid.move(to: CGPoint(x: 0, y: gy)); grid.addLine(to: CGPoint(x: w, y: gy)); gy += 36 }
+                context.stroke(grid, with: .color(phosphor.opacity(0.035 * alpha)), lineWidth: 0.5)
+                var scan = Path()
+                var sy: CGFloat = 0
+                while sy < h { scan.move(to: CGPoint(x: 0, y: sy)); scan.addLine(to: CGPoint(x: w, y: sy)); sy += 3 }
+                context.stroke(scan, with: .color(Color.black.opacity(0.16 * alpha)), lineWidth: 1)
+
+                // 2. 四角铆钉钢框
+                let inset: CGFloat = 10
+                let arm: CGFloat = 46
+                var bezel = Path()
+                for (cx, cy, dx, dy) in [(inset, inset, 1.0, 1.0), (w - inset, inset, -1.0, 1.0), (inset, h - inset, 1.0, -1.0), (w - inset, h - inset, -1.0, -1.0)] {
+                    bezel.move(to: CGPoint(x: cx, y: cy + CGFloat(dy) * arm))
+                    bezel.addLine(to: CGPoint(x: cx, y: cy))
+                    bezel.addLine(to: CGPoint(x: cx + CGFloat(dx) * arm, y: cy))
+                    for k in 0..<2 {
+                        let rx = cx + CGFloat(dx) * (14 + CGFloat(k) * 18)
+                        let ry = cy + CGFloat(dy) * 7
+                        context.fill(Path(ellipseIn: CGRect(x: rx - 2.2, y: ry - 2.2, width: 4.4, height: 4.4)), with: .color(steel.opacity(0.9 * alpha)))
                     }
                 }
-                // Dormant Engels Machine Head (spherical dome head + twin glowing circular eyes + jaw)
-                let machCenter = CGPoint(x: 265, y: ruinBaseY - 46)
-                let machDome = CGRect(x: machCenter.x - 42, y: machCenter.y - 42, width: 84, height: 76)
-                context.fill(Path(ellipseIn: machDome), with: .color(accent.opacity(0.18 * alpha)))
-                context.stroke(Path(ellipseIn: machDome), with: .color(strongCol), lineWidth: 1.3)
-                for eyeX in [machCenter.x - 16, machCenter.x + 12] {
-                    let eyeRect = CGRect(x: eyeX - 7, y: machCenter.y - 8, width: 14, height: 14)
-                    context.fill(Path(ellipseIn: eyeRect), with: .color(crimsonCol))
-                    context.stroke(Path(ellipseIn: eyeRect), with: .color(strongCol), lineWidth: 1.1)
+                context.stroke(bezel, with: .color(steel.opacity(0.85 * alpha)), style: StrokeStyle(lineWidth: 4, lineCap: .square))
+
+                guard orbitals else { return }
+
+                // 3. 顶部分段标签条
+                var tabs = Path()
+                tabs.move(to: CGPoint(x: w * 0.18, y: 30)); tabs.addLine(to: CGPoint(x: w * 0.82, y: 30))
+                for k in 0...5 {
+                    let tx = w * 0.18 + w * 0.64 * CGFloat(k) / 5
+                    tabs.move(to: CGPoint(x: tx, y: 24)); tabs.addLine(to: CGPoint(x: tx, y: 36))
                 }
+                context.stroke(tabs, with: .color(phosphor.opacity(0.32 * alpha)), lineWidth: 1)
 
-                // 4. Bottom-Right Foreground: 2B Silhouette + Floating Virtuous Contract Katana (白之契约) + Pod 042 + Lunar Tear (月之泪)
-                let charX = w - 135
-                let charY = h - 18
-                // Floating weapon halo ring behind 2B
-                let haloCenter = CGPoint(x: charX, y: charY - 118)
-                let haloRect = CGRect(x: haloCenter.x - 46, y: haloCenter.y - 46, width: 92, height: 92)
-                context.stroke(Path(ellipseIn: haloRect), with: .color(strongCol), style: StrokeStyle(lineWidth: 1.4, dash: [10, 4]))
-
-                // Virtuous Contract (白之契约) diagonal katana floating behind 2B
-                var katana = Path()
-                katana.move(to: CGPoint(x: charX - 88, y: charY - 48))
-                katana.addQuadCurve(to: CGPoint(x: charX + 96, y: charY - 196), control: CGPoint(x: charX + 8, y: charY - 115))
-                context.stroke(katana, with: .color(strongCol), lineWidth: 2.6)
-                // Katana circular tsuba guard & tassel
-                let tsuba = CGRect(x: charX + 48, y: charY - 162, width: 12, height: 12)
-                context.stroke(Path(ellipseIn: tsuba), with: .color(strongCol), lineWidth: 1.5)
-
-                // 2B figure silhouette (head with bob hair & visor, high-collar gothic dress, flowing skirt slit, boots)
-                var fig = Path()
-                // Head & bob hair
-                fig.addEllipse(in: CGRect(x: charX - 13, y: charY - 172, width: 26, height: 28))
-                // Torso & puffed sleeves
-                fig.move(to: CGPoint(x: charX - 18, y: charY - 140))
-                fig.addLine(to: CGPoint(x: charX + 18, y: charY - 140))
-                fig.addLine(to: CGPoint(x: charX + 12, y: charY - 104))
-                // Flared gothic skirt with high side slit
-                fig.addLine(to: CGPoint(x: charX + 38, y: charY - 52))
-                fig.addQuadCurve(to: CGPoint(x: charX + 6, y: charY - 62), control: CGPoint(x: charX + 22, y: charY - 46))
-                // Legs
-                fig.addLine(to: CGPoint(x: charX + 10, y: charY))
-                fig.addLine(to: CGPoint(x: charX + 2, y: charY))
-                fig.addLine(to: CGPoint(x: charX - 2, y: charY - 58))
-                fig.addLine(to: CGPoint(x: charX - 10, y: charY))
-                fig.addLine(to: CGPoint(x: charX - 18, y: charY))
-                fig.addLine(to: CGPoint(x: charX - 14, y: charY - 56))
-                fig.addLine(to: CGPoint(x: charX - 34, y: charY - 48))
-                fig.addLine(to: CGPoint(x: charX - 12, y: charY - 104))
-                fig.closeSubpath()
-                context.fill(fig, with: .color(accent.opacity(0.28 * alpha)))
-                context.stroke(fig, with: .color(strongCol), lineWidth: 1.1)
-
-                // Pod 042 hovering beside 2B (rectangular tactical drone + articulated arms)
-                let podRect = CGRect(x: charX - 66, y: charY - 178, width: 16, height: 24)
-                context.fill(Path(roundedRect: podRect, cornerRadius: 2), with: .color(mainCol))
-                context.stroke(Path(roundedRect: podRect, cornerRadius: 2), with: .color(strongCol), lineWidth: 1.1)
-                context.stroke(Path(CGRect(x: charX - 70, y: charY - 172, width: 3, height: 14)), with: .color(strongCol), lineWidth: 1.0)
-                context.stroke(Path(CGRect(x: charX - 49, y: charY - 172, width: 3, height: 14)), with: .color(strongCol), lineWidth: 1.0)
-
-                // Glowing Lunar Tear (月之泪) blossom at bottom-right
-                let flowerCenter = CGPoint(x: charX + 58, y: charY - 22)
-                for p in 0..<5 {
-                    let ang = Double(p) * (.pi * 2 / 5) - .pi / 2
-                    var petal = Path()
-                    petal.move(to: .zero)
-                    petal.addQuadCurve(to: CGPoint(x: 0, y: -13), control: CGPoint(x: -6, y: -7))
-                    petal.addQuadCurve(to: .zero, control: CGPoint(x: 6, y: -7))
-                    let tr = CGAffineTransform(translationX: flowerCenter.x, y: flowerCenter.y).rotated(by: ang)
-                    context.fill(petal.applying(tr), with: .color(Color.white.opacity(0.55 * alpha)))
-                    context.stroke(petal.applying(tr), with: .color(strongCol), lineWidth: 0.8)
+                // 4. 右上角指针仪表
+                let gc = CGPoint(x: w * 0.85, y: h * 0.22)
+                let gr: CGFloat = 46
+                var dial = Path()
+                dial.addArc(center: gc, radius: gr, startAngle: .degrees(150), endAngle: .degrees(390), clockwise: false)
+                context.stroke(dial, with: .color(phosphor.opacity(0.55 * alpha)), lineWidth: 1.6)
+                var dialTicks = Path()
+                for k in 0...12 {
+                    let a = (150.0 + 240.0 * Double(k) / 12.0) * .pi / 180
+                    let r0 = gr - (k % 3 == 0 ? 11 : 6)
+                    dialTicks.move(to: CGPoint(x: gc.x + CGFloat(cos(a)) * r0, y: gc.y + CGFloat(sin(a)) * r0))
+                    dialTicks.addLine(to: CGPoint(x: gc.x + CGFloat(cos(a)) * gr, y: gc.y + CGFloat(sin(a)) * gr))
                 }
+                context.stroke(dialTicks, with: .color(phosphor.opacity(0.55 * alpha)), lineWidth: 1.1)
+                let needleA = 236.0 * .pi / 180
+                var needle = Path()
+                needle.move(to: gc)
+                needle.addLine(to: CGPoint(x: gc.x + CGFloat(cos(needleA)) * (gr - 6), y: gc.y + CGFloat(sin(needleA)) * (gr - 6)))
+                context.stroke(needle, with: .color(phosphor.opacity(0.85 * alpha)), lineWidth: 2)
+                context.fill(Path(ellipseIn: CGRect(x: gc.x - 4, y: gc.y - 4, width: 8, height: 8)), with: .color(steel.opacity(alpha)))
+
+                // 5. 左侧条形读数 + 刻度尺
+                let barBase = h * 0.42
+                for k in 0..<5 {
+                    let bh = CGFloat([52, 78, 40, 64, 30][k])
+                    let rect = CGRect(x: 34 + CGFloat(k) * 12, y: barBase - bh, width: 7, height: bh)
+                    context.fill(Path(rect), with: .color(phosphor.opacity(0.22 * alpha)))
+                    context.stroke(Path(rect), with: .color(phosphor.opacity(0.45 * alpha)), lineWidth: 0.7)
+                }
+                var ruler = Path()
+                for k in 0..<18 {
+                    let ry = h * 0.48 + CGFloat(k) * 9
+                    ruler.move(to: CGPoint(x: 26, y: ry)); ruler.addLine(to: CGPoint(x: k % 3 == 0 ? 40 : 33, y: ry))
+                }
+                context.stroke(ruler, with: .color(phosphor.opacity(0.32 * alpha)), lineWidth: 0.8)
+                context.draw(Text("SIGNAL ▮▮▮▯  RAD 0.02").font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(phosphor.opacity(0.55 * alpha)),
+                             at: CGPoint(x: 30, y: h - 30), anchor: .leading)
+
+                // 6. 线框废土天际线
+                let ground = h * 0.93
+                var skyline = Path()
+                skyline.move(to: CGPoint(x: 0, y: ground))
+                let profile: [(CGFloat, CGFloat)] = [
+                    (0.10, 0.80), (0.16, 0.80), (0.16, 0.66), (0.20, 0.62), (0.23, 0.70), (0.23, 0.78), (0.30, 0.78),
+                    (0.30, 0.58), (0.33, 0.55), (0.35, 0.60), (0.37, 0.57), (0.37, 0.82), (0.55, 0.82), (0.55, 0.72),
+                    (0.60, 0.72), (0.62, 0.64), (0.66, 0.68), (0.66, 0.84), (0.80, 0.84), (0.80, 0.70), (0.86, 0.66),
+                    (0.86, 0.80), (1.00, 0.80)
+                ]
+                for (fx, fy) in profile { skyline.addLine(to: CGPoint(x: w * fx, y: h * fy)) }
+                skyline.addLine(to: CGPoint(x: w, y: ground))
+                skyline.closeSubpath()
+                context.fill(skyline, with: .color(phosphor.opacity(0.07 * alpha)))
+                context.stroke(skyline, with: .color(phosphor.opacity(0.42 * alpha)), lineWidth: 1.1)
+                // 水塔
+                let tc = CGPoint(x: w * 0.46, y: h * 0.62)
+                context.stroke(Path(ellipseIn: CGRect(x: tc.x - 22, y: tc.y - 16, width: 44, height: 30)), with: .color(phosphor.opacity(0.5 * alpha)), lineWidth: 1.2)
+                var legs = Path()
+                for lx in [-16.0, -5.0, 5.0, 16.0] {
+                    legs.move(to: CGPoint(x: tc.x + CGFloat(lx), y: tc.y + 12)); legs.addLine(to: CGPoint(x: tc.x + CGFloat(lx) * 1.4, y: h * 0.82))
+                }
+                legs.move(to: CGPoint(x: tc.x - 20, y: h * 0.72)); legs.addLine(to: CGPoint(x: tc.x + 20, y: h * 0.72))
+                context.stroke(legs, with: .color(phosphor.opacity(0.45 * alpha)), lineWidth: 1)
+                // 电塔与下垂电线
+                var pylons = Path()
+                for px in [w * 0.70, w * 0.93] {
+                    pylons.move(to: CGPoint(x: px - 12, y: h * 0.84)); pylons.addLine(to: CGPoint(x: px, y: h * 0.52)); pylons.addLine(to: CGPoint(x: px + 12, y: h * 0.84))
+                    pylons.move(to: CGPoint(x: px - 16, y: h * 0.57)); pylons.addLine(to: CGPoint(x: px + 16, y: h * 0.57))
+                    pylons.move(to: CGPoint(x: px - 10, y: h * 0.66)); pylons.addLine(to: CGPoint(x: px + 10, y: h * 0.66))
+                }
+                pylons.move(to: CGPoint(x: w * 0.70 + 16, y: h * 0.57))
+                pylons.addQuadCurve(to: CGPoint(x: w * 0.93 - 16, y: h * 0.57), control: CGPoint(x: w * 0.815, y: h * 0.66))
+                pylons.move(to: CGPoint(x: w * 0.70 - 16, y: h * 0.57))
+                pylons.addQuadCurve(to: CGPoint(x: w * 0.52, y: h * 0.62), control: CGPoint(x: w * 0.61, y: h * 0.66))
+                context.stroke(pylons, with: .color(phosphor.opacity(0.38 * alpha)), lineWidth: 0.9)
+                // 地平线
+                var horizon = Path()
+                horizon.move(to: CGPoint(x: 0, y: ground)); horizon.addLine(to: CGPoint(x: w, y: ground))
+                context.stroke(horizon, with: .color(phosphor.opacity(0.5 * alpha)), lineWidth: 1.2)
             }
         }
     }

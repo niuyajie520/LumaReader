@@ -17,18 +17,20 @@ enum PageTurnStyle: String, CaseIterable, Identifiable, Codable, Sendable {
     case push = "push"
     case curl = "natural"
     case flip = "classic"
+    case paperFlip
     case fade = "fade"
     case none = "none"
     var id: String { rawValue }
     static var natural: PageTurnStyle { .curl }
     static var classic: PageTurnStyle { .flip }
-    static var animationCases: [PageTurnStyle] { [.slide, .push, .curl, .flip, .fade] }
+    static var animationCases: [PageTurnStyle] { [.slide, .push, .curl, .paperFlip, .flip, .fade] }
     var title: String {
         switch self {
         case .slide: return "平滑滑动"
         case .push: return "柔和推页"
         case .curl: return "真实纸张弯曲"
         case .flip: return "整页翻转"
+        case .paperFlip: return "纸张翻页（StPageFlip）"
         case .fade: return "柔和淡化"
         case .none: return "直接切换"
         }

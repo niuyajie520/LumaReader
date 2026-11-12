@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One brief, noninteractive accent per failed submission. No repeating timer.
-/// Each of the 14 visual theme systems triggers its own unmistakable error visual effect:
+/// Each of the 15 visual theme systems triggers its own unmistakable error visual effect:
 /// - `monet`: Soft radial red glow
 /// - `space`: Red radar laser scan line across the box
 /// - `manga`: Comic exclamation stamp (!) + diagonal speed lines
@@ -9,6 +9,7 @@ import SwiftUI
 /// - `mangaCity`: Fresh City Pop Manga — Neon chromatic speech bubble ("⚡ RETRY!") + twin magenta/cyan offset frame
 /// - `mangaForest`: Fresh Forest Manga — Komorebi leaf-whirl badge ("🍃 木叶") + emerald-amber double border pulse
 /// - `nier`: NieR:Automata YoRHa — Tactical HUD alert ("◈ ALERT // LOGIC VIRUS") + horizontal glitch scanbars
+/// - `wasteland`: Phosphor terminal glitch bar + "[ ERR ]" readout
 /// - `zelda`: Zelda Sheikah/Hyrule — Heart Container damage flash ("♥") + Guardian target reticle & Triforce gold/red rim
 /// - `shinkai`: Twin expanding iridescent prism halo rings
 /// - `chihiro`: Spirited Away Susuwatari (煤球精灵) + Konpeito star candies burst badge
@@ -158,6 +159,29 @@ struct DictationThemeErrorAccent: View {
                     .overlay(Rectangle().strokeBorder(alertRed, lineWidth: 1.1))
                     .scaleEffect(reduceMotion ? 1 : (1.14 - progress * 0.14))
                     .padding(10)
+                }
+            } else if active && system == "wasteland" {
+                // Wasteland terminal: phosphor glitch bar + bracketed "ERR" readout; brief, error-triggered only.
+                let phosphor = Color(red: 0.106, green: 1.0, blue: 0.502) // #1BFF80
+                let warn = Color(red: 1.0, green: 0.36, blue: 0.24)
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .strokeBorder(warn.opacity(0.9), lineWidth: 1.8)
+                    if !reduceMotion {
+                        Rectangle()
+                            .fill(phosphor.opacity(0.22 * (1 - progress)))
+                            .frame(height: 6)
+                            .position(x: geometry.size.width / 2, y: geometry.size.height * (0.2 + 0.6 * progress))
+                    }
+                    Text("[ ERR // 拼写偏差 ]")
+                        .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(phosphor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Rectangle().fill(Color(red: 0.03, green: 0.07, blue: 0.04)))
+                        .overlay(Rectangle().strokeBorder(warn, lineWidth: 1.1))
+                        .scaleEffect(reduceMotion ? 1 : (1.12 - progress * 0.12))
+                        .padding(10)
                 }
             } else if active && system == "zelda" {
                 // The Legend of Zelda: Heart Container damage flash + Sheikah target reticle & golden/red double border
@@ -314,6 +338,9 @@ struct IndependentDictationShakeEffect: GeometryEffect {
             y = -1.8 * sin(animatableData * .pi * 2) * envelope
         case "nier":
             x = 9.0 * sin(animatableData * .pi * 6) * envelope
+            y = 0
+        case "wasteland":
+            x = 8.0 * sin(animatableData * .pi * 5) * envelope
             y = 0
         case "zelda":
             x = 7.0 * sin(animatableData * .pi * 4) * envelope

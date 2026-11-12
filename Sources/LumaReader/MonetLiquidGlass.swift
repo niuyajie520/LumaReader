@@ -204,6 +204,26 @@ private struct IndependentThemeMaterial: ViewModifier {
                 }
                 .allowsHitTesting(false)
             )
+        case .wasteland:
+            // Wasteland terminal: riveted steel bezel (3pt corners) around a phosphor screen with a faint inner glow line.
+            let r = min(radius, 3)
+            let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+            content.background {
+                if blendGlass && enabled && !reduceTransparency {
+                    shape.fill(.ultraThinMaterial).overlay(shape.fill(surfaceFill.opacity(0.88)))
+                } else {
+                    shape.fill(surfaceFill)
+                }
+            }
+            .overlay(
+                ZStack {
+                    shape.strokeBorder(Color(hex: "5F6D52").opacity(0.95), lineWidth: contrast == .increased ? 2.4 : 1.8)
+                    RoundedRectangle(cornerRadius: max(1, r - 1), style: .continuous)
+                        .strokeBorder(accent.opacity(0.42), lineWidth: 0.7)
+                        .padding(3)
+                }
+                .allowsHitTesting(false)
+            )
         case .zelda:
             // The Legend of Zelda (zelda-hyrule-ui specification):
             // Angular 4pt outer / 2pt inner double-border (inset 3px, tan #E2DED3 border) + top Sheikah Blue gradient line decoration

@@ -28,9 +28,23 @@ final class DictationAnswerRegressionTests: XCTestCase {
         XCTAssertTrue(machine.completedWordIDs.contains("w1"))
     }
 
-    func testWrongThenCorrectRequeuesTenWordsLater() {
+    func testNormalDictationPassesOnceAndRecordsTheWrongWord() {
         let words = (0..<14).map { word("w\($0)", "word\($0)") }
         var machine = DictationSessionStateMachine(mode: .newTask, dateString: "2026-11-10", initialWords: words)
+        _ = machine.submitAnswer("wrong")
+        XCTAssertEqual(machine.currentWord?.id, "w0")
+        let outcome = machine.submitAnswer("word0")
+        // 1.9.4: normal dictation never requeues; the word is done for this session.
+        XCTAssertEqual(outcome, .correct(exitedWrongQueue: true))
+        XCTAssertFalse(machine.requiresCorrection)
+        XCTAssertTrue(machine.completedWordIDs.contains("w0"))
+        XCTAssertEqual(machine.pendingQueue.count, 13)
+        XCTAssertFalse(machine.pendingQueue.contains { $0.id == "w0" })
+    }
+
+    func testWrongWordReviewStillRequeuesTenWordsLater() {
+        let words = (0..<14).map { word("w\($0)", "word\($0)") }
+        var machine = DictationSessionStateMachine(mode: .wrongWordReview, dateString: "2026-11-10", initialWords: words)
         _ = machine.submitAnswer("wrong")
         XCTAssertEqual(machine.currentWord?.id, "w0")
         let outcome = machine.submitAnswer("word0")

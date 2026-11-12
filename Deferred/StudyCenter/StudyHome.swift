@@ -1435,7 +1435,6 @@ public struct LumaStudyCenterHostView: View {
     @AppStorage("luma.listening.defaultShowMeaning") private var globalDefaultShowMeaning: Bool = false
     @AppStorage("luma.listening.defaultShowHint") private var globalDefaultShowHint: Bool = false
     @AppStorage("luma.writing.practiceSeconds") private var globalWritingPracticeSeconds: Int = 1200
-    @State private var dictationAnswerWidth: CGFloat = 640
     @State private var dictationAnswerFontSize: CGFloat = 140
     @State private var dictationAnswerWraps = false
     @State private var dictationScrollOffsetY: CGFloat = 0
@@ -1669,6 +1668,12 @@ public struct LumaStudyCenterHostView: View {
                 .padding(.trailing, 32)
                 .padding(.vertical, 10)
                 .padding(.top, mode.contains("模拟机考") ? 44 : (isPractice ? 12 : 0))
+                .background {
+                    if mode == "学习_听力" || mode == "学习_听力_我的词库" {
+                        appearance.background
+                    }
+                }
+                .zIndex(1)
                 .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: mode)
                 .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.9), value: topSyncToast)
                 .task(id: topSyncToast) {
@@ -2049,7 +2054,7 @@ public struct LumaStudyCenterHostView: View {
                     kokoro.preload(phrases: Array(vm.dictationMachine.pendingQueue.dropFirst().prefix(3).map(\.word)), startIndex: 0, speed: vm.speechRateMultiplier)
                 }
                 let voiceName = kokoro.activeSlots[kokoro.currentSlot] ?? kokoro.currentSlot.defaultVoice
-                vm.dictationFeedback = "本地神经语音已就绪 · \(kokoro.currentSlot.displayName) · \(voiceName)"
+                vm.dictationFeedback = "本地神经语音已就绪 · \(kokoro.currentSlot.kittenDisplayName) · \(voiceName)"
             } else if let service = vm.storeSnapshot.speechService, service.enabled {
                 await audio.connect(service)
             }
@@ -2532,7 +2537,7 @@ public struct LumaStudyCenterHostView: View {
             get: { kokoro.currentSlot },
             set: { slot in
                 kokoro.currentSlot = slot
-                if vm.selectedAccent != slot.accent {
+                if kokoro.useAppleSystemSpeech && vm.selectedAccent != slot.accent {
                     vm.selectedAccent = slot.accent
                 } else {
                     speakCurrentWord()
@@ -2569,7 +2574,7 @@ public struct LumaStudyCenterHostView: View {
         ]
     }
 
-    /// 统一的发音设置弹窗：支持本地 Kokoro-82M / Kitten 神经发音与 Apple 系统语音/自定义服务切换。
+    /// 统一的发音设置弹窗：支持 Kitten、Apple 系统语音与自定义语音服务。
     private var speechSettingsSheet: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -2693,13 +2698,13 @@ public struct LumaStudyCenterHostView: View {
 
             Picker("发音人", selection: dictationVoiceBinding) {
                 ForEach(KokoroVoiceSlot.allCases) { slot in
-                    Text(slot.displayName).tag(slot)
+                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
                 }
             }
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(width: 106)
-            .help("切换自然神经发音人（美音女声 / 美音男声 / 英音女声 / 英音男声）")
+            .help("切换当前发音人")
 
             Picker("语速", selection: $vm.speechRateMultiplier) {
                 Text("0.5x").tag(Float(0.5))
@@ -2728,7 +2733,7 @@ public struct LumaStudyCenterHostView: View {
                 }
             }
             .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 34))
-            .help(kokoro.isReady ? "发音设置（本地 Kokoro 神经语音已就绪）" : "发音设置（配置 4 槽位自然发音或语音服务）")
+            .help(kokoro.isReady ? "发音设置（Kitten 语音已就绪）" : "发音设置（配置 4 槽位自然发音或语音服务）")
             .accessibilityLabel("发音设置")
             .sheet(isPresented: $vm.speechSettingsShown) {
                 speechSettingsSheet
@@ -3246,7 +3251,7 @@ public struct LumaStudyCenterHostView: View {
 
                             Picker("语音声线", selection: dictationVoiceBinding) {
                                 ForEach(KokoroVoiceSlot.allCases) { slot in
-                                    Text(slot.displayName).tag(slot)
+                                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
                                 }
                             }
                             .pickerStyle(.menu)
@@ -3320,7 +3325,7 @@ public struct LumaStudyCenterHostView: View {
                     if dictationSettingsCategory == "语音与声线" {
                         Section("发音引擎与神经声线") {
                             Picker("发音引擎", selection: $kokoro.useAppleSystemSpeech) {
-                                Text("本地神经网络语音 (Kokoro / Kitten)").tag(false)
+                                Text("本地神经语音（Kitten）").tag(false)
                                 Text("Apple 系统语音").tag(true)
                             }
                             .pickerStyle(.menu)
@@ -3330,7 +3335,6 @@ public struct LumaStudyCenterHostView: View {
                                     get: { kokoro.selectedModel },
                                     set: { kokoro.switchModel($0) }
                                 )) {
-                                    Text("Kokoro · 82M (默认)").tag("kokoro")
                                     Text("Kitten Micro · 40M (轻量快速)").tag("kitten-micro")
                                     Text("Kitten Nano · 15M (超低内存)").tag("kitten-nano")
                                 }
@@ -3340,26 +3344,28 @@ public struct LumaStudyCenterHostView: View {
 
                             Picker("当前默认发音人", selection: dictationVoiceBinding) {
                                 ForEach(KokoroVoiceSlot.allCases) { slot in
-                                    Text(slot.displayName).tag(slot)
+                                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
                                 }
                             }
                             .pickerStyle(.menu)
 
-                            ForEach(KokoroVoiceSlot.allCases) { slot in
-                                Picker(slot.displayName, selection: Binding(
-                                    get: { kokoro.activeSlots[slot] ?? kokoro.defaultVoice(for: slot) },
-                                    set: { newVoice in
-                                        kokoro.selectVoice(newVoice, for: slot)
-                                        speakCurrentWord()
+                            if !kokoro.useAppleSystemSpeech {
+                                ForEach(KokoroVoiceSlot.allCases) { slot in
+                                    Picker(slot.kittenDisplayName, selection: Binding(
+                                        get: { kokoro.activeSlots[slot] ?? kokoro.defaultVoice(for: slot) },
+                                        set: { newVoice in
+                                            kokoro.selectVoice(newVoice, for: slot)
+                                            speakCurrentWord()
+                                        }
+                                    )) {
+                                        ForEach(kokoro.voicesForSlot(slot), id: \.self) { voiceID in
+                                            Text(voiceID).tag(voiceID)
+                                        }
                                     }
-                                )) {
-                                    ForEach(kokoro.voicesForSlot(slot), id: \.self) { voiceID in
-                                        Text(voiceID).tag(voiceID)
-                                    }
+                                    .pickerStyle(.menu)
                                 }
-                                .pickerStyle(.menu)
-                            }
 
+                            }
                             LabeledContent("引擎状态") {
                                 Text(kokoro.statusText)
                                     .font(.caption)
@@ -3370,12 +3376,14 @@ public struct LumaStudyCenterHostView: View {
                                 speakCurrentWord()
                             }
 
-                            Button(role: .destructive) {
-                                kokoro.deleteModel(kokoro.selectedModel)
-                            } label: {
-                                Label("删除当前模型文件 (\(kokoro.modelTitle))", systemImage: "trash")
-                            }
+                            if !kokoro.hasBundledModels {
+                                Button(role: .destructive) {
+                                    kokoro.deleteModel(kokoro.selectedModel)
+                                } label: {
+                                    Label("删除当前模型文件 (\(kokoro.modelTitle))", systemImage: "trash")
+                                }
 
+                            }
                             Button("在 Finder 中打开模型目录…", systemImage: "folder") {
                                 kokoro.revealModelDirectoryInFinder()
                             }
@@ -3725,15 +3733,16 @@ public struct LumaStudyCenterHostView: View {
     // 听写输入框、自适应字号排版，以及摇晃、红闪、红光等错误反馈必须严格保留。
     // Preserve dictation typography, adaptive sizing, shake effect, red flash, and error glow.
     // === PROJECT RED LINE / 项目红线 END ===
-    private var dictationAnswerBox: some View {
+    private func dictationAnswerBox(width: CGFloat, minimumHeight: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
         let borderCol = dictationErrorFlash ? Color.red : dictAccentPink.opacity(answerFocused ? 0.85 : 0.65)
         let text = vm.dictationInput.isEmpty ? "输入听到的英文词汇" : vm.dictationInput
-        let availableWidth = max(1, dictationAnswerWidth - 56)
+        let availableWidth = max(1, width - 56)
+        let scale = min(1, minimumHeight / 260)
         let wrapHeadroom = availableWidth - DictationAnswerMetrics.width(text, size: 36)
         let targetSize = DictationAnswerMetrics.fittedSize(
-            text: text, availableWidth: max(1, dictationAnswerWidth - 56),
-            ceiling: min(180, max(140, dictationFontCeiling))
+            text: text, availableWidth: availableWidth,
+            ceiling: min(180, max(140, dictationFontCeiling)) * scale
         )
         return ZStack {
             shape.fill(dictBgColor)
@@ -3761,8 +3770,8 @@ public struct LumaStudyCenterHostView: View {
                 .multilineTextAlignment(.center)
                 .frame(width: max(1, availableWidth - (dictationAnswerWraps ? 24 : 0)))
                 .padding(.horizontal, 28)
-                .padding(.vertical, 32)
-                .frame(maxWidth: .infinity, minHeight: 260)
+                .padding(.vertical, 32 * scale)
+                .frame(maxWidth: .infinity, minHeight: minimumHeight)
                 .accessibilityIdentifier("study.dictation.answer")
                 .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
                 .onSubmit {
@@ -3781,8 +3790,8 @@ public struct LumaStudyCenterHostView: View {
                     if next != dictationAnswerWraps { withAnimation(nil) { dictationAnswerWraps = next } }
                 }
         }
-        .frame(maxWidth: .infinity, minHeight: 260)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { dictationAnswerWidth = $0 }
+        .frame(width: width)
+        .frame(minHeight: minimumHeight)
         .overlay(shape.strokeBorder(borderCol, lineWidth:dictationErrorFlash && dictTheme.visualThemeSystem == "manga" ? 3.5 : (dictationErrorFlash ? 2.4:1.4)))
         .shadow(color:(dictationErrorFlash && dictTheme.visualThemeSystem == "manga" ? Color.black : (dictationErrorFlash ? Color.red:dictAccentPink)).opacity(0.16),
                 radius:dictTheme.visualThemeSystem == "manga" ? 0:14,
@@ -3966,7 +3975,7 @@ public struct LumaStudyCenterHostView: View {
         }
     }
 
-    private var dictationPracticeActions: some View {
+    private func dictationPracticeActions(availableWidth: CGFloat) -> some View {
         VStack(spacing: 10) {
             dictationAnswerHints
             if let word = vm.dictationMachine.currentWord {
@@ -3979,7 +3988,7 @@ public struct LumaStudyCenterHostView: View {
             }
             // One unified action area: the same six native Buttons, actions, shortcuts,
             // disabled conditions and Tab order. Secondary actions are icon-only with help text.
-            let compact = dictationAnswerWidth < LumaControlMetric.actionBarCompactThreshold
+            let compact = availableWidth < LumaControlMetric.actionBarCompactThreshold
             let layout = compact
                 ? AnyLayout(VStackLayout(spacing: 6))
                 : AnyLayout(HStackLayout(spacing: 6))
@@ -4100,14 +4109,22 @@ public struct LumaStudyCenterHostView: View {
     private func listeningCenterContent(submode: DictationSessionMode) -> some View {
         deckManagement(
             GeometryReader { viewport in
+                let contentWidth = max(1, viewport.size.width - 48)
+                // Keep the original broad card. Short windows scroll the practice canvas
+                // instead of using the window height to shrink the input sideways.
+                let answerScale = contentWidth / 940
+                let answerWidth = 916 * answerScale
+                let answerHeight = 260 * answerScale
                 ScrollView(.vertical) {
                     if vm.dictationMachine.currentWord != nil {
                         DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32)) {
                             dictationPracticeHeader
                             dictationProgressRail
-                            dictationAnswerBox
-                            dictationPracticeActions
+                            dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
+                            dictationPracticeActions(availableWidth: contentWidth)
                         }
+                        .frame(width: contentWidth)
+                        .frame(maxWidth: .infinity)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 16)
                     } else {
@@ -4353,6 +4370,7 @@ public struct LumaStudyCenterHostView: View {
             onGoToDictation: { mode = "学习_听力" },
             onExportRecords: { exportWrongWordsRecordsTXT() },
             onStartTodayQueue: { startTodayWrongQueue() },
+            onStartAllWrongWords: { startAllWrongWordsDictation() },
             onStartMicroDrill: { ids in startWrongWordDrill(ids) }
         )
     }
@@ -4372,6 +4390,19 @@ public struct LumaStudyCenterHostView: View {
             append(word)
         }
         guard !words.isEmpty else { return }
+        startWrongWordDrill(words)
+    }
+
+    /// 1.9.4: one explicit entry that puts every wrong word (all decks) into a
+    /// separate looping review session.
+    private func startAllWrongWordsDictation() {
+        var seen = Set<String>()
+        var words: [VocabularyWord] = []
+        for deck in visibleListeningDeckIDs {
+            for w in wrongWordsForDeck(deck, dueOnly: false) where seen.insert(w.id).inserted {
+                words.append(w)
+            }
+        }
         startWrongWordDrill(words)
     }
 
@@ -5621,7 +5652,7 @@ public struct LumaStudyCenterHostView: View {
                                     }
                                     .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(StudyGlassCapsuleButtonStyle(selected: isPreviewingThisDeck, horizontalPadding: 8, height: 28))
+                                .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, selected: isPreviewingThisDeck, horizontalPadding: 8, height: 28))
 
                                 Button {
                                     selectDeckAndStartDictation(deck: deck, mode: .newTask, resume: true)
@@ -5636,7 +5667,7 @@ public struct LumaStudyCenterHostView: View {
                                     }
                                     .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 8, height: 28))
+                                .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, prominent: true, horizontalPadding: 8, height: 28))
                             }
                         }
                         .padding(18)
@@ -5717,7 +5748,10 @@ public struct LumaStudyCenterHostView: View {
                 }
 
             }.padding(32)
-        }.background(appearance.background))
+        }
+        .scrollClipDisabled(false)
+        .mask(Rectangle())
+        .background(appearance.background))
         .sheet(isPresented: $showListeningCategoryWordBrowser) {
             // 点「查看单词」弹出紧凑词表小窗，而不是整页长表或词库编辑器。
             listeningWordQuickPanel
@@ -5741,7 +5775,6 @@ public struct LumaStudyCenterHostView: View {
         let name: String
         let displayBadgeName: String
         let path: [String]
-        let childFolderCount: Int
         let totalWordCount: Int
         let isCustom: Bool
     }
@@ -6040,7 +6073,7 @@ public struct LumaStudyCenterHostView: View {
         let targetPath = finderIconEditingPath ?? finderNewFolderParentPath
         let chosen = FinderIconCatalog.option(withID: finderIconDraft) ?? FinderIconCatalog.all[0]
         let recommendedOption = FinderIconCatalog.option(withID: recommendedFinderIconID(for: finderNewFolderName))
-        let locationText = targetPath.isEmpty ? "根目录（一级分类）" : targetPath.joined(separator: " › ")
+        let locationText = targetPath.isEmpty ? "根目录" : targetPath.joined(separator: " › ")
         let canCommit = isIconOnly || !finderNewFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         return VStack(alignment: .leading, spacing: 16) {
@@ -6298,6 +6331,9 @@ public struct LumaStudyCenterHostView: View {
     private func effectiveThreeLevelPath(for word: VocabularyWord, indexInDeck: Int,
                                          moveRules: [FinderMoveRule], categoryByDeck: [String: String]) -> [String] {
         let deckID = word.deckID
+        if let custom = word.folderPath, custom.count >= 2 {
+            return resolveFinderPath(custom, rules: moveRules)
+        }
         let l1 = categoryByDeck[deckID] ?? categoryForDeck(deckID)
         let l2 = word.deckTitle.isEmpty ? (BundledCoraVocabulary.defaultTitleByDeckID[deckID] ?? deckID) : word.deckTitle
         let l3: String = {
@@ -6403,9 +6439,6 @@ public struct LumaStudyCenterHostView: View {
                     return nil
                 }
             }
-            let directChildren = index.allFolderPaths.filter {
-                $0.count == p.count + 1 && Array($0.dropLast()) == p
-            }.count
             let key = p.joined(separator: "/")
             let wCount = index.wordsByFolderPath[key]?.count ?? 0
             let badgeName: String = {
@@ -6416,7 +6449,6 @@ public struct LumaStudyCenterHostView: View {
                 name: name,
                 displayBadgeName: badgeName,
                 path: p,
-                childFolderCount: directChildren,
                 totalWordCount: wCount,
                 isCustom: customSet.contains(key) && wCount == 0
             )
@@ -6646,17 +6678,11 @@ public struct LumaStudyCenterHostView: View {
                         .help("返回上一级文件夹")
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(currentTitle)
-                            .lumaFont(size: 28, weight: .bold, design: .serif)
-                            .foregroundStyle(theme.ink)
-                            .lineLimit(1)
-                        Text("\(childFolders.count) 个文件夹 · \(currentFolderWords.count) 词")
-                            .lumaFont(size: 11.5, weight: .medium)
-                            .foregroundStyle(dictTextSecondary)
-                            .lineLimit(1)
-                    }
-                    .layoutPriority(1)
+                    Text(currentTitle)
+                        .lumaFont(size: 28, weight: .bold, design: .serif)
+                        .foregroundStyle(theme.ink)
+                        .lineLimit(1)
+                        .layoutPriority(1)
 
                     Spacer(minLength:8)
 
@@ -6665,9 +6691,10 @@ public struct LumaStudyCenterHostView: View {
                         ForEach([("icons", "square.grid.2x2", "图标网格"), ("columns", "rectangle.split.3x1", "三级分栏"), ("list", "list.bullet", "树形列表")], id: \.0) { modeID, iconName, label in
                             let isModeSel = (finderViewMode == modeID)
                             Button {
-                                withAnimation(.easeOut(duration: 0.16)) {
-                                    finderViewMode = modeID
-                                }
+                                // 1.9.5: never cross-fade two huge folder views; the
+                                // overlap looked like ghosted, unreadable rows.
+                                var transaction = Transaction(); transaction.disablesAnimations = true
+                                withTransaction(transaction) { finderViewMode = modeID }
                             } label: {
                                 Image(systemName: iconName)
                                     .font(.system(size: 13, weight: isModeSel ? .semibold : .medium))
@@ -6737,24 +6764,6 @@ public struct LumaStudyCenterHostView: View {
                         .help("新建文件夹")
                         .accessibilityLabel("新建文件夹")
 
-                        if !currentFolderWords.isEmpty && !finderCurrentPath.isEmpty {
-                            Button {
-                                startDictationForFolder(path: finderCurrentPath, words: currentFolderWords)
-                            } label: {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "headphones")
-                                        .font(.system(size: 12.5, weight: .semibold))
-                                    Text("听写 (\(currentFolderWords.count))")
-                                        .lumaFont(size: 12.5, weight: .semibold)
-                                }
-                                .foregroundStyle(dictOnAccent)
-                                .padding(.horizontal, 12)
-                                .frame(height: 30)
-                                .background(Capsule(style: .continuous).fill(theme.accent))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.trailing, 4)
-                        }
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
@@ -6824,10 +6833,31 @@ public struct LumaStudyCenterHostView: View {
 
                     Spacer()
 
+                    if !currentFolderWords.isEmpty {
+                        Button {
+                            startDictationForFolder(path: finderCurrentPath, words: currentFolderWords)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "headphones")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                                Text("全部听写 (\(currentFolderWords.count))")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                            }
+                            .foregroundStyle(dictOnAccent)
+                            .padding(.horizontal, 12)
+                            .frame(height: 30)
+                            .background(Capsule(style: .continuous).fill(theme.accent))
+                        }
+                        .buttonStyle(.plain)
+                        .help(finderCurrentPath.isEmpty ? "听写全部 \(currentFolderWords.count) 个单词" : "听写当前文件夹全部 \(currentFolderWords.count) 个单词")
+                        .padding(.trailing, 2)
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .studyGlassCapsule(cornerRadius: 16)
+                .background(theme.paper)
+                .zIndex(1)
 
                 // MARK: 3. 主文件管理器画布（完全融合莫奈取色与液态玻璃，无左侧多余边栏）
                 Group {
@@ -6840,6 +6870,8 @@ public struct LumaStudyCenterHostView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scrollClipDisabled(false)
+                .clipped()
             }
             .padding(.horizontal, 32)
             .padding(.top, 18)
@@ -6889,6 +6921,9 @@ public struct LumaStudyCenterHostView: View {
             return [theme.ink, theme.ink.opacity(0.55)]
         case "space":
             return [theme.accent, theme.surface]
+        case "nier", "wasteland":
+            // 战术/终端主题：徽标保持单色，与界面一致。
+            return [theme.accent, theme.ink.opacity(0.45)]
         default:
             // Monet：由当前主色（或莫奈取色结果）推导渐变，保留一档明暗层次。
             return [theme.accent, theme.accent.opacity(0.52)]
@@ -7098,19 +7133,14 @@ public struct LumaStudyCenterHostView: View {
                 }
 
                 // 网格视图保持访达式简洁：只展示子文件夹，不再在下方铺开整页单词明细表。
-                if !finderCurrentPath.isEmpty && childFolders.isEmpty {
+                if !finderCurrentPath.isEmpty && childFolders.isEmpty && currentFolderWords.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "folder")
                             .font(.system(size: 30, weight: .light))
                             .foregroundStyle(dictTextSecondary.opacity(0.7))
-                        Text(currentFolderWords.isEmpty ? "此文件夹为空" : "此文件夹包含 \(currentFolderWords.count) 个单词")
+                        Text("此文件夹为空")
                             .lumaFont(size: 13, weight: .medium)
                             .foregroundStyle(dictTextSecondary)
-                        if !currentFolderWords.isEmpty {
-                            Text("可使用顶部「听写」直接开始练习")
-                                .lumaFont(size: 11.5)
-                                .foregroundStyle(dictTextSecondary.opacity(0.75))
-                        }
                     }
                     .frame(maxWidth: .infinity, minHeight: 160)
                 }
@@ -7120,7 +7150,7 @@ public struct LumaStudyCenterHostView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    // MARK: - 视图模式 2：莫奈液态玻璃三级分栏浏览器（一级分类 ▸ 二级场景 ▸ 三级子文件夹 ▸ 单词与听写）
+    // MARK: - 视图模式 2：莫奈液态玻璃三级分栏浏览器（一级分类 ▸ 二级场景 ▸ 三级子文件夹）
 
     private func finderThreeColumnBrowserView(
         index: (allFolderPaths: [[String]], wordsByFolderPath: [String: [VocabularyWord]])
@@ -7141,20 +7171,10 @@ public struct LumaStudyCenterHostView: View {
             if let sel = finderCol3Selected, col3Folders.contains(where: { $0.name == sel }) { return sel }
             return nil
         }()
-        let activePath: [String] = {
-            if let activeL2, let activeL3 { return [activeL1, activeL2, activeL3] }
-            if let activeL2 { return [activeL1, activeL2] }
-            return [activeL1]
-        }()
-        let activeWords = index.wordsByFolderPath[activePath.joined(separator: "/")] ?? []
-
         return HStack(spacing: 0) {
             // 第一栏：一级分类文件夹 (Part 1 ~ Part 4)
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("一级文件夹")
-                        .font(.caption.bold())
-                        .foregroundStyle(dictTextSecondary)
                     Spacer()
                     Button {
                         finderNewFolderParentPath = []
@@ -7166,7 +7186,7 @@ public struct LumaStudyCenterHostView: View {
                             .foregroundStyle(theme.accent)
                     }
                     .buttonStyle(.plain)
-                    .help("新建一级文件夹")
+                    .help("新建文件夹")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -7189,9 +7209,6 @@ public struct LumaStudyCenterHostView: View {
                                         .font(.system(size: 13, weight: isSel ? .semibold : .regular))
                                         .foregroundStyle(theme.ink)
                                     Spacer()
-                                    Text("\(f1.childFolderCount)")
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundStyle(dictTextSecondary)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 10))
                                         .foregroundStyle(dictTextSecondary)
@@ -7207,16 +7224,13 @@ public struct LumaStudyCenterHostView: View {
                     .padding(8)
                 }
             }
-            .frame(width: 175)
+            .frame(minWidth: 180, maxWidth: .infinity)
 
             Divider().overlay(theme.line)
 
             // 第二栏：二级场景文件夹 (租房场景 / 工作场景 / 旅游活动场景 / 问询咨询场景...)
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("二级子文件夹 (\(activeL1))")
-                        .font(.caption.bold())
-                        .foregroundStyle(dictTextSecondary)
                     Spacer()
                     Button {
                         finderNewFolderParentPath = [activeL1]
@@ -7228,7 +7242,7 @@ public struct LumaStudyCenterHostView: View {
                             .foregroundStyle(theme.accent)
                     }
                     .buttonStyle(.plain)
-                    .help("在 \(activeL1) 下新建二级子文件夹")
+                    .help("在 \(activeL1) 下新建子文件夹")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -7269,16 +7283,13 @@ public struct LumaStudyCenterHostView: View {
                     .padding(8)
                 }
             }
-            .frame(width: 210)
+            .frame(minWidth: 200, maxWidth: .infinity)
 
             Divider().overlay(theme.line)
 
             // 第三栏：三级子文件夹 (场景词汇 / 机经词汇 / 重点词汇 / 自定义三级子文件夹)
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("三级子文件夹")
-                        .font(.caption.bold())
-                        .foregroundStyle(dictTextSecondary)
                     Spacer()
                     if let activeL2 {
                         Button {
@@ -7291,7 +7302,7 @@ public struct LumaStudyCenterHostView: View {
                                 .foregroundStyle(theme.accent)
                         }
                         .buttonStyle(.plain)
-                        .help("在 \(activeL2) 下新建三级子文件夹")
+                        .help("在 \(activeL2) 下新建子文件夹")
                     }
                 }
                 .padding(.horizontal, 12)
@@ -7357,22 +7368,58 @@ public struct LumaStudyCenterHostView: View {
                     .padding(8)
                 }
             }
-            .frame(width: 225)
-
-            Divider().overlay(theme.line)
-
-            // 第四栏：当前选中目录的单词预览与一键听写
-            ScrollView {
-                finderFolderWordsTableSection(words: activeWords, overridePath: activePath)
-                    .padding(16)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 220, maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .studyGlassCapsule(cornerRadius: 20)
     }
 
+    private struct FinderTreeRowSurface: ViewModifier {
+        let theme: StudyAppearance
+        let radius: CGFloat
+        var selected = false
+
+        func body(content: Content) -> some View {
+            let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+            content
+                .background {
+                    shape.fill(selected ? theme.selected : theme.surface)
+                        .overlay(shape.fill(LinearGradient(
+                            colors: [.white.opacity(theme.isDark ? 0.055 : 0.28), .clear],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )))
+                }
+                .overlay(shape.strokeBorder(theme.line, lineWidth: 1).allowsHitTesting(false))
+        }
+    }
+
     // MARK: - 视图模式 3：莫奈液态玻璃可展开三级树形列表视图
+
+    private struct StudyScrollCapsuleButtonStyle: ButtonStyle {
+        let theme: StudyAppearance
+        let onAccent: Color
+        var prominent = false
+        var selected = false
+        let horizontalPadding: CGFloat
+        let height: CGFloat
+        @State private var hovered = false
+
+        func makeBody(configuration: Configuration) -> some View {
+            let shape = Capsule()
+            configuration.label
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .font(.system(size: 13, weight: prominent ? .semibold : .medium))
+                .foregroundStyle(prominent ? onAccent : theme.ink)
+                .padding(.horizontal, horizontalPadding)
+                .frame(minHeight: height)
+                .background(shape.fill(prominent ? theme.accent : theme.selected))
+                .overlay(shape.strokeBorder(selected || hovered ? theme.accent : theme.line, lineWidth: 1).allowsHitTesting(false))
+                .opacity(configuration.isPressed ? 0.8 : 1)
+                .contentShape(shape)
+                .onHover { hovered = $0 }
+        }
+    }
 
     private func finderExpandableListView(
         index: (allFolderPaths: [[String]], wordsByFolderPath: [String: [VocabularyWord]])
@@ -7380,82 +7427,63 @@ public struct LumaStudyCenterHostView: View {
         let theme = dictTheme
         let rootFolders = finderChildFolders(under: [], index: index)
         return ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 8) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(rootFolders) { l1 in
                     let l1Expanded = finderExpandedPaths.contains(l1.id)
                     HStack(spacing: 10) {
-                        Button {
+                        LumaDisclosureChevron(expanded: l1Expanded, size: 30, tint: theme.ink) {
                             if l1Expanded { finderExpandedPaths.remove(l1.id) }
                             else { finderExpandedPaths.insert(l1.id) }
-                        } label: {
-                            Image(systemName: l1Expanded ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(theme.ink)
-                                .frame(width: 18, height: 18)
                         }
-                        .buttonStyle(.plain)
+                        .help(l1Expanded ? "折叠 \(l1.name)" : "展开 \(l1.name)")
 
                         Image(systemName: categoryBadgeMeta(for: l1.name, path: l1.path).symbol)
                             .foregroundStyle(theme.accent)
                         Text(l1.name)
                             .lumaFont(size: 14.5, weight: .semibold)
                             .foregroundStyle(theme.ink)
-                        Text("一级分类")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(theme.accent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(theme.selected))
                         Spacer()
-                        Text("\(l1.childFolderCount) 个场景文件夹 · \(l1.totalWordCount) 词")
+                        Text("\(l1.totalWordCount) 词")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(dictTextSecondary)
                         Button("打开") { finderNavigate(to: l1.path); finderViewMode = "icons" }
-                            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 28))
+                            .buttonStyle(StudyScrollCapsuleButtonStyle(theme: theme, onAccent: dictOnAccent, horizontalPadding: 12, height: 28))
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .studyGlassCapsule(cornerRadius: 14, selected: l1Expanded)
+                    .modifier(FinderTreeRowSurface(theme: theme, radius: 14, selected: l1Expanded))
 
                     if l1Expanded {
                         let l2Folders = finderChildFolders(under: l1.path, index: index)
                         ForEach(l2Folders) { l2 in
                             let l2Expanded = finderExpandedPaths.contains(l2.id)
                             HStack(spacing: 10) {
-                                Button {
+                                LumaDisclosureChevron(expanded: l2Expanded, size: 26, tint: theme.ink) {
                                     if l2Expanded { finderExpandedPaths.remove(l2.id) }
                                     else { finderExpandedPaths.insert(l2.id) }
-                                } label: {
-                                    Image(systemName: l2Expanded ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 10.5, weight: .semibold))
-                                        .foregroundStyle(theme.ink)
-                                        .frame(width: 16, height: 16)
                                 }
-                                .buttonStyle(.plain)
+                                .help(l2Expanded ? "折叠 \(l2.name)" : "展开 \(l2.name)")
 
                                 Image(systemName: categoryBadgeMeta(for: l2.name, path: l2.path).symbol)
                                     .foregroundStyle(theme.accent.opacity(0.88))
                                 Text(l2.name)
                                     .lumaFont(size: 13.5, weight: .medium)
                                     .foregroundStyle(theme.ink)
-                                Text("二级场景")
-                                    .font(.caption2)
-                                    .foregroundStyle(dictTextSecondary)
                                 Spacer()
-                                Text("\(l2.childFolderCount) 个子目录 · \(l2.totalWordCount) 词")
+                                Text("\(l2.totalWordCount) 词")
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(dictTextSecondary)
                                 Button("进入") { finderNavigate(to: l2.path); finderViewMode = "icons" }
-                                    .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 10, height: 26))
+                                    .buttonStyle(StudyScrollCapsuleButtonStyle(theme: theme, onAccent: dictOnAccent, horizontalPadding: 10, height: 26))
                                 if let wList = index.wordsByFolderPath[l2.id], !wList.isEmpty {
                                     Button("听写") { startDictationForFolder(path: l2.path, words: wList) }
-                                        .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 10, height: 26))
+                                        .buttonStyle(StudyScrollCapsuleButtonStyle(theme: theme, onAccent: dictOnAccent, prominent: true, horizontalPadding: 10, height: 26))
                                 }
                             }
                             .padding(.leading, 32)
                             .padding(.trailing, 14)
                             .padding(.vertical, 8)
-                            .studyGlassCapsule(cornerRadius: 12)
+                            .modifier(FinderTreeRowSurface(theme: theme, radius: 12))
 
                             if l2Expanded {
                                 let l3Folders = finderChildFolders(under: l2.path, index: index)
@@ -7467,24 +7495,21 @@ public struct LumaStudyCenterHostView: View {
                                         Text(l3.name)
                                             .lumaFont(size: 13)
                                             .foregroundStyle(theme.ink)
-                                        Text("三级子文件夹")
-                                            .font(.caption2)
-                                            .foregroundStyle(dictTextSecondary)
                                         Spacer()
                                         Text("\(l3.totalWordCount) 词")
                                             .font(.caption.monospacedDigit())
                                             .foregroundStyle(dictTextSecondary)
                                         Button("查看单词") { finderNavigate(to: l3.path); finderViewMode = "icons" }
-                                            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 10, height: 24))
+                                            .buttonStyle(StudyScrollCapsuleButtonStyle(theme: theme, onAccent: dictOnAccent, horizontalPadding: 10, height: 24))
                                         if let w3List = index.wordsByFolderPath[l3.id], !w3List.isEmpty {
                                             Button("听写") { startDictationForFolder(path: l3.path, words: w3List) }
-                                                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 10, height: 24))
+                                                .buttonStyle(StudyScrollCapsuleButtonStyle(theme: theme, onAccent: dictOnAccent, prominent: true, horizontalPadding: 10, height: 24))
                                         }
                                     }
                                     .padding(.leading, 58)
                                     .padding(.trailing, 14)
                                     .padding(.vertical, 7)
-                                    .studyGlassCapsule(cornerRadius: 10)
+                                    .modifier(FinderTreeRowSurface(theme: theme, radius: 10))
                                 }
                             }
                         }
@@ -7493,6 +7518,8 @@ public struct LumaStudyCenterHostView: View {
             }
             .padding(.vertical, 4)
         }
+        .scrollClipDisabled(false)
+        .mask(Rectangle())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -10044,5 +10071,35 @@ enum LumaFinderPath {
             }
         }
         return current
+    }
+}
+
+/// 1.9.3: rounded, hover-highlighted disclosure target. The old 16–18pt plain
+// chevron was easy to miss and felt unresponsive; this is the same treatment the
+// reader directory uses (30pt hit area + rounded hover fill + rotation).
+private struct LumaDisclosureChevron: View {
+    let expanded: Bool
+    var size: CGFloat = 30
+    var tint: Color
+    let action: () -> Void
+    @State private var hovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: size * 0.32, style: .continuous)
+    }
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                .font(.system(size: size > 28 ? 11 : 10.5, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: size, height: size)
+                .background(shape.fill(hovered ? tint.opacity(0.12) : Color.clear))
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .accessibilityLabel(Text(expanded ? "折叠" : "展开"))
+        .accessibilityValue(Text(expanded ? "已展开" : "已折叠"))
     }
 }

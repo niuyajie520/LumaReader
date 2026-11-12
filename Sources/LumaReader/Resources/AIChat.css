@@ -123,5 +123,8 @@ footer>.context-toggle{margin-top:4px;min-height:32px;width:fit-content}
 :root[data-theme-system="mangaForest"] #reading { background:var(--surface);border:1.55px solid color-mix(in srgb,var(--accent) 78%,transparent);border-radius:9px;box-shadow:2.4px 2.4px 0 color-mix(in srgb,var(--accent) 26%,transparent); }
 :root[data-theme-system="nier"] .composer,
 :root[data-theme-system="nier"] #reading { background:var(--surface);border:1px solid color-mix(in srgb,var(--accent) 68%,transparent);border-left:4px solid var(--accent);border-radius:2px; }
+:root[data-theme-system="wasteland"] body { font-family:ui-monospace,'SF Mono',Menlo,'PingFang SC',monospace; }
+:root[data-theme-system="wasteland"] .composer,
+:root[data-theme-system="wasteland"] #reading { background:var(--surface);border:2px solid #5F6D52;outline:1px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:-5px;border-radius:3px; }
 :root[data-theme-system="zelda"] .composer,
 :root[data-theme-system="zelda"] #reading { background:var(--surface);border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);outline:1px solid rgba(226,222,211,.32);outline-offset:-3px;border-radius:4px;box-shadow:0 0 8px color-mix(in srgb,var(--accent) 20%,transparent); }

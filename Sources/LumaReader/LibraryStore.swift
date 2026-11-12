@@ -209,8 +209,24 @@ final class LibraryStore {
     var mangaForestPreset = MangaForestPreset(rawValue: UserDefaults.standard.string(forKey: "luma.mangaForest.preset") ?? "komorebiCanopy") ?? .komorebiCanopy {
         didSet { UserDefaults.standard.set(mangaForestPreset.rawValue, forKey: "luma.mangaForest.preset"); updateReadingSettingsIfReady() }
     }
-    var nierPreset = NierYorhaPreset(rawValue: UserDefaults.standard.string(forKey: "luma.nier.preset") ?? "yorhaBunker") ?? .yorhaBunker {
+    // 1.8.0: the NieR world defaults to the green overgrown-city preset. A saved classic beige
+    // choice is moved once to the new preset; later explicit choices are respected.
+    nonisolated static var initialNierPreset: NierYorhaPreset {
+        let defaults = UserDefaults.standard
+        let saved = NierYorhaPreset(rawValue: defaults.string(forKey: "luma.nier.preset") ?? "overgrownCity") ?? .overgrownCity
+        guard !defaults.bool(forKey: "luma.nier.preset.v180") else { return saved }
+        defaults.set(true, forKey: "luma.nier.preset.v180")
+        return saved == .yorhaBunker ? .overgrownCity : saved
+    }
+    var nierPreset: NierYorhaPreset = LibraryStore.initialNierPreset {
         didSet { UserDefaults.standard.set(nierPreset.rawValue, forKey: "luma.nier.preset"); updateReadingSettingsIfReady() }
+    }
+    /// 1.8.0：每个主题使用自己的布局档案（侧栏位置、顶栏排布、书库标题区与书封装饰）。关闭则回到统一布局。
+    var themeSpecificLayout = UserDefaults.standard.object(forKey: "luma.themeLayout.enabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(themeSpecificLayout, forKey: "luma.themeLayout.enabled") }
+    }
+    var wastelandPreset = WastelandTerminalPreset(rawValue: UserDefaults.standard.string(forKey: "luma.wasteland.preset") ?? "phosphorGreen") ?? .phosphorGreen {
+        didSet { UserDefaults.standard.set(wastelandPreset.rawValue, forKey: "luma.wasteland.preset"); updateReadingSettingsIfReady() }
     }
     var zeldaPreset = ZeldaRealmPreset(rawValue: UserDefaults.standard.string(forKey: "luma.zelda.preset") ?? "sheikahSlate") ?? .sheikahSlate {
         didSet { UserDefaults.standard.set(zeldaPreset.rawValue, forKey: "luma.zelda.preset"); updateReadingSettingsIfReady() }
@@ -286,6 +302,7 @@ final class LibraryStore {
         if visualThemeSystem == .space { return true }
         if visualThemeSystem == .zelda && zeldaPreset != .hyruleSanctuary { return true }
         if visualThemeSystem == .nier && nierPreset == .automata2BDark { return true }
+        if visualThemeSystem == .wasteland && wastelandPreset.forcesDark { return true }
         if visualThemeSystem == .manga && mangaStylePreset == .classicInk { return false }
         return (!monetEnabled && theme.forcesDark) || appearance == .dark ||
         (appearance == .system && NSApp.effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua)
@@ -316,6 +333,10 @@ final class LibraryStore {
             return NierThemePaletteGenerator.makePalette(preset: nierPreset, dark: dark, overrideAccentHex: monetAccentOverride)
         case .zelda:
             return ZeldaThemePaletteGenerator.makePalette(preset: zeldaPreset, dark: dark, overrideAccentHex: monetAccentOverride)
+        case .wasteland:
+            // Phosphor CRT presets ignore the Monet accent so the screen stays monochrome.
+            return WastelandThemePaletteGenerator.makePalette(preset: wastelandPreset, dark: dark,
+                                                             overrideAccentHex: wastelandPreset.forcesDark ? nil : monetAccentOverride)
         case .shinkai:
             return ShinkaiThemePaletteGenerator.makePalette(preset: shinkaiPreset, dark: dark, overrideAccentHex: monetAccentOverride)
         case .chihiro:
@@ -426,6 +447,7 @@ final class LibraryStore {
         case .space: return .dark
         case .zelda: return zeldaPreset == .hyruleSanctuary ? appearance.colorScheme : .dark
         case .nier: return nierPreset == .automata2BDark ? .dark : appearance.colorScheme
+        case .wasteland: return wastelandPreset.forcesDark ? .dark : appearance.colorScheme
         case .manga: return mangaStylePreset == .classicInk ? .light : appearance.colorScheme
         case .monet: return !monetEnabled && theme.forcesDark ? .dark : appearance.colorScheme
         default: return appearance.colorScheme

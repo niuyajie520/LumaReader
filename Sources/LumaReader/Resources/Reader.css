@@ -39,7 +39,12 @@ body { padding: 48px 44px 100px !important; }
   #luma-content mark:hover { filter: brightness(0.95); }
 }
 #luma-content mark:active { filter: brightness(0.88); }
-::selection { background: #a2b8c366; }
+::selection {
+  /* 1.9.5: tint the selection with the active reading accent instead of a fixed grey. */
+  background: color-mix(in srgb, var(--accent, #7fa08a) 34%, transparent);
+  color: var(--text);
+}
+::selection:window-inactive { background: color-mix(in srgb, var(--accent, #7fa08a) 18%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

@@ -727,3 +727,28 @@
   };
   send({type:'ready'});
 })();
+
+
+// === LumaReader v1.10.14 Instant Split-View Smooth Scale ===
+(function() {
+    let _prevW = window.innerWidth;
+    let _raf = null;
+    window.addEventListener("resize", function() {
+        const curW = window.innerWidth;
+        const diff = curW - _prevW;
+        if (Math.abs(diff) > 15 && Math.abs(diff) < 650 && _prevW > 200 && document.body) {
+            const ratio = Math.max(0.85, Math.min(1.15, _prevW / curW));
+            document.body.style.transition = "none";
+            document.body.style.transformOrigin = "left center";
+            document.body.style.transform = "scaleX(" + ratio.toFixed(4) + ")";
+            if (_raf) cancelAnimationFrame(_raf);
+            _raf = requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    document.body.style.transition = "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)";
+                    document.body.style.transform = "scaleX(1)";
+                });
+            });
+        }
+        _prevW = curW;
+    }, { passive: true });
+})();

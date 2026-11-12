@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# === LumaReader v1.10.14 Thermal & CPU Spin-Wait Limiter ===
+import os as _luma_os
+_luma_os.environ["OMP_NUM_THREADS"] = "2"
+_luma_os.environ["MKL_NUM_THREADS"] = "2"
+_luma_os.environ["ORT_DISABLE_ALL_OPTIMIZATION"] = "0"
+_luma_os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 """
 LumaReader Built-in Kokoro-82M Neural TTS & Pure-NumPy WSOLA Time-Stretch Daemon
 Implements:
@@ -596,6 +603,78 @@ def watch_owner():
             AUDIO_BUDGET.prune()
             next_prune = time.monotonic() + 120
 
+
+
+
+# === LumaReader v1.10.14 Anti-Sigh & Low-Power ONNX Hook ===
+try:
+    import onnxruntime as _ort
+    _orig_inz = _ort.InferenceSession.__init__
+    def _cool_ort_init(self, path_or_bytes, sess_options=None, providers=None, **kwargs):
+        if sess_options is None:
+            sess_options = _ort.SessionOptions()
+        sess_options.intra_op_num_threads = 2
+        sess_options.inter_op_num_threads = 1
+        try:
+            sess_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+            sess_options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+        except Exception:
+            pass
+        if providers is None:
+            providers = ["CPUExecutionProvider"]
+        return _orig_inz(self, path_or_bytes, sess_options=sess_options, providers=providers, **kwargs)
+    if not getattr(_ort.InferenceSession, "_luma_cool_patched", False):
+        _ort.InferenceSession.__init__ = _cool_ort_init
+        _ort.InferenceSession._luma_cool_patched = True
+except Exception:
+    pass
+
+try:
+    import numpy as _np
+    import re as _re
+
+    def _luma_clean_short_text(t):
+        if not isinstance(t, str):
+            return t
+        s = _re.sub(r"\s+", " ", t.strip())
+        if len(s.split(" ")) <= 4:
+            s = _re.sub(r"[.!?;,:]+$", "", s).strip()
+        return s
+
+    def _luma_trim_sigh_audio(wav, sr=24000):
+        arr = _np.asarray(wav, dtype=_np.float32).flatten()
+        if arr.size <= 2500:
+            return arr
+        arr = arr[350:-1100]
+        win = int(sr * 0.015)
+        if arr.size > win * 5:
+            peak = float(_np.max(_np.abs(arr))) + 1e-7
+            thresh = peak * 0.038
+            end_i = arr.size
+            for idx in range(arr.size - win, win * 2, -(win // 2)):
+                if float(_np.max(_np.abs(arr[idx:idx + win]))) > thresh:
+                    end_i = min(arr.size, idx + win + int(sr * 0.025))
+                    break
+            arr = arr[:end_i]
+        fade = min(int(sr * 0.012), arr.size // 4)
+        if fade > 1:
+            arr[-fade:] *= _np.linspace(1.0, 0.0, fade, dtype=_np.float32)
+        return arr
+
+    import kittentts.onnx_model as _kom
+    if hasattr(_kom, "KittenTTS_1_Onnx") and not getattr(_kom.KittenTTS_1_Onnx, "_luma_patched", False):
+        _orig_gen = _kom.KittenTTS_1_Onnx.generate
+        def _patched_gen(self, text, voice="expr-voice-2-f", speed=1.0, **kwargs):
+            clean_t = _luma_clean_short_text(text) or text
+            if isinstance(clean_t, str) and len(clean_t.split(" ")) <= 2 and 0.95 <= float(speed) <= 1.04:
+                speed = 1.06
+            raw = _orig_gen(self, clean_t, voice=voice, speed=speed, **kwargs)
+            return _luma_trim_sigh_audio(raw)
+        _kom.KittenTTS_1_Onnx.generate = _patched_gen
+        _kom.KittenTTS_1_Onnx._luma_patched = True
+except Exception:
+    pass
+# === End LumaReader v1.10.14 Hook ===
 
 if __name__ == "__main__":
     threading.Thread(target=watch_owner, daemon=True).start()

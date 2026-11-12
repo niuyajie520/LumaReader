@@ -1,0 +1,130 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Luma 主题重设计预览</title>
+<style>
+:root{--bg:#f4f3ef;--fg:#1e1e1c;--muted:#6b6a64}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--fg:#ecebe6;--muted:#a3a29b}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,"PingFang SC",sans-serif}
+header{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+h1{font-size:22px;margin:0 0 4px}p.lead{color:var(--muted);margin:0}
+.grid{max-width:1240px;margin:0 auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:18px}
+.card h2{font-size:13px;margin:8px 2px 2px}.card .meta{font-size:11.5px;color:var(--muted);margin:0 2px}
+.win{position:relative;height:250px;border-radius:10px;overflow:hidden;display:flex;box-shadow:0 1px 0 rgba(0,0,0,.06),0 6px 18px rgba(0,0,0,.10)}
+.win canvas.bg{position:absolute;inset:0;width:100%;height:100%}
+.side{position:relative;width:96px;flex:none;padding:30px 8px 8px;box-sizing:border-box;font-size:9px;z-index:1}
+.side .brand{font-weight:600;font-size:12px;margin-bottom:8px}
+.side .row{height:12px;border-radius:3px;margin:5px 0;opacity:.5}
+.main{position:relative;flex:1;padding:10px 14px;box-sizing:border-box;z-index:1;min-width:0}
+.lights{position:absolute;top:9px;left:10px;display:flex;gap:4px;z-index:3}.lights i{width:7px;height:7px;border-radius:50%;display:block}
+.hdr{display:flex;gap:8px;align-items:center;margin-top:16px}
+.hdr.stacked,.hdr.centered{flex-direction:column;align-items:flex-start;gap:6px}.hdr.centered{align-items:center}
+.hdr.tools{flex-direction:row-reverse}
+.ttl .cap{font-size:8px;letter-spacing:1.4px}.ttl .t{font-size:17px;white-space:nowrap}
+.tools{height:18px;width:96px;border-radius:9px;flex:none}
+.spacer{flex:1}
+.books{display:flex;gap:var(--gap);margin-top:14px;flex-wrap:nowrap}.hdr.centered+.books{justify-content:center}
+.cover{width:42px;height:60px;position:relative;flex:none;border-radius:3px}
+.reader{position:absolute;left:0;right:0;bottom:0;height:26px;display:flex;align-items:center;gap:4px;padding:0 8px;font-size:8px;z-index:2;border-top:1px solid rgba(127,127,127,.25)}
+.cap7{display:flex;gap:2px;padding:2px 4px;border-radius:9px}.cap7 b{width:10px;height:10px;border-radius:3px;display:block;opacity:.75}
+.legend{font-size:11px;color:var(--muted);max-width:1240px;margin:0 auto;padding:0 16px 30px}
+</style></head><body>
+<header><h1>Luma Reader 1.8.0 · 主题重设计预览</h1>
+<p class="lead">示意图：侧栏位置、书库标题区、书封装饰、阅读顶栏七键排布（底部条）。尼尔与废土终端的背景按 Swift 绘制代码移植。听写输入框不在此改动范围。</p></header>
+<div class="grid" id="g"></div>
+<p class="legend">阅读顶栏：分组＝左四右三（原始）；长栏＝七键并入一条；浮岛＝两组居中。示意比例非实际尺寸。</p>
+<script>
+const T=[
+['暖纸白','paper','FAF8F3','36332F','9A6A3E','EDE4D3',0,'split','centered','serif','书房 · LIBRARY','','paperStack',30],
+['鼠尾草绿','mint','F3F7F0','303C32','4E8A66','E1ECDD',0,'split','stacked','rounded','青苔 · SAGE','','glassSheen',28],
+['樱花粉','rose','FCF4F7','45333C','C0607F','F5E1E9',0,'dock','stacked','rounded','花信 · BLOOM','','softBloom',30],
+['午夜蓝','midnight','151D2C','DDE5F4','94B0F0','1B2640',1,'split','tools','sans','夜读 · NOCTURNE','','glowRim',28],
+['纯黑','black','000000','DEDEDE','CFCFCF','0C0C0C',0,'unified','title','sans','','','none',22],
+['Space 深空','space','080B17','EEF1FA','A78BFA','111629',1,'dock','centered','sans','OBSERVATORY · 观星台','','orbitRim',32],
+['Manga 原稿','manga','FFFFFF','0A0A0A','0A0A0A','F5F5F5',0,'split','stacked','heavy','第 1 话 · CHAPTER 01','','inkPanel',26],
+['海风漫绘','mangaOcean','F2F9FC','0F293D','0284C7','E3F2FA',0,'dock','title','rounded','海风 · SEA BREEZE','','inkPanel',28],
+['都市漫绘','mangaCity','FAF6FC','1F2335','6E4AE2','F1E9F8',1,'unified','tools','heavy','CITY POP · 都市','','neonOffset',28],
+['森之漫绘','mangaForest','F4F8F0','1F3322','3A9428','E7F0DF',0,'dock','stacked','rounded','森 · KOMOREBI','','leafTape',28],
+['尼尔 · 废墟都市','nier','DCDDC8','373C2E','5E6F45','CDD2B8',0,'unified','stacked','light','ARCHIVE // 废墟都市 · 资料库','■ ','tactical',34],
+['废土终端（新）','wasteland','07120B','9DFFC0','1BFF80','0E1F14',1,'dock','tools','mono','TERMINAL · 废土档案库 [ONLINE]','> ','terminal',32],
+['塞尔达 · 希卡','zelda','0A1428','E6F0FA','3CD3FC','162C46',0,'dock','centered','serif','古代石板 · ARCHIVE','','rune',32],
+['晴空夏影','shinkai','E6F3FE','1A2B44','2B7DE9','D8EBFB',0,'dock','centered','rounded','晴空 · BLUE SKY','','cloud',30],
+['千与千寻','chihiro','EEF8F5','173A33','248F7D','DDF3EC',1,'split','title','serif','汤屋 · 物语','','vermilion',28],
+['镰仓海风','kanagawa','F4EFE0','2A3550','3E6899','EAE2CE',1,'split','tools','serif','浮世 · UKIYO','','seal',28],
+['晨曦白桃','roseDawn','FAF4ED','575279','D7827E','F6E7E2',0,'dock','stacked','rounded','晨曦手账 · DIARY','','washi',30],
+['京都提灯','akari','F6EFE6','3E2A1C','D4763B','EDE3D5',1,'split','centered','serif','古巷 · 灯火','','lantern',28],
+['抹茶白玉','matcha','F2F5F1','23361F','40914B','E8F0E6',0,'dock','title','rounded','茶席 · TEA','','porcelain',30]];
+const fonts={serif:'"Songti SC","Noto Serif CJK SC",serif',rounded:'ui-rounded,"PingFang SC",sans-serif',sans:'-apple-system,"PingFang SC",sans-serif',heavy:'-apple-system,"PingFang SC",sans-serif',light:'-apple-system,"PingFang SC",sans-serif',mono:'ui-monospace,Menlo,monospace'};
+const H=h=>'#'+h;
+function rng(seed){let s=BigInt(seed);return()=>{s=(s*6364136223846793005n+1442695040888963407n)&0xFFFFFFFFFFFFFFFFn;return Number((s>>33n)&0xFFFFn)/65535}}
+function nier(c,w,h,acc){const x=c.getContext('2d');const moss='rgba(87,117,74,',leaf='rgba(115,153,87,',con='rgba(140,143,128,';
+ let g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,moss+'.10)');g.addColorStop(1,moss+'.22)');x.fillStyle=g;x.fillRect(0,0,w,h);
+ g=x.createRadialGradient(w*.16,h*.08,4,w*.16,h*.08,520);g.addColorStop(0,'rgba(250,245,219,.42)');g.addColorStop(1,'rgba(250,245,219,0)');x.fillStyle=g;x.fillRect(0,0,w,h);
+ const r=rng('0x9E3779B97F4A7C15'),gy=h*.94;
+ for(let i=0;i<4;i++){const x0=w*(.06+i*.13);x.beginPath();x.moveTo(x0,0);x.lineTo(x0+34+i*10,0);x.lineTo(x0+w*.42+i*30,h);x.lineTo(x0+w*.30+i*22,h);x.fillStyle='rgba(250,245,219,.07)';x.fill()}
+ let X=-10;while(X<w){const bw=34+r()*46,bh=h*(.30+r()*.34),t=gy-bh;x.beginPath();x.moveTo(X,gy);x.lineTo(X,t+r()*18);x.lineTo(X+bw*.45,t+r()*30);x.lineTo(X+bw*.62,t+12+r()*26);x.lineTo(X+bw,t+r()*14);x.lineTo(X+bw,gy);x.fillStyle=con+'.13)';x.fill();X+=bw+6+r()*18}
+ for(const [fx,fw,fh,tilt] of [[.04,.10,.62,-.035],[.17,.08,.48,.02],[.63,.09,.56,.03],[.76,.11,.70,-.02],[.90,.08,.44,.05]]){const bw=w*fw,bh=h*fh;x.save();x.translate(w*fx,gy);x.rotate(tilt);
+  x.beginPath();x.moveTo(0,0);x.lineTo(0,-bh);x.lineTo(bw*.55,-bh-10);x.lineTo(bw*.7,-bh+22);x.lineTo(bw,-bh+8);x.lineTo(bw,0);x.closePath();x.fillStyle=con+'.20)';x.fill();x.strokeStyle=moss+'.4)';x.lineWidth=.9;x.stroke();
+  x.fillStyle=moss+'.22)';for(let wy=-bh+30;wy<-16;wy+=15)for(let wx=7;wx<bw-10;wx+=11)if(r()>.22)x.fillRect(wx,wy,5,7);
+  x.fillStyle=leaf+'.42)';for(let k=0;k<5;k++){const cx=bw*(.08+k*.2),rr=9+r()*10;x.beginPath();x.ellipse(cx,-bh,rr,rr*.65,0,0,7);x.fill()}
+  x.strokeStyle=leaf+'.55)';x.lineWidth=1.6;for(let k=0;k<4;k++){const vx=bw*(.12+k*.24),len=bh*(.18+r()*.42);x.beginPath();x.moveTo(vx,-bh+4);x.quadraticCurveTo(vx-9,-bh+len*.5,vx+4,-bh+len);x.stroke()}x.restore()}
+ const dy=h*.7;x.fillStyle=con+'.30)';x.fillRect(-10,dy,w*.4,12);x.beginPath();x.moveTo(w*.52,dy+26);x.lineTo(w+10,dy-4);x.lineTo(w+10,dy+8);x.lineTo(w*.52,dy+38);x.fill();
+ x.fillStyle=leaf+'.36)';let G=-12;x.beginPath();while(G<w+12){const rr=10+r()*16;x.ellipse(G+rr*1.1,gy-rr*.1,rr*1.1,rr*.8,0,0,7);G+=rr*1.4}x.rect(0,gy,w,h-gy);x.fill();
+ x.strokeStyle=acc;x.globalAlpha=.55;x.lineWidth=.8;x.beginPath();x.moveTo(24,22);x.lineTo(w*.42,22);x.moveTo(w*.58,22);x.lineTo(w-24,22);x.stroke();
+ for(let k=0;k<3;k++){x.fillStyle=acc;x.fillRect(24+k*10,28,6,6)}const rc=[w*.84,h*.24];x.beginPath();x.arc(rc[0],rc[1],26,0,7);x.stroke();x.setLineDash([3,5]);x.beginPath();x.arc(rc[0],rc[1],52,0,7);x.stroke();x.setLineDash([]);x.globalAlpha=1}
+function waste(c,w,h,acc){const x=c.getContext('2d');x.fillStyle='#07120B';x.fillRect(0,0,w,h);
+ let g=x.createRadialGradient(w/2,h/2,10,w/2,h/2,760);g.addColorStop(0,'rgba(27,255,128,.13)');g.addColorStop(1,'rgba(27,255,128,0)');x.fillStyle=g;x.fillRect(0,0,w,h);
+ x.strokeStyle='rgba(27,255,128,.035)';x.lineWidth=.5;x.beginPath();for(let i=0;i<w;i+=36){x.moveTo(i,0);x.lineTo(i,h)}for(let j=0;j<h;j+=36){x.moveTo(0,j);x.lineTo(w,j)}x.stroke();
+ x.strokeStyle='rgba(0,0,0,.16)';x.lineWidth=1;x.beginPath();for(let j=0;j<h;j+=3){x.moveTo(0,j);x.lineTo(w,j)}x.stroke();
+ x.strokeStyle='rgba(94,110,82,.85)';x.lineWidth=4;x.lineCap='square';const I=10,A=46;for(const [cx,cy,dx,dy] of [[I,I,1,1],[w-I,I,-1,1],[I,h-I,1,-1],[w-I,h-I,-1,-1]]){x.beginPath();x.moveTo(cx,cy+dy*A);x.lineTo(cx,cy);x.lineTo(cx+dx*A,cy);x.stroke();x.fillStyle='rgba(94,110,82,.9)';for(let k=0;k<2;k++){x.beginPath();x.arc(cx+dx*(14+k*18),cy+dy*7,2.2,0,7);x.fill()}}
+ const gc=[w*.85,h*.22],gr=46;x.strokeStyle='rgba(27,255,128,.55)';x.lineWidth=1.6;x.beginPath();x.arc(gc[0],gc[1],gr,150*Math.PI/180,390*Math.PI/180);x.stroke();
+ x.lineWidth=1.1;x.beginPath();for(let k=0;k<=12;k++){const a=(150+240*k/12)*Math.PI/180,r0=gr-(k%3==0?11:6);x.moveTo(gc[0]+Math.cos(a)*r0,gc[1]+Math.sin(a)*r0);x.lineTo(gc[0]+Math.cos(a)*gr,gc[1]+Math.sin(a)*gr)}x.stroke();
+ const na=236*Math.PI/180;x.strokeStyle='rgba(27,255,128,.85)';x.lineWidth=2;x.beginPath();x.moveTo(...gc);x.lineTo(gc[0]+Math.cos(na)*(gr-6),gc[1]+Math.sin(na)*(gr-6));x.stroke();
+ const prof=[[.10,.80],[.16,.80],[.16,.66],[.20,.62],[.23,.70],[.23,.78],[.30,.78],[.30,.58],[.33,.55],[.35,.60],[.37,.57],[.37,.82],[.55,.82],[.55,.72],[.60,.72],[.62,.64],[.66,.68],[.66,.84],[.80,.84],[.80,.70],[.86,.66],[.86,.80],[1,.80]];
+ x.beginPath();x.moveTo(0,h*.93);for(const [a,b] of prof)x.lineTo(w*a,h*b);x.lineTo(w,h*.93);x.closePath();x.fillStyle='rgba(27,255,128,.07)';x.fill();x.strokeStyle='rgba(27,255,128,.42)';x.lineWidth=1.1;x.stroke();
+ x.strokeStyle='rgba(27,255,128,.5)';x.lineWidth=1.2;x.beginPath();x.ellipse(w*.46,h*.62,22,15,0,0,7);x.stroke();
+ x.fillStyle='rgba(27,255,128,.55)';x.font='600 10px Menlo,monospace';x.fillText('SIGNAL ▮▮▮▯  RAD 0.02',30,h-26)}
+function ornament(o,acc,ink,paper){const b=document.createElement('div');b.className='cover';
+ const hue=[...Array(3)].map((_,i)=>`hsl(${(acc.length*40+i*70)%360} 35% ${o=='terminal'?20:55}%)`);b.style.background=`linear-gradient(160deg,${hue[0]},${hue[1]})`;
+ const s=b.style;switch(o){
+ case'paperStack':s.boxShadow=`3px 3px 0 ${H(paper)},3px 3px 0 1px ${H(ink)}22,7px 6px 0 ${H(ink)}12`;break;
+ case'glassSheen':s.outline='1px solid rgba(255,255,255,.6)';break;
+ case'softBloom':s.boxShadow=`0 0 0 6px ${H(acc)}24`;s.borderRadius='6px';break;
+ case'glowRim':s.boxShadow=`0 0 0 1px ${H(acc)}8c,0 0 0 5px ${H(acc)}1a`;break;
+ case'inkPanel':s.border=`2px solid ${H(ink)}`;s.boxShadow=`4px 4px 0 ${H(ink)}`;s.borderRadius='0';break;
+ case'neonOffset':s.border=`1.5px solid ${H(ink)}`;s.boxShadow=`5px 5px 0 ${H(acc)}d9,-3px -3px 0 #7AA2F7a6`;s.borderRadius='0';break;
+ case'leafTape':s.outline=`1.2px solid ${H(acc)}8c`;b.innerHTML=`<span style="position:absolute;right:-7px;top:-9px;color:${H(acc)};font-size:12px">🍃</span>`;break;
+ case'tactical':s.borderRadius='0';s.outline=`1.5px dashed ${H(ink)}aa`;s.outlineOffset='5px';b.innerHTML=`<span style="position:absolute;left:-6px;bottom:-14px;width:6px;height:6px;background:${H(acc)}"></span>`;break;
+ case'terminal':s.filter='grayscale(1)';s.background='linear-gradient(#9DFFC0 0 0),repeating-linear-gradient(#0000 0 2px,#0005 2px 3px)';s.backgroundBlendMode='multiply';s.boxShadow='0 0 0 7px #2A3127,0 0 0 9px #5F6D52';s.filter='none';s.background='repeating-linear-gradient(#0000 0 2px,#0006 2px 3px),linear-gradient(160deg,#3f8a5c,#1d4a30)';break;
+ case'rune':s.boxShadow=`0 0 0 4px ${H(paper)},0 0 0 5px ${H(acc)}bf,0 0 0 8px ${H(paper)},0 0 0 9px #E2DED373`;break;
+ case'cloud':s.borderRadius='12px';s.boxShadow='0 0 0 6px rgba(255,255,255,.62)';break;
+ case'vermilion':s.borderBottom=`2px solid ${H(acc)}`;b.innerHTML='<span style="position:absolute;left:-6px;right:-6px;top:-8px;height:5px;background:#D94E3E"></span>';break;
+ case'seal':s.outline=`.8px solid ${H(ink)}40`;s.outlineOffset='4px';b.innerHTML='<span style="position:absolute;right:-6px;bottom:-6px;width:17px;height:17px;background:#B83B35;color:#fff;font:700 10px serif;display:grid;place-items:center;transform:rotate(-5deg)">読</span>';break;
+ case'washi':b.innerHTML=`<span style="position:absolute;left:50%;top:-7px;width:40px;height:13px;margin-left:-20px;background:${H(acc)}6b;transform:rotate(-6deg)"></span>`;break;
+ case'lantern':s.boxShadow=`0 22px 22px -8px ${H(acc)}88`;break;
+ case'porcelain':s.borderRadius='12px';s.boxShadow=`inset 0 0 0 2.5px rgba(255,255,255,.8),0 0 0 2.5px ${H(acc)}55`;break;
+ case'orbitRim':s.outline=`1px solid ${H(acc)}cc`;b.innerHTML='<span style="position:absolute;right:-5px;top:-5px;width:10px;height:10px;border:1px solid #A78BFA;border-radius:50%"></span>';break;}
+ return b}
+const g=document.getElementById('g');
+for(const [name,key,paper,ink,acc,chrome,trail,rh,lh,font,cap,prefix,orn,gap] of T){
+ const card=document.createElement('div');card.className='card';const win=document.createElement('div');win.className='win';win.style.background=H(paper);win.style.color=H(ink);
+ const cv=document.createElement('canvas');cv.className='bg';win.appendChild(cv);
+ const side=document.createElement('div');side.className='side';side.style.background=H(chrome)+'cc';side.innerHTML=`<div class="brand" style="font-family:${fonts[font]}">${prefix}Luma</div>`+'<div class="row"></div>'.repeat(6);side.querySelectorAll('.row').forEach(r=>r.style.background=H(ink)+'22');
+ const main=document.createElement('div');main.className='main';
+ const cls=lh=='stacked'?'stacked':lh=='centered'?'centered':lh=='tools'?'tools':'';
+ const w8=font=='heavy'?800:font=='light'?300:600;
+ main.innerHTML=`<div class="hdr ${cls}"><div class="ttl" style="${lh=='centered'?'text-align:center':''}">${cap?`<div class="cap" style="color:${H(acc)};font-family:${fonts[font]}">${cap}</div>`:''}<div class="t" style="font-family:${fonts[font]};font-weight:${w8}">${prefix}全部图书</div></div>${cls==''||cls=='tools'?'<div class="spacer"></div>':''}<div class="tools" style="background:${H(chrome)};border:1px solid ${H(acc)}44"></div></div><div class="books" style="--gap:${gap*0.55}px"></div>`;
+ const books=main.querySelector('.books');for(let i=0;i<5;i++)books.appendChild(ornament(orn,acc,ink,paper));
+ const lights=document.createElement('div');lights.className='lights';lights.innerHTML='<i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>';
+ if(trail){win.appendChild(main);win.appendChild(side)}else{win.appendChild(side);win.appendChild(main)}win.appendChild(lights);
+ const rd=document.createElement('div');rd.className='reader';rd.style.background=H(chrome)+'ee';
+ const cap7=n=>{const d=document.createElement('div');d.className='cap7';d.style.background=H(paper);d.style.border=`1px solid ${H(acc)}55`;for(let i=0;i<n;i++){const b=document.createElement('b');b.style.background=H(ink)+'99';d.appendChild(b)}return d};
+ const pad=document.createElement('span');pad.style.width='30px';rd.appendChild(pad);const sp=()=>{const s=document.createElement('span');s.style.flex='1';return s};
+ const title=document.createElement('span');title.textContent='书名';title.style.opacity=.7;
+ if(rh=='split'){rd.append(cap7(4),sp(),title,sp(),cap7(3))}else if(rh=='unified'){rd.append(cap7(7),sp(),title)}else{rd.append(sp(),cap7(4),cap7(3),sp(),title)}
+ win.appendChild(rd);
+ card.appendChild(win);card.insertAdjacentHTML('beforeend',`<h2>${name}</h2><p class="meta">侧栏${trail?'右':'左'} · 顶栏${rh=='split'?'分组':rh=='unified'?'长栏':'浮岛'} · 标题${{title:'左',tools:'右',stacked:'堆叠',centered:'居中'}[lh]} · 装饰 ${orn}</p>`);
+ g.appendChild(card);
+ requestAnimationFrame(()=>{const r=win.getBoundingClientRect();cv.width=r.width*2;cv.height=r.height*2;const ctx=cv.getContext('2d');ctx.scale(2,2);
+  if(key=='nier')nier(cv,r.width,r.height,H(acc));else if(key=='wasteland')waste(cv,r.width,r.height,H(acc));
+  else{const gr=ctx.createLinearGradient(0,0,r.width,r.height);gr.addColorStop(0,H(paper));gr.addColorStop(1,H(chrome));ctx.fillStyle=gr;ctx.fillRect(0,0,r.width,r.height)}});
+}
+</script></body></html>

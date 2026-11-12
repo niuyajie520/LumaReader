@@ -27,4 +27,8 @@ if ! "$python" -c 'from importlib.metadata import version; assert version("kitte
     "$python" -m pip install --disable-pip-version-check --no-deps 'kittenml==0.9.7'
     "$python" -c 'from kittenml import KittenTTS; import kittenml.kittentts_legacy.onnx_model'
 fi
-"$python" "$script_dir/setup_kitten.py" "$runtime"
+if [[ -n "${2:-}" ]]; then
+    [[ -f "$2/manifest.json" ]] || { echo "缺少内嵌 Kitten 模型资源。" >&2; exit 1; }
+else
+    "$python" "$script_dir/setup_kitten.py" "$runtime"
+fi

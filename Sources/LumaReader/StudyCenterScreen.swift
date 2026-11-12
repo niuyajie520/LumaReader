@@ -64,6 +64,7 @@ struct StudyCenterScreen: View {
                         switch themeSystem {
                         case .nier: return min(radius, 2)
                         case .zelda: return min(radius, 4)
+                        case .wasteland: return min(radius, 3)
                         case .kanagawa, .mangaCity: return min(radius, 5)
                         case .mangaOcean: return min(radius, 6)
                         case .mangaForest: return min(radius, 9)

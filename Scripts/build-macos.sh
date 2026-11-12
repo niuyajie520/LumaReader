@@ -34,6 +34,8 @@ if [[ -d "Deferred/StudyCenter/Resources/CoraVocabulary" ]]; then
   cp -R "Deferred/StudyCenter/Resources/CoraVocabulary" "$APP_PATH/Contents/Resources/"
 fi
 cp Sources/LumaReader/Resources/Reader.js Sources/LumaReader/Resources/Reader.css Sources/LumaReader/Resources/AIChat.{html,css,js} Sources/LumaReader/Resources/AIHealth.js Sources/LumaReader/Resources/AppStrings.{js,json} "$APP_PATH/Contents/Resources/"
+cp Sources/LumaReader/Resources/{StPageFlip,PaperFlip}.js "$APP_PATH/Contents/Resources/"
+cp -R Assets/KittenSpeech "$APP_PATH/Contents/Resources/"
 cp Scripts/kokoro_neural_daemon.py Scripts/exclusive_tts.py Scripts/audio_priority_queue.py Scripts/audio_cache_budget.py Scripts/bounded_onnx.py Scripts/install-neural-voices.sh Scripts/setup_kitten.py "$APP_PATH/Contents/Resources/"
 bash Scripts/build-icon.sh "$APP_PATH/Contents/Resources"
 # SwiftPM release executables may still contain DWARF build paths. Strip debug

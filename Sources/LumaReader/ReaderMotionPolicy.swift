@@ -41,7 +41,7 @@ enum ReaderMotionPolicy {
             modeFactor = 1.0
         case .push:
             modeFactor = 0.96
-        case .curl:
+        case .curl, .paperFlip:
             modeFactor = motionLevel == .enhanced ? 1.48 : 1.15
         case .flip:
             modeFactor = motionLevel == .enhanced ? 1.28 : 1.08

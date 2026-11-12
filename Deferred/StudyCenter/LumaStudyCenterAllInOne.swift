@@ -870,6 +870,10 @@ public struct VocabularyWord: Codable, Equatable, Identifiable, Sendable {
     public let exampleSentence: String
     public let deckID: String
     public let deckTitle: String
+    /// Optional explicit three-level folder path (e.g. 剑桥20/第5章/5.3-2).
+    /// Imported datasets can preserve their original workbook hierarchy without
+    /// depending on the deck-title heuristic.
+    public var folderPath: [String]? = nil
 
     public init(
         id: String,
@@ -880,7 +884,8 @@ public struct VocabularyWord: Codable, Equatable, Identifiable, Sendable {
         definitionZH: String,
         exampleSentence: String = "",
         deckID: String,
-        deckTitle: String
+        deckTitle: String,
+        folderPath: [String]? = nil
     ) {
         self.id = id
         self.word = word
@@ -891,6 +896,7 @@ public struct VocabularyWord: Codable, Equatable, Identifiable, Sendable {
         self.exampleSentence = exampleSentence
         self.deckID = deckID
         self.deckTitle = deckTitle
+        self.folderPath = folderPath
     }
 }
 
@@ -3484,6 +3490,22 @@ public enum KokoroVoiceSlot: String, Codable, CaseIterable, Identifiable, Sendab
         }
     }
 
+    public var kittenDisplayName: String {
+        switch self {
+        case .usFemale: return "Kitten 女声 1"
+        case .ukFemale: return "Kitten 女声 2"
+        case .usMale: return "Kitten 男声 1"
+        case .ukMale: return "Kitten 男声 2"
+        }
+    }
+
+    fileprivate var kittenVoices: [String] {
+        switch self {
+        case .usFemale, .ukFemale: return ["Bella", "Luna", "Rosie", "Kiki"]
+        case .usMale, .ukMale: return ["Jasper", "Bruno", "Hugo", "Leo"]
+        }
+    }
+
     public var defaultVoice: String {
         switch self {
         case .usFemale: return "af_heart"
@@ -3535,7 +3557,6 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
         }
     }
     @Published public var activeSlots: [KokoroVoiceSlot: String] = KokoroNeuralBridge.kittenDefaultSlots
-    @Published public var categorizedVoices: [KokoroVoiceSlot: [String]] = Dictionary(uniqueKeysWithValues: KokoroVoiceSlot.allCases.map { ($0, KokoroNeuralBridge.kittenVoiceList) })
 
     // exclusive_models_v8
     @Published public var useAppleSystemSpeech: Bool = UserDefaults.standard.bool(forKey: "LumaReader.UseAppleSystemSpeech") {
@@ -3572,23 +3593,25 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     }
 
     public func voicesForSlot(_ slot: KokoroVoiceSlot) -> [String] {
-        var list = categorizedVoices[slot] ?? Self.kittenVoiceList
-        if let active = activeSlots[slot], !active.isEmpty, !list.contains(active) {
-            list.insert(active, at: 0)
-        }
-        return list
+        slot.kittenVoices
+    }
+
+    private func validatedVoice(_ candidate: String?, for slot: KokoroVoiceSlot) -> String {
+        guard let candidate, slot.kittenVoices.contains(candidate) else { return defaultVoice(for: slot) }
+        return candidate
+    }
+
+    private func applyServerSlots(_ raw: [String: String]) {
+        activeSlots = Dictionary(uniqueKeysWithValues: KokoroVoiceSlot.allCases.map { slot in
+            (slot, validatedVoice(raw[slot.rawValue], for: slot))
+        })
     }
 
     private func applyLocalCatalogAndSlots(for model: String) {
-        categorizedVoices = Dictionary(uniqueKeysWithValues: KokoroVoiceSlot.allCases.map { ($0, Self.kittenVoiceList) })
-        let savedPerModel = loadExclusiveEngineVoices(for: model)
-        var nextSlots: [KokoroVoiceSlot: String] = [:]
-        for slot in KokoroVoiceSlot.allCases {
-            let candidate = savedPerModel[slot] ?? defaultVoice(for: slot, model: model)
-            let validList = categorizedVoices[slot] ?? []
-            nextSlots[slot] = validList.contains(candidate) ? candidate : defaultVoice(for: slot, model: model)
-        }
-        activeSlots = nextSlots
+        let saved = loadExclusiveEngineVoices(for: model)
+        activeSlots = Dictionary(uniqueKeysWithValues: KokoroVoiceSlot.allCases.map { slot in
+            (slot, validatedVoice(saved[slot], for: slot))
+        })
     }
 
     public func switchModel(_ model: String) {
@@ -3621,16 +3644,7 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
                     throw NSError(domain: "SpeechModel", code: 1, userInfo: [NSLocalizedDescriptionKey: result?["error"] as? String ?? "模型切换失败"])
                 }
                 if let slots = result?["active_slots"] as? [String: String] {
-                    for slot in KokoroVoiceSlot.allCases {
-                        if let v = slots[slot.rawValue], !v.isEmpty { activeSlots[slot] = v }
-                    }
-                }
-                if let voicesMap = result?["voices"] as? [String: [String]] {
-                    for slot in KokoroVoiceSlot.allCases {
-                        if let list = voicesMap[slot.rawValue], !list.isEmpty {
-                            categorizedVoices[slot] = list
-                        }
-                    }
+                    applyServerSlots(slots)
                 }
                 _ = await checkStatus(preserveSelectedModel: true)
                 refreshInstalledModels()
@@ -3646,7 +3660,7 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     }
 
     public func selectVoice(_ voice: String, for slot: KokoroVoiceSlot, previewText: String? = nil) {
-        guard !voice.isEmpty else { return }
+        guard slot.kittenVoices.contains(voice) else { return }
         useAppleSystemSpeech = false
         var updated = activeSlots
         updated[slot] = voice
@@ -3662,7 +3676,16 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
         }
     }
 
+    public var hasBundledModels: Bool {
+        guard let resources = Bundle.main.resourceURL else { return false }
+        return FileManager.default.fileExists(atPath: resources.appendingPathComponent("KittenSpeech/manifest.json").path)
+    }
+
     public func refreshInstalledModels() {
+        if hasBundledModels {
+            installedModels = ["kitten-nano", "kitten-micro"]
+            return
+        }
         var found = Set<String>()
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
@@ -3701,6 +3724,7 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     }
 
     public func deleteModel(_ model: String) {
+        guard !hasBundledModels else { return }
         guard ["kitten-micro", "kitten-nano"].contains(model) else { return }
         stop()
         let fm = FileManager.default
@@ -3882,10 +3906,6 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
               let modelMap = voicesRoot[model] else {
             return [:]
         }
-        // If Kitten saved all 4 slots as identical "Luna", upgrade to distinct defaults
-        if model != "kokoro" && Set(modelMap.values).count <= 1 {
-            return Self.kittenDefaultSlots
-        }
         var result: [KokoroVoiceSlot: String] = [:]
         for slot in KokoroVoiceSlot.allCases {
             if let v = modelMap[slot.rawValue], !v.isEmpty {
@@ -3953,7 +3973,10 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
         }
     }
 
-    public func saveSlots(_ updated: [KokoroVoiceSlot: String]) {
+    public func saveSlots(_ selections: [KokoroVoiceSlot: String]) {
+        let updated = Dictionary(uniqueKeysWithValues: KokoroVoiceSlot.allCases.map { slot in
+            (slot, validatedVoice(selections[slot] ?? activeSlots[slot], for: slot))
+        })
         activeSlots = updated
         let configDir = engineDirectory.appendingPathComponent("config", isDirectory: true)
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
@@ -3988,6 +4011,9 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
             process.arguments = [script.path, directory.path]
+            if hasBundledModels, let resources = Bundle.main.resourceURL {
+                process.arguments?.append(resources.appendingPathComponent("KittenSpeech").path)
+            }
             process.standardOutput = log
             process.standardError = log
             try process.run()
@@ -4043,6 +4069,10 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
                 var environment = ProcessInfo.processInfo.environment
                 environment["LUMA_OWNER_PID"] = String(ProcessInfo.processInfo.processIdentifier)
                 environment["LUMA_KOKORO_DIR"] = engineDirectory.path
+                if hasBundledModels, let resources = Bundle.main.resourceURL {
+                    environment["LUMA_KITTEN_BUNDLE"] = resources.appendingPathComponent("KittenSpeech").path
+                    environment["HF_HUB_OFFLINE"] = "1"
+                }
                 process.environment = environment
                 let logURL = engineDirectory.appendingPathComponent("daemon.log")
                 if !FileManager.default.fileExists(atPath: logURL.path) { FileManager.default.createFile(atPath: logURL.path, contents: nil) }
@@ -4094,25 +4124,8 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
         let ready = (json["neural_loaded"] as? Bool) ?? false
         isReady = ready
         daemonLoadFailed = !ready && json["error"] is String
-        if daemonModel == selectedModel {
-            if let voicesMap = json["voices"] as? [String: [String]] {
-                for slot in KokoroVoiceSlot.allCases {
-                    if let list = voicesMap[slot.rawValue], !list.isEmpty {
-                        categorizedVoices[slot] = list
-                    }
-                }
-            }
-            if let slots = json["active_slots"] as? [String: String] {
-                if selectedModel != "kokoro" && Set(slots.values).count <= 1 {
-                    let upgraded = Self.kittenDefaultSlots
-                    activeSlots = upgraded
-                    saveSlots(upgraded)
-                } else {
-                    for slot in KokoroVoiceSlot.allCases {
-                        if let v = slots[slot.rawValue], !v.isEmpty { activeSlots[slot] = v }
-                    }
-                }
-            }
+        if daemonModel == selectedModel, let slots = json["active_slots"] as? [String: String] {
+            applyServerSlots(slots)
         }
         if ready {
             let voiceName = activeSlots[currentSlot] ?? defaultVoice(for: currentSlot, model: selectedModel)
@@ -4329,11 +4342,11 @@ public struct KokoroVoiceSettingsSheet: View {
 
     private func slotRow(_ slot: KokoroVoiceSlot) -> some View {
         HStack(spacing: 14) {
-            Text(slot.displayName)
+            Text(slot.kittenDisplayName)
                 .lumaFont(size: 14, weight: .medium)
                 .foregroundStyle(appearance.ink)
                 .frame(width: 80, alignment: .leading)
-            Picker(slot.displayName, selection: voiceBinding(slot)) {
+            Picker(slot.kittenDisplayName, selection: voiceBinding(slot)) {
                 ForEach(kokoro.voicesForSlot(slot), id: \.self) { voice in
                     Text(voice).tag(voice)
                 }

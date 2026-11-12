@@ -55,45 +55,56 @@ private struct LumaInputSurface:ViewModifier {
     @Environment(\.lumaVisualThemeSystem) private var themeSystem
     @Environment(\.lumaMangaLineWeight) private var lineWeight
     @Environment(\.lumaAccent) private var accent
+    @AppStorage(LumaUIPrefs.inputOpacity) private var inputOpacity = 1.0
+
+    /// 1.9.1: dim only the field's surface, never its text. Fading the whole
+    /// control made typed text illegible at the lower end of the slider.
+    private var alpha: Double { min(1, max(0.3, inputOpacity)) }
+
     @ViewBuilder func body(content:Content) -> some View {
         switch themeSystem {
         case .monet:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface.opacity(0.65),in:RoundedRectangle(cornerRadius:7))
-                .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(ink.opacity(0.15),lineWidth:0.7).allowsHitTesting(false))
+                .background(surface.opacity(0.65 * alpha),in:RoundedRectangle(cornerRadius:7))
+                .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(ink.opacity(0.15 * alpha),lineWidth:0.7).allowsHitTesting(false))
         case .space:
             content.textFieldStyle(.plain).padding(8)
-                .background(Color(hex:"0C1021"),in:RoundedRectangle(cornerRadius:7))
-                .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(accent.opacity(0.38),lineWidth:0.85).allowsHitTesting(false))
+                .background(Color(hex:"0C1021").opacity(alpha),in:RoundedRectangle(cornerRadius:7))
+                .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(accent.opacity(0.38 * alpha),lineWidth:0.85).allowsHitTesting(false))
         case .manga:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:2))
-                .overlay(RoundedRectangle(cornerRadius:2).strokeBorder(accent,lineWidth:CGFloat(lineWeight)).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:2))
+                .overlay(RoundedRectangle(cornerRadius:2).strokeBorder(accent.opacity(alpha),lineWidth:CGFloat(lineWeight)).allowsHitTesting(false))
         case .mangaOcean, .mangaCity, .mangaForest:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:5))
-                .overlay(RoundedRectangle(cornerRadius:5).strokeBorder(accent.opacity(0.78),lineWidth:1.4).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:5))
+                .overlay(RoundedRectangle(cornerRadius:5).strokeBorder(accent.opacity(0.78 * alpha),lineWidth:1.4).allowsHitTesting(false))
         case .nier:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:2))
-                .overlay(alignment:.leading) { Rectangle().fill(accent).frame(width:3).allowsHitTesting(false) }
-                .overlay(RoundedRectangle(cornerRadius:2).strokeBorder(accent.opacity(0.65),lineWidth:1.0).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:2))
+                .overlay(alignment:.leading) { Rectangle().fill(accent.opacity(alpha)).frame(width:3).allowsHitTesting(false) }
+                .overlay(RoundedRectangle(cornerRadius:2).strokeBorder(accent.opacity(0.65 * alpha),lineWidth:1.0).allowsHitTesting(false))
+        case .wasteland:
+            content.textFieldStyle(.plain).padding(8)
+                .font(.system(.body, design: .monospaced))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:3))
+                .overlay(RoundedRectangle(cornerRadius:3).strokeBorder(accent.opacity(0.7 * alpha),lineWidth:1.1).allowsHitTesting(false))
         case .zelda:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:4))
-                .overlay(RoundedRectangle(cornerRadius:4).strokeBorder(accent.opacity(0.62),lineWidth:1.1).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:4))
+                .overlay(RoundedRectangle(cornerRadius:4).strokeBorder(accent.opacity(0.62 * alpha),lineWidth:1.1).allowsHitTesting(false))
         case .kanagawa:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:4))
-                .overlay(RoundedRectangle(cornerRadius:4).strokeBorder(accent.opacity(0.55),lineWidth:1.1).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:4))
+                .overlay(RoundedRectangle(cornerRadius:4).strokeBorder(accent.opacity(0.55 * alpha),lineWidth:1.1).allowsHitTesting(false))
         case .roseDawn:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:9))
-                .overlay(RoundedRectangle(cornerRadius:9).strokeBorder(accent.opacity(0.48),style:StrokeStyle(lineWidth:1.0,dash:[4,3])).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:9))
+                .overlay(RoundedRectangle(cornerRadius:9).strokeBorder(accent.opacity(0.48 * alpha),style:StrokeStyle(lineWidth:1.0,dash:[4,3])).allowsHitTesting(false))
         default:
             content.textFieldStyle(.plain).padding(8)
-                .background(surface,in:RoundedRectangle(cornerRadius:8))
-                .overlay(RoundedRectangle(cornerRadius:8).strokeBorder(accent.opacity(0.45),lineWidth:1.1).allowsHitTesting(false))
+                .background(surface.opacity(alpha),in:RoundedRectangle(cornerRadius:8))
+                .overlay(RoundedRectangle(cornerRadius:8).strokeBorder(accent.opacity(0.45 * alpha),lineWidth:1.1).allowsHitTesting(false))
         }
     }
 }

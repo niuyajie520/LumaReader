@@ -1,6 +1,7 @@
 // === PROJECT RED LINE / 项目红线 BEGIN ===
 // 调色与设计 Token 文件（Theme.swift / MonetTheme.swift / LumaDesignTokens.swift）：
 // 五大经典主题（暖纸白、鼠尾草绿、樱花粉、午夜蓝、纯黑）及 Monet 动态调色逻辑必须严格保护，不得擅自修改颜色定义或删除主题。
+// 1.8.0：主人明确授权重设计经典配色（强调色与表面色）；纸张色保持与 Reader.js 一致。
 // Preserve theme definitions, palettes, and design tokens without modification.
 // 完整规则见项目根目录 AGENTS.md；所有开发者与 AI 必须遵守。
 // All developers and AI assistants must follow the project-root AGENTS.md.
@@ -17,11 +18,13 @@ enum ReaderTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     var forcesDark: Bool { self == .midnight || self == .black }
     var accent: Color {
         switch self {
-        case .paper: return Color(hex: "8C7862")
-        case .mint: return Color(hex: "6E9277")
-        case .rose: return Color(hex: "BC7B94")
-        case .midnight: return Color(hex: "879FCD")
-        case .black: return Color(hex: "AAAAAA")
+        // 1.8.0 (owner-authorised redesign): deeper, more characterful accents; paper colours unchanged
+        // so the EPUB engine (Reader.js) palette stays in sync.
+        case .paper: return Color(hex: "9A6A3E")
+        case .mint: return Color(hex: "4E8A66")
+        case .rose: return Color(hex: "C0607F")
+        case .midnight: return Color(hex: "94B0F0")
+        case .black: return Color(hex: "CFCFCF")
         }
     }
     func paper(dark: Bool) -> Color {
@@ -35,11 +38,11 @@ enum ReaderTheme: String, Codable, CaseIterable, Identifiable, Sendable {
     }
     func chrome(dark: Bool) -> Color {
         switch self {
-        case .paper: return Color(hex: dark ? "292621" : "EEE9E0")
-        case .mint: return Color(hex: dark ? "222C25" : "E6EDE2")
-        case .rose: return Color(hex: dark ? "33262E" : "F2E4EB")
-        case .midnight: return Color(hex: "1C273A")
-        case .black: return Color.black
+        case .paper: return Color(hex: dark ? "2C2822" : "EDE4D3")
+        case .mint: return Color(hex: dark ? "212D25" : "E1ECDD")
+        case .rose: return Color(hex: dark ? "35252E" : "F5E1E9")
+        case .midnight: return Color(hex: "1B2640")
+        case .black: return Color(hex: "0C0C0C")
         }
     }
 }

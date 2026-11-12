@@ -70,3 +70,13 @@ English: The owner explicitly authorized the integration and optimization of thr
 中文：错误反馈设计以本次明确要求为准：Monet 颜料晕染，Space 雷达扫描警报，Manga 分镜冲击。错误红色和触觉反馈保留；减少动态效果时用静态提示。允许改变错误状态的呈现与节奏，但不允许改变输入框布局尺寸、字体自适应、提交、焦点、听写进度、错词循环、写作高亮或阅读定位。反馈只在答错后短暂播放，禁止常驻动画或循环计时器。
 
 English: The explicit error-feedback designs are Monet pigment bloom, Space radar alarm, and Manga editorial impact. Preserve red error semantics and haptics, with static feedback under Reduce Motion. Error presentation and timing may change; input dimensions, adaptive typography, submission, focus, progress, wrong-word scheduling, writing highlights, and reading anchors must remain intact. Feedback is brief and error-triggered, with no perpetual animation or repeating timer.
+
+
+## 最新授权（1.8.0）：主题重设计 / Latest authorization (1.8.0): theme redesign
+
+中文：用户明确授权（2026-11-11）：
+1. 红线一放宽：阅读顶栏七键可按主题排布为「左四右三分组」「七键合并长栏」「两组居中浮岛」三种之一；七键数量、功能、组内顺序、快捷键、悬停显隐规则、红黄绿原生按钮及 30pt 中心线保持不变。
+2. 红线五放宽：五个经典配色的强调色与表面色可修改；纸张色须与 Reader.js 保持一致。
+3. 侧栏可按主题位于窗口左侧或右侧；书库标题区、书封装饰、主题标题字体可按主题变化。
+4. 听写输入框的尺寸与位置必须保持不变（练习模式侧栏宽度为 0）；红线二、三、四其余内容继续有效。
+English: The owner authorized per-theme layouts (reader header arrangement, sidebar edge, library heading, shelf ornaments) and classic accent/surface colour changes. The seven reader actions keep their count, behaviour, in-group order and hover rules; the dictation input size and position stay unchanged; red lines 2–4 remain in force.

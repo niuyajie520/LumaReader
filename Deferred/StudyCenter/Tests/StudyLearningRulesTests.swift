@@ -154,7 +154,8 @@ struct StudyLearningRulesTests {
 
     @Test func fourStageIntraSessionRetryLadder3_13_53_200AndShortEbbinghaus() {
         let words = (0..<260).map { word("w\($0)", "word\($0)") }
-        var session = DictationSessionStateMachine(dateString: "2026-11-08", initialWords: words)
+        // The 4-round ladder now belongs to the separate wrong-word review session.
+        var session = DictationSessionStateMachine(mode: .wrongWordReview, dateString: "2026-11-08", initialWords: words)
 
         // Misspell w0 -> immediate correction -> Cycle 1 at +3
         _ = session.submitAnswer("wrong")

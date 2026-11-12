@@ -88,7 +88,6 @@ struct ContentView: View {
     @State private var hoveredBookID: UUID?
     @AppStorage("luma.books.pinnedIDs") private var pinnedBooksRaw: String = ""
     @AppStorage("luma.books.customOrderIDs") private var customBookOrderRaw: String = ""
-    @State private var dropTargetBookID: UUID?
     @FocusState private var shelfSearchFocused: Bool
     private enum ReaderPanel: Hashable { case contents, bookmarks, notes }
 
@@ -324,16 +323,21 @@ struct ContentView: View {
     /// 保持 macOS 原生红黄绿在标准 22pt 位置，彻底消除点击顶部按钮时的闪烁与跳动。
     private var trafficLightTarget:CGFloat { store.selectedBook != nil ? 30 : 22 }
     private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(studyMode))}
+    /// 侧栏列。主题布局决定它在窗口左侧还是右侧；练习模式（detailOnly）宽度为 0，听写输入框位置不受影响。
+    private var sidebarColumn: some View {
+        sidebar
+            .zIndex(2)
+            .environment(\.lumaSurfacePolish,true)
+            .frame(width:215)
+            .frame(width:columnVisibility == .detailOnly ? 0:215,alignment:.leading)
+            .clipped()
+            .allowsHitTesting(columnVisibility != .detailOnly)
+            .accessibilityHidden(columnVisibility == .detailOnly)
+    }
+
     private var lumaNavigation: some View {
         HStack(spacing:0) {
-            sidebar
-                .zIndex(2)
-                .environment(\.lumaSurfacePolish,true)
-                .frame(width:215)
-                .frame(width:columnVisibility == .detailOnly ? 0:215,alignment:.leading)
-                .clipped()
-                .allowsHitTesting(columnVisibility != .detailOnly)
-                .accessibilityHidden(columnVisibility == .detailOnly)
+            sidebarColumn
             GeometryReader { geometry in
             let aiWidth = min(max(340,min(geometry.size.width*0.60,geometry.size.width-336)),max(340,CGFloat(store.aiPanelExpanded ? 520:savedAIPanelWidth)))
             ZStack(alignment:.topTrailing) {
@@ -361,10 +365,10 @@ struct ContentView: View {
                 .overlay { RoundedRectangle(cornerRadius:18,style:.continuous).strokeBorder(muted.opacity(0.20),lineWidth:0.5).allowsHitTesting(false) }
                 .overlay(alignment:.leading) {
                     AIResizeHandle(width:Double(aiWidth),onStart:{
-                        aiDragWidth = aiWidth; savedAIPanelWidth = Double(aiWidth); controller.beginViewportChange(); store.aiPanelExpanded = false
+                        aiDragWidth = aiWidth; savedAIPanelWidth = Double(aiWidth);  store.aiPanelExpanded = false
                     },onResize:{ value in
                         savedAIPanelWidth = min(Double(max(340,min(geometry.size.width*0.60,geometry.size.width-336))),max(340,value))
-                    },onEnd:{ aiDragWidth = nil; settleAILayout(delay:120) })
+                    },onEnd:{ aiDragWidth = nil; settleAILayout(delay:0) })
                     .frame(width:12).frame(maxHeight:.infinity).zIndex(10)
                     .accessibilityLabel(L10n.text("调整 AI 面板宽度"))
                     .accessibilityAdjustableAction { direction in
@@ -407,13 +411,13 @@ struct ContentView: View {
             }).frame(width:0,height:0))
 
             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
-                guard width > 0 else { return }; controller.beginViewportChange(); settleAILayout(delay:140)
+                guard width > 0 else { return }; settleAILayout(delay:0)
             }
             .onChange(of:store.aiPanelVisible) { _,visible in
                 if !visible { aiDragWidth = nil }
-                controller.beginViewportChange(); settleAILayout(delay:visible ? 500:650)
+                 settleAILayout(delay:visible ? 500:650)
             }
-            .onChange(of:aiWidth) { _,_ in controller.beginViewportChange(); settleAILayout(delay:120) }
+            .onChange(of:aiWidth) { _,_ in  settleAILayout(delay:0) }
             }
         }
         .coordinateSpace(name:"lumaWindow")
@@ -551,6 +555,8 @@ struct ContentView: View {
     }
 
     // Keep interactive controls in the content area, aligned on the exact single horizontal centerline of the native traffic lights.
+    @AppStorage(LumaUIPrefs.headerOpacity) private var headerOpacity = 1.0
+    @AppStorage(LumaUIPrefs.headerScale) private var headerButtonScale = 1.0
     private var glassActive:Bool { store.effectiveGlassEffectsEnabled && !reduceTransparency }
     private func appHeader(availableWidth:CGFloat)->some View {
         let isReadingBook = (store.selectedBook != nil)
@@ -558,17 +564,50 @@ struct ContentView: View {
         // Shrink horizontally only; keep a consistent 40pt-high reading target.
         let readingControlLane = max(88, titlebarInset)
         let readingItemWidth = min(44, max(20, (availableWidth - readingControlLane - 88) / 7))
-        let itemWidth:CGFloat = isReadingBook ? readingItemWidth
-            : (availableWidth >= 520 ? 44 : (availableWidth < 400 ? 24 : 32))
-        let itemHeight:CGFloat = isReadingBook ? 40 : 44
+        let headerScale = CGFloat(min(1.25, max(0.8, headerButtonScale)))
+        // Reading controls scale uniformly so the capsule, the glyphs and the
+        // traffic-light centreline stay consistent. The scale is capped when the
+        // window is too narrow for seven 44pt keys.
+        let readingScaleCap: CGFloat = {
+            guard isReadingBook else { return headerScale }
+            let availableForKeys = max(180, availableWidth - readingControlLane - 96)
+            let base = 7 * readingItemWidth
+            return min(headerScale, max(0.8, availableForKeys / max(1, base)))
+        }()
+        let layoutScale = isReadingBook ? readingScaleCap : headerScale
+        let itemWidth:CGFloat = (isReadingBook ? readingItemWidth
+            : (availableWidth >= 520 ? 44 : (availableWidth < 400 ? 24 : 32))) * layoutScale
+        let itemHeight:CGFloat = (isReadingBook ? 40 : 44) * layoutScale
+        let capsuleHeight: CGFloat = isReadingBook ? 48 * layoutScale : 48
         let capsuleRadius:CGFloat = isReadingBook ? 24 : 25
         let readingBarHeight = workspaceHeaderHeight
         // A centered title must clear the wider left cluster and traffic-light lane.
         let titleReserve = readingControlLane + 4 * itemWidth + 44
-        let titleSpace = max(0, min(availableWidth * 0.32, availableWidth - 2 * titleReserve))
+        // 主题布局：七键可为原始左右分组、合并长栏或居中浮岛；七键数量、功能与组内顺序不变。
+        // 1.9.2: the reading header returns to the original split layout for every
+        // theme — four keys left, three keys right, one horizontal centreline with
+        // the native traffic lights. Theme layouts no longer move the reader keys.
+        let arrangement: LumaReaderHeaderArrangement = .split
+        let unified = arrangement == .unifiedLeading
+        let docked = arrangement == .centerDock
+        let leftGroupWidth: CGFloat = unified ? 7 * itemWidth + 38 : 4 * itemWidth + 18
+        let titleSpace: CGFloat = {
+            switch arrangement {
+            case .split:
+                return max(0, min(availableWidth * 0.32, availableWidth - 2 * titleReserve))
+            case .unifiedLeading:
+                return max(0, min(availableWidth * 0.30, availableWidth - readingControlLane - leftGroupWidth - 64))
+            case .centerDock:
+                let side = (availableWidth - (7 * itemWidth + 42)) / 2
+                return max(0, min(availableWidth * 0.26, side - 28))
+            }
+        }()
+        // Sidebar stays on the leading edge for every theme (restored 1.9.2).
+        let sidebarTrailing = false
         return LumaGlassCluster(enabled:glassActive) {
         HStack(alignment: .center, spacing:availableWidth < 520 ? 4:8) {
-            Color.clear.frame(width:(columnVisibility == .detailOnly || isReadingBook) ? readingControlLane : 0, height:1).allowsHitTesting(false)
+            Color.clear.frame(width:(columnVisibility == .detailOnly || isReadingBook || sidebarTrailing) ? readingControlLane : 0, height:1).allowsHitTesting(false)
+            if docked { Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false) }
             if isReadingBook {
                 ZStack {
                 if readerChromeVisible {
@@ -584,6 +623,12 @@ struct ContentView: View {
                         .accessibilityAddTraits(showBookSearch ? .isSelected : [])
                     readerPanelButton(.contents,symbol:"list.bullet",label:"目录",itemWidth:itemWidth,itemHeight:itemHeight)
                     readerPanelButton(.notes,symbol:"note.text",label:"书签、高亮与笔记",itemWidth:itemWidth,itemHeight:itemHeight)
+                    if unified {
+                        Rectangle().fill(store.readingPalette(dark:colorScheme == .dark).ink.opacity(0.18))
+                            .frame(width:1,height:itemHeight * 0.5).padding(.horizontal,4).allowsHitTesting(false)
+                        readerUtilityActions(itemWidth:itemWidth,itemHeight:itemHeight)
+                        readerBookmarkAction(itemWidth:itemWidth,itemHeight:itemHeight)
+                    }
                 }
                 // 动态设计：搜索 / 目录 / 笔记的选中底色在按钮之间滑动；静态设计直接切换。
                 .animation(dynamicInterface ? LumaMotionToken.dynamicMorph : nil,value:activeReaderPanel)
@@ -595,7 +640,7 @@ struct ContentView: View {
                 .lumaWindowControlsAnchor()
                 }
                 }
-                .frame(width:4 * itemWidth + 18,height:48)
+                .frame(width:leftGroupWidth,height:capsuleHeight)
                 .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
                 .popover(isPresented:readerPanelPresented,arrowEdge:.bottom) {
                     readerPanelContent
@@ -604,8 +649,8 @@ struct ContentView: View {
                 }
 
             }
-            Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false)
-            if isReadingBook && readerChromeVisible {
+            if !docked { Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false) }
+            if isReadingBook && readerChromeVisible && !unified {
                 HStack(spacing:2) {
                     readerUtilityActions(itemWidth:itemWidth,itemHeight:itemHeight)
                     readerBookmarkAction(itemWidth:itemWidth,itemHeight:itemHeight)
@@ -619,6 +664,7 @@ struct ContentView: View {
                     .anchorPreference(key:SearchAnchorPreference.self,value:.bounds) { $0 }
                     .readerGlass(radius:25,enabled:glassActive,tint:store.chrome(dark:colorScheme == .dark))
             }
+            if docked { Color.clear.frame(minWidth:0,maxWidth:.infinity).allowsHitTesting(false) }
         }
         .buttonStyle(InteractiveToolbarButtonStyle())
         .padding(.horizontal,isReadingBook ? 16 : 12)
@@ -633,14 +679,15 @@ struct ContentView: View {
             DebugReaderAcceptance.headerState = flags
             #endif
         }
-        .overlay(alignment:.center) {
+        .overlay(alignment:arrangement == .split ? .center : .trailing) {
             if let book = store.selectedBook, titleSpace >= 72 {
                 Text(book.title)
                     .font(store.homeFont(14,weight:.medium))
                     .foregroundStyle(store.readingPalette(dark:colorScheme == .dark).ink)
                     .lineLimit(1)
-                    .frame(width:titleSpace)
+                    .frame(width:titleSpace,alignment:arrangement == .split ? .center : .trailing)
                     .clipped()
+                    .padding(.trailing,arrangement == .split ? 0 : 16)
                     .allowsHitTesting(false)
                     .opacity(1)
             } else if !isReadingBook {
@@ -653,8 +700,9 @@ struct ContentView: View {
                 Rectangle().fill(store.chrome(dark:colorScheme == .dark))
                     .overlay(Color.white.opacity(colorScheme == .dark ? 0.045 : 0))
                     .allowsHitTesting(false)
+                    .opacity(headerOpacity)
             } else {
-                store.paper(dark:colorScheme == .dark)
+                store.paper(dark:colorScheme == .dark).opacity(headerOpacity)
             }
         }
         }
@@ -673,7 +721,7 @@ struct ContentView: View {
             Menu {
                 Picker(L10n.text("显示"),selection:$libraryLayout) { Text(L10n.text("网格")).tag("grid"); Text(L10n.text("列表")).tag("list") }.pickerStyle(.inline)
                 Divider()
-                Picker(L10n.text("排序方式"),selection:$librarySort) { Text(L10n.text("自定义排序")).tag("custom"); Text(L10n.text("最近阅读")).tag("recent"); Text(L10n.text("书名")).tag("title"); Text(L10n.text("作者")).tag("author") }.pickerStyle(.inline)
+                Picker(L10n.text("排序方式"),selection: animatedLibrarySort) { Text(L10n.text("自定义排序")).tag("custom"); Text(L10n.text("最近阅读")).tag("recent"); Text(L10n.text("书名")).tag("title"); Text(L10n.text("作者")).tag("author") }.pickerStyle(.inline)
                 Divider()
                 Button { showCustomization = true } label: { Label(L10n.text("外观与排版…"),systemImage:"slider.horizontal.3") }
             } label: { Image(systemName:"ellipsis.circle").frame(width:40,height:44) }
@@ -757,22 +805,32 @@ struct ContentView: View {
     private var customBookOrderIDs: [UUID] {
         customBookOrderRaw.split(separator: ",").compactMap { UUID(uuidString: String($0)) }
     }
-    private func reorderBook(draggedID: UUID, targetID: UUID) {
-        guard draggedID != targetID else { return }
+    private var libraryReorderAnimation: Animation? {
+        SurfaceMotion.resolved(SurfaceMotion.interactive, level: store.effectiveMotionLevel, reduceMotion: reduceMotion)
+    }
+    private var animatedLibrarySort: Binding<String> {
+        Binding(get: { librarySort }, set: { sort in
+            withAnimation(libraryReorderAnimation) { librarySort = sort }
+        })
+    }
+    @discardableResult
+    private func reorderBook(draggedID: UUID, targetID: UUID) -> Bool {
+        guard draggedID != targetID else { return false }
         var order = visibleBooks.map(\.id)
         guard let fromIdx = order.firstIndex(of: draggedID),
-              let toIdx = order.firstIndex(of: targetID) else { return }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            let item = order.remove(at: fromIdx)
-            order.insert(item, at: toIdx)
-            customBookOrderRaw = order.map(\.uuidString).joined(separator: ",")
-            librarySort = "custom"
-            if isBookPinned(targetID) && !isBookPinned(draggedID) {
-                var pins = pinnedBookIDs
-                pins.insert(draggedID, at: min(toIdx, pins.count))
-                pinnedBooksRaw = pins.map(\.uuidString).joined(separator: ",")
-            }
+              let toIdx = order.firstIndex(of: targetID) else { return false }
+        let item = order.remove(at: fromIdx)
+        order.insert(item, at: toIdx)
+        let updatedOrder = order.map(\.uuidString).joined(separator: ",")
+        var pins = pinnedBookIDs
+        let shouldPin = pins.contains(targetID) && !pins.contains(draggedID)
+        if shouldPin { pins.insert(draggedID, at: min(toIdx, pins.count)) }
+        withAnimation(libraryReorderAnimation) {
+            customBookOrderRaw = updatedOrder
+            if librarySort != "custom" { librarySort = "custom" }
+            if shouldPin { pinnedBooksRaw = pins.map(\.uuidString).joined(separator: ",") }
         }
+        return true
     }
     private func moveBookRelative(_ id: UUID, offset: Int) {
         let currentList = visibleBooks.map(\.id)
@@ -849,7 +907,7 @@ struct ContentView: View {
             case .black:
                 return Color(white: 0.86) // 纯黑主题：柔和银白圆点与强调，绝不使用亮蓝
             case .rose:
-                return Color(hex: dark ? "EF9FC7" : "BC7B94") // 暗莓/樱花粉主题：柔和主题粉色
+                return Color(hex: dark ? "EF9FC7" : "C0607F") // 暗莓/樱花粉主题：柔和主题粉色
             default:
                 break
             }
@@ -863,7 +921,7 @@ struct ContentView: View {
             case .black:
                 return Color(white: 0.65).opacity(0.20) // 纯黑主题：石墨灰/中性银灰低对比度选中背景
             case .rose:
-                return Color(hex: dark ? "EF9FC7" : "BC7B94").opacity(dark ? 0.18 : 0.14) // 暗莓色主题：低透明度暗莓粉紫背景
+                return Color(hex: dark ? "EF9FC7" : "C0607F").opacity(dark ? 0.18 : 0.14) // 暗莓色主题：低透明度暗莓粉紫背景
             default:
                 break
             }
@@ -962,11 +1020,12 @@ struct ContentView: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName:"book.closed.fill").font(.system(size:20,weight:.light)).foregroundStyle(store.accent)
-                Text("Luma")
-                    .font(store.homeFont(22, weight: .medium))
-                    .tracking(LumaFontFamily.opticalTracking(for: 22))
-            }.padding(.horizontal,18).padding(.top,54).padding(.bottom,22)
+                let brandLayout = store.themeLayout
+                Image(systemName:brandLayout.brandSymbol).font(.system(size:20,weight:.light)).foregroundStyle(store.accent)
+                Text(brandLayout.headingPrefix + "Luma")
+                    .font(store.themeHeadingFont(22, layout: brandLayout))
+                    .tracking(LumaFontFamily.opticalTracking(for: 22) + brandLayout.headingTracking * 0.5)
+            }.padding(.horizontal,18).padding(.top,10).padding(.bottom,22)
 
             LumaSidebarSection("图书",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
@@ -1048,11 +1107,10 @@ struct ContentView: View {
 
         }
         }
-        // 滚动时内容在红黄绿按钮下方淡出，不再与窗口按钮重叠
-        .mask(VStack(spacing:0) {
-            LinearGradient(colors:[.clear,.black],startPoint:.top,endPoint:.bottom).frame(height:46)
-            Color.black
-        }.padding(.top,14))
+        // Reserve the window-control lane outside the sidebar scroll viewport.
+        .scrollClipDisabled(false)
+        .mask(Rectangle())
+        .padding(.top,44)
 
         // 左下角紧凑登录框大小全局设置按钮（高度 38pt 固定不拉伸，融合莫奈取色与液态玻璃）
         VStack(spacing: 0) {
@@ -1273,17 +1331,8 @@ struct ContentView: View {
         return collection == "主页" ? Array(sortedResult.prefix(12)):sortedResult
     }
 
-    private var library: some View {
-        let headingSize = round(30 * store.homeScale)
-        return ScrollView {
-            VStack(alignment:.leading,spacing:26) {
-                HStack(alignment:.center, spacing: 14) {
-                    Text(activeGroupID.flatMap { id in store.collections.active.first(where:{ $0.id == id })?.name } ?? L10n.text(collection))
-                        .font(store.homeFont(30, weight: .medium))
-                        .tracking(LumaFontFamily.opticalTracking(for: headingSize))
-
-                    Spacer()
-
+    /// 书库搜索 + 更多菜单胶囊（原有内容，主题布局只改变它的位置）。
+    private var libraryToolsCapsule: some View {
                     HStack(spacing: 2) {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
@@ -1332,7 +1381,7 @@ struct ContentView: View {
                             }
                             .pickerStyle(.inline)
                             Divider()
-                            Picker(L10n.text("排序方式"), selection: $librarySort) {
+                            Picker(L10n.text("排序方式"), selection: animatedLibrarySort) {
                                 Text(L10n.text("自定义排序")).tag("custom")
                                 Text(L10n.text("最近阅读")).tag("recent")
                                 Text(L10n.text("书名")).tag("title")
@@ -1361,9 +1410,64 @@ struct ContentView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .readerGlass(radius: 24, enabled: glassActive, tint: store.chrome(dark: colorScheme == .dark))
-                }.padding(.top, 36)
+    }
 
-                if visibleBooks.isEmpty {
+    @ViewBuilder private func libraryHeadingTitle(_ layout: LumaThemeLayout, centered: Bool) -> some View {
+        let headingSize = round(30 * store.homeScale)
+        VStack(alignment: centered ? .center : .leading, spacing: 4) {
+            if let caption = layout.headingCaption {
+                Text(L10n.text(caption))
+                    .font(store.themeHeadingFont(10.5, layout: layout))
+                    .tracking(1.6)
+                    .foregroundStyle(store.accent)
+                    .lineLimit(1)
+            }
+            Text(layout.headingPrefix + (activeGroupID.flatMap { id in store.collections.active.first(where:{ $0.id == id })?.name } ?? L10n.text(collection)))
+                .font(store.themeHeadingFont(30, layout: layout))
+                .tracking(LumaFontFamily.opticalTracking(for: headingSize) + layout.headingTracking)
+                .lineLimit(1)
+        }
+    }
+
+    /// 书库标题行：按主题布局排列标题与工具胶囊。
+    @ViewBuilder private func libraryHeadingRow(_ layout: LumaThemeLayout) -> some View {
+        switch layout.libraryHeader {
+        case .titleLeading:
+            HStack(alignment:.center, spacing: 14) {
+                libraryHeadingTitle(layout, centered: false)
+                Spacer()
+                libraryToolsCapsule
+            }.padding(.top, 36)
+        case .toolsLeading:
+            HStack(alignment:.center, spacing: 14) {
+                libraryToolsCapsule
+                Spacer()
+                libraryHeadingTitle(layout, centered: false)
+            }.padding(.top, 36)
+        case .stacked:
+            VStack(alignment: .leading, spacing: 16) {
+                libraryHeadingTitle(layout, centered: false)
+                HStack(spacing: 0) { libraryToolsCapsule; Spacer(minLength: 0) }
+            }.padding(.top, 30)
+        case .centered:
+            VStack(alignment: .center, spacing: 16) {
+                libraryHeadingTitle(layout, centered: true)
+                libraryToolsCapsule
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 30)
+        }
+    }
+
+    private var library: some View {
+        let themeLayout = store.themeLayout
+        let libraryPalette = store.readingPalette(dark: colorScheme == .dark)
+        let books = visibleBooks
+        return ScrollView {
+            VStack(alignment:.leading,spacing:26) {
+                libraryHeadingRow(themeLayout)
+
+                if books.isEmpty {
                     ContentUnavailableView(label: {
                         Label(L10n.text(store.shelfBooks.isEmpty ? "暂无图书" : "未找到匹配图书"), systemImage:"books.vertical")
                             .font(store.homeFont(16, weight: .medium))
@@ -1380,7 +1484,7 @@ struct ContentView: View {
                     .frame(maxWidth:.infinity,minHeight:340)
                 } else if libraryLayout == "list" {
                     LazyVStack(spacing:0) {
-                        ForEach(visibleBooks) { book in
+                        ForEach(books) { book in
                             Button { openBook(book) } label: {
                                 HStack(spacing:16) {
                                     Image(systemName:book.kind == "pdf" ? "doc.richtext":"book.closed").font(.system(size:24)).frame(width:40)
@@ -1390,56 +1494,32 @@ struct ContentView: View {
                                     }
                                     Spacer()
                                     Text("\(Int(book.progress*100))%").monospacedDigit().foregroundStyle(muted)
-                                }.padding(.vertical,18).contentShape(Rectangle())
+                                }
+                                .padding(.vertical,18)
+                                .padding(.trailing, bookPinHitWidth)
+                                .contentShape(Rectangle())
                             }.buttonStyle(LumaPressFeedbackStyle())
-                            .overlay(alignment: .leading) {
-                                if isBookPinned(book.id) {
-                                    Image(systemName: "pin.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(store.accent)
-                                        .offset(x: -14)
-                                }
-                            }
                             .contextMenu { classificationActions(for:book) }
-                            .draggable("luma-book:"+book.id.uuidString)
-                            .dropDestination(for: String.self) { items, _ in
-                                guard let first = items.first, first.hasPrefix("luma-book:"),
-                                      let draggedUUID = UUID(uuidString: String(first.dropFirst("luma-book:".count))) else { return false }
-                                reorderBook(draggedID: draggedUUID, targetID: book.id)
-                                return true
-                            } isTargeted: { targeted in
-                                dropTargetBookID = targeted ? book.id : (dropTargetBookID == book.id ? nil : dropTargetBookID)
-                            }
-                            .overlay(alignment: .topLeading) {
-                                if isBookPinned(book.id) {
-                                    Image(systemName: "pin.fill")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(store.accent)
-                                        .padding(6)
-                                        .background(Circle().fill(store.chrome(dark: colorScheme == .dark).opacity(0.92)))
-                                        .padding(6)
-                                        .allowsHitTesting(false)
-                                }
-                            }
-                            .scaleEffect(dropTargetBookID == book.id ? 1.03 : 1.0)
-                            .dropDestination(for: String.self) { items, _ in
-                                guard let first = items.first, first.hasPrefix("luma-book:"),
-                                      let draggedUUID = UUID(uuidString: String(first.dropFirst("luma-book:".count))) else { return false }
-                                reorderBook(draggedID: draggedUUID, targetID: book.id)
-                                return true
-                            } isTargeted: { targeted in
-                                dropTargetBookID = targeted ? book.id : (dropTargetBookID == book.id ? nil : dropTargetBookID)
+                            .modifier(ShelfBookDragReorder(bookID: book.id, accent: store.accent, cornerRadius: 8) { draggedID in
+                                reorderBook(draggedID: draggedID, targetID: book.id)
+                            })
+                            .overlay(alignment:.trailing) { pinToggle(for:book) }
+                            .onHover { inside in
+                                if inside { hoveredBookID = book.id }
+                                else if hoveredBookID == book.id { hoveredBookID = nil }
                             }
                             Divider().opacity(0.3)
                         }
                     }
                 } else {
-                    LazyVGrid(columns:[GridItem(.adaptive(minimum:CGFloat(store.shelfCardWidth),maximum:CGFloat(store.shelfCardWidth)),spacing:28)],alignment:.leading,spacing:30) {
-                        ForEach(visibleBooks) { book in
+                    LazyVGrid(columns:[GridItem(.adaptive(minimum:CGFloat(store.shelfCardWidth),maximum:CGFloat(store.shelfCardWidth)),spacing:themeLayout.gridSpacing)],alignment:themeLayout.libraryHeader == .centered ? .center : .leading,spacing:themeLayout.gridRowSpacing) {
+                        ForEach(books) { book in
                             Button { openBook(book) } label: {
                                 VStack(alignment:.leading,spacing:9) {
                                     ShelfCover(book:book,root:store.root,fontFamily:store.homeFontFamily,scale:store.homeScale,style:book.shelf?.coverStyle ?? store.shelfCoverStyle,themeTint:store.accent)
                                         .frame(width:CGFloat(store.shelfCardWidth),height:CGFloat(store.shelfCardWidth*1.45))
+                                        .lumaShelfOrnament(themeLayout.ornament,accent:libraryPalette.accent,ink:libraryPalette.ink,
+                                                           paper:libraryPalette.paper,dark:colorScheme == .dark || store.isDarkAppearance)
                                         .overlay(alignment:.bottomTrailing) {
                                             if coverOnlyShelf, hoveredBookID == book.id, book.progress > 0 {
                                                 Text(L10n.text("已读 \(Int(book.progress*100))%"))
@@ -1487,7 +1567,10 @@ struct ContentView: View {
                             .accessibilityLabel(Text(book.title+" "+book.author))
                             .accessibilityValue(Text(L10n.text(book.isFinished ? "已读完":book.progress > 0 ? "已读 \(Int(book.progress*100))%":"未读")))
                             .contextMenu { classificationActions(for:book) }
-                            .draggable("luma-book:"+book.id.uuidString)
+                            .modifier(ShelfBookDragReorder(bookID: book.id, accent: store.accent, cornerRadius: 12) { draggedID in
+                                reorderBook(draggedID: draggedID, targetID: book.id)
+                            })
+                            .overlay(alignment:.topLeading) { pinToggle(for:book) }
                             .overlay(alignment:.topTrailing) {
                                 Menu { classificationActions(for:book) } label: { Image(systemName:"ellipsis.circle.fill").frame(width:36,height:36) }
                                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().padding(4).help(L10n.text("更多图书操作"))
@@ -1504,9 +1587,30 @@ struct ContentView: View {
         .onDrop(of:[UTType.fileURL.identifier],isTargeted:$importDropTarget) { store.acceptFileDrop($0,groupID:activeGroupID) }
         .overlay { if importDropTarget { RoundedRectangle(cornerRadius:12).strokeBorder(store.accent,lineWidth:2).allowsHitTesting(false) } }
         .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:libraryLayout)
-        .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:librarySort)
     }
 
+    /// 1.9.4: a visible, rounded pin target on every book card/row. Dragging still
+    /// reorders; pinning is now discoverable instead of being buried in a context menu.
+    private static let bookPinHit: CGFloat = 34
+    private var bookPinHitWidth: CGFloat { Self.bookPinHit }
+    @ViewBuilder private func pinToggle(for book:Book) -> some View {
+        let pinned = isBookPinned(book.id)
+        Button { toggleBookPin(book.id) } label: {
+            Image(systemName: pinned ? "pin.fill" : "pin")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(pinned ? store.accent : muted)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(store.chrome(dark: colorScheme == .dark).opacity(0.92)))
+                .overlay(Circle().strokeBorder(pinned ? store.accent.opacity(0.55) : Color.clear, lineWidth: 0.8))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(6)
+        .opacity(pinned || hoveredBookID == book.id ? 1 : 0)
+        .allowsHitTesting(pinned || hoveredBookID == book.id)
+        .help(L10n.text(pinned ? "取消置顶":"置顶图书"))
+        .accessibilityLabel(L10n.text(pinned ? "取消置顶":"置顶图书"))
+    }
     private var coverOnlyShelf:Bool {
         store.search.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && collection != "搜索"
     }
@@ -2971,6 +3075,34 @@ private struct ThemeCoverRequest: Equatable {
     let filename: String?
     let system: LumaVisualThemeSystem
 }
+private struct ShelfBookDragReorder: ViewModifier {
+    let bookID: UUID
+    let accent: Color
+    let cornerRadius: CGFloat
+    let reorder: (UUID) -> Bool
+
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .draggable("luma-book:" + bookID.uuidString)
+            .dropDestination(for: String.self) { items, _ in
+                let prefix = "luma-book:"
+                guard let first = items.first, first.hasPrefix(prefix),
+                      let draggedID = UUID(uuidString: String(first.dropFirst(prefix.count))) else { return false }
+                return reorder(draggedID)
+            } isTargeted: { targeted in
+                if isTargeted != targeted { isTargeted = targeted }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(accent, lineWidth: 2)
+                    .opacity(isTargeted ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
 private struct ShelfCover: View {
     let book: Book
     let root: URL
