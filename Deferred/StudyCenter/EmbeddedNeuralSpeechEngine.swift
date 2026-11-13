@@ -84,12 +84,12 @@ public final class EmbeddedNeuralSpeechEngine: ObservableObject {
         prefetchTask = nil
         idleStopTask?.cancel()
         idleStopTask = nil
+        // 1.12.1: stop only the player node. Tearing the whole engine down on every word made each
+        // new word pay an engine restart (the lag before sound) and could drop the time-pitch rate.
         if playerNode.isPlaying {
             playerNode.stop()
         }
-        if audioEngine.isRunning {
-            audioEngine.stop()
-        }
+        if audioEngine.isRunning { scheduleIdleEngineStop() }
         #if canImport(AVFAudio)
         if fallbackSynthesizer.isSpeaking {
             fallbackSynthesizer.stopSpeaking(at: .immediate)
@@ -172,12 +172,18 @@ public final class EmbeddedNeuralSpeechEngine: ObservableObject {
                 playbackFormat = audioFile.processingFormat
             }
 
+            timePitchNode.bypass = false
             timePitchNode.pitch = 0.0
             timePitchNode.rate = speed
 
             if !audioEngine.isRunning {
                 try audioEngine.start()
             }
+            // 1.12.1: re-apply after the engine is running; a (re)started engine can reinitialise the unit
+            // and silently fall back to 1.0x, which is how the speed control appeared to do nothing.
+            timePitchNode.bypass = false
+            timePitchNode.pitch = 0.0
+            timePitchNode.rate = speed
 
             let generation = playbackGeneration
             let rate = audioFile.processingFormat.sampleRate
@@ -191,6 +197,13 @@ public final class EmbeddedNeuralSpeechEngine: ObservableObject {
             for index in 0..<repeats {
                 guard !Task.isCancelled, playbackGeneration == generation else { return false }
 
+                if !audioEngine.isRunning {
+                    try audioEngine.start()
+                    timePitchNode.bypass = false
+                    timePitchNode.pitch = 0.0
+                    timePitchNode.rate = speed
+                }
+                idleStopTask?.cancel(); idleStopTask = nil
                 await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                     playerNode.stop()
                     playerNode.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { _ in

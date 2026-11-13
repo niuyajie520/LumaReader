@@ -6,7 +6,7 @@ import Darwin
 @MainActor
 final class LumaAppDelegate: NSObject, NSApplicationDelegate {
     /// Closing the last window quits instead of leaving a hidden background process.
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !LumaMiniPanelController.shared.isVisible }
 
     private var workspaceObservers: [NSObjectProtocol] = []
     private var memoryPressure: (any DispatchSourceMemoryPressure)?
@@ -83,7 +83,10 @@ struct LumaReaderApp: App {
                 .font(store.globalTextScale == 1 ? nil : .system(size: CGFloat(13 * store.globalTextScale)))
                 .frame(minWidth: 940, minHeight: 620)
                 .preferredColorScheme(store.preferredColorScheme)
-                .onAppear { DiagnosticManager.shared.applicationDidStart() }
+                .onAppear {
+                    DiagnosticManager.shared.applicationDidStart()
+                    LumaMiniPanelController.shared.store = store
+                }
         }
         .defaultSize(width: 1320, height: 860)
         .windowStyle(.titleBar)
@@ -97,6 +100,11 @@ struct LumaReaderApp: App {
             CommandMenu("学习") {
                 Button("继续听写") {NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力","resume":true]);openWindow(id:"main")}.keyboardShortcut("3",modifiers:[.command,.option])
                 Button("继续写作") {NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_写作_Task1题库","resume":true,"direct":true]);openWindow(id:"main")}.keyboardShortcut("4",modifiers:[.command,.option])
+                Divider()
+                Button("悬浮小窗练习（易混词 / 听写）") { LumaMiniPanelController.shared.store = store; LumaMiniPanelController.shared.toggle() }.keyboardShortcut("6",modifiers:[.command,.option])
+                Button("小窗：易混词") { LumaMiniPanelController.shared.store = store; LumaMiniPanelController.shared.show(source: "confusable", scope: nil) }
+                Button("小窗：听力听写") { LumaMiniPanelController.shared.store = store; LumaMiniPanelController.shared.show(source: "listening", scope: nil) }
+                Divider()
                 Button("继续阅读") {NotificationCenter.default.post(name:Notification.Name("LumaReader.ResumeReadingWorkspace"),object:nil);openWindow(id:"main")}.keyboardShortcut("5",modifiers:[.command,.option])
             }
             CommandMenu(L10n.text("阅读")) {

@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "LumaReader",
-  "version": "1.10.3",
-  "build": "86",
-  "source_id": "20261111",
+  "version": "1.22.0",
+  "build": "117",
+  "source_id": "20261113",
   "installer": "Install.command",
   "required": [
     "Package.swift",
@@ -15,6 +15,10 @@
     "Sources/LumaReader/Resources/Reader.css",
     "Deferred/StudyCenter/Package.swift",
     "Deferred/StudyCenter/StudyHome.swift",
+    "Deferred/StudyCenter/ConfusablePractice.swift",
+    "Deferred/StudyCenter/ConfusableViews.swift",
+    "Deferred/StudyCenter/MiniPracticeWindow.swift",
+    "Sources/LumaReader/MiniPracticePanel.swift",
     "Deferred/StudyCenter/Resources/CoraVocabulary/books.json",
     "Scripts/build-macos.sh",
     "Scripts/check-app-bundle.py",
@@ -29,6 +33,14 @@
     "Sources/LumaReader/Resources/PaperFlip.js",
     "Assets/KittenSpeech/manifest.json",
     "Assets/KittenSpeech/Nano/kitten_tts_nano_v0_8.onnx",
-    "Assets/KittenSpeech/Micro/kitten_tts_micro_v0_8.onnx"
+    "Assets/KittenSpeech/Micro/kitten_tts_micro_v0_8.onnx",
+    "Deferred/StudyCenter/ReadingVocabularyView.swift",
+    "Deferred/StudyCenter/Resources/ReadingVocabulary.json",
+    "ThirdParty/ECDICT-LICENSE.txt",
+    "Deferred/StudyCenter/ReadingChoiceQuiz.swift",
+    "Deferred/StudyCenter/IELTSReadingPractice.swift",
+    "Deferred/StudyCenter/Resources/IELTSReadingSamples.json",
+    "Deferred/StudyCenter/Resources/IELTSReadingLayoutSample.json",
+    "Deferred/StudyCenter/Resources/IELTSReadingRainwaterDiagram.png"
   ]
 }

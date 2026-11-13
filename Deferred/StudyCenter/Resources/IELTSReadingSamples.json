@@ -1,0 +1,378 @@
+[
+  {
+    "id": 1,
+    "title": "A Brief History of Tea",
+    "pages": "21–25",
+    "text": "A\n The story of tea began in ancient China over 5,000 years ago. According to legend, the Emperor Shen Nung was a skilled ruler, creative scientist and patron of the arts. His farsighted edicts required, among other things, that all drinking water be boiled as a hygienic precaution. One summer day while visiting a distant region of his realm, he and the court stopped to rest. In accordance with his ruling, the servants began to boil water for the court to drink. Dried leaves from a nearby bush fell into the boiling water, and as the leaves infused the water turned brown. As a scientist, the Emperor was intrigued by the new liquid, drank some, and found it very refreshing. And so, according to legend, tea was created.\n B\n Tea consumption spread throughout Chinese culture, reaching into every aspect of the society: The first definitive book was written on tea - a book clearly reflecting Zen Buddhist philosophy - 1,200 years ago, The first tea seeds were brought to Japan by a returning Buddhist priest, who had seen the value of tea in enhancing meditation in China. As a result, he is known as the 'Father of Tea' in Japan. Because of this early association, tea in Japan has always been linked with Zen Buddhism. Tea received the Japanese Emperots support almost instantly and spread rapidly from the royal court and monasteries to other sections of society.\n C\n Tea was elevated to an art form in the Japanese tea ceremony, in which supreme importance is given to making tea in the most perfect, most polite, most graceful, most charming manner possible. Such a purity of expression prompted the creation of a particular form of architecture for tea house: duplicating the simplicity of a forest cottage. The cultural/artistic hostesses of Japan, the geishas, began to specialize in the presentation of the tea ceremony. However, as more and more people became involved in the excitement surrounding tea, the purity of the original concept was lost, and for a period the tea ceremony became corrupted, boisterous and highly embellished. Efforts were then made to return to the earlier simplicity, with the result that, in the 15th and 16th centuries, tea was viewed as the ultimate gift. Even warlords paused for tea before battles.\n D\n While tea was at this high level of development in parts of Asia, information concerning the then unknown beverage began to filter back to Europe. Earlier traders had mentioned it, btit were unclear as to whether tea should be eaten or drunk. The first European to personally encounter tea and write about it was Portuguese - Portugal, with her technologically advanced navy, had been successful in gaining the first right of trade with China.\n E\n Tea finally arrived in Europe in the 16tr’ century, brought to Holland by the country's navy, and becoming very fashionable in the Dutch capital, the Hague. This was due in part to tea being very expensive (over $100 per pound), which immediately made it the domain of the wealthy. Slowly, as the amount of tea imported increased, the price fell, and by 1675 it was available in common food shops throughout Holland.\n F\n As the consumption of tea increased dramatically in Dutch society, doctors and university authorities in Holland argued as to its benefits or drawbacks. The public largely ignored the scholarly debate and continued to enjoy their new beverage, through the controversy lasted from 1635 to roughly 1657. Throughout this period, France and Holland led Europe in the use of tea.\n G\n As the craze for all things oriental swept through Europe, tea became part of the way of life. Adding milk to the drink was first mentioned in 1680. Around that time, Dutch inns provided the first restaurant service of tea. Innkeepers would furnish guests with a portable tea set complete with a heating unit. The Dutchman would then prepare tea for himself and his friends outside in the inn garden. Tea remained popular in France for only about fifty years, being replaced by a preference for wine, chocolate, and exotic coffees. Tea was introduced into England in 1660 by King Charles II and his Portuguese queen, who were both confirmed tea drinkers. Tea mania swept across England as it had earlier spread throughout France and Holland. By 1708 tea importation had risen to thirteen times the 1699 level. Tea was drunk by all levels of society.\n H\n The Russian interest in tea began as early as 1618, when the Chinese embassy in Moscow presented several chests of tea to the Emperor, Czar Alexis. Later in the century, a trade treaty between Russia and China allowed caravans to cross back and forth freely between the two countries. Still, the journey was not easy. The average caravan consisted of 200 to 300 camels, and the 18,000-kilometre trip took over 16 months to complete. Eventually, however, tea became - as it still is - one of the most popular drinks in the country.",
+    "notes": "原 PDF 第 4 题重复标为 C，按正文顺序和答案对齐为 D。",
+    "groups": [
+      {
+        "type": "段落标题匹配",
+        "instruction": "Choose the correct heading for each paragraph.",
+        "options": [
+          [
+            "i",
+            "Not enough tea to meet demand"
+          ],
+          [
+            "ii",
+            "Religious objections"
+          ],
+          [
+            "iii",
+            "in - and sometimes out of- fashion"
+          ],
+          [
+            "iv",
+            "A connection between tea and religion"
+          ],
+          [
+            "v",
+            "A luxury item"
+          ],
+          [
+            "vi",
+            "News of tea reaches another continent"
+          ],
+          [
+            "vii",
+            "Is tea a good or bad thing?"
+          ],
+          [
+            "viii",
+            "A chance discovery"
+          ],
+          [
+            "ix",
+            "Tea-making as a ritual"
+          ],
+          [
+            "x",
+            "Difficulties in importing tea"
+          ]
+        ],
+        "context": null,
+        "questions": [
+          {
+            "id": 1,
+            "prompt": "Paragraph A",
+            "answer": "viii",
+            "options": []
+          },
+          {
+            "id": 2,
+            "prompt": "Paragraph B",
+            "answer": "iv",
+            "options": []
+          },
+          {
+            "id": 3,
+            "prompt": "Paragraph C",
+            "answer": "ix",
+            "options": []
+          },
+          {
+            "id": 4,
+            "prompt": "Paragraph D",
+            "answer": "vi",
+            "options": []
+          },
+          {
+            "id": 5,
+            "prompt": "Paragraph E",
+            "answer": "v",
+            "options": []
+          },
+          {
+            "id": 6,
+            "prompt": "Paragraph F",
+            "answer": "vii",
+            "options": []
+          },
+          {
+            "id": 7,
+            "prompt": "Paragraph G",
+            "answer": "iii",
+            "options": []
+          },
+          {
+            "id": 8,
+            "prompt": "Paragraph H",
+            "answer": "x",
+            "options": []
+          }
+        ]
+      },
+      {
+        "type": "特征匹配",
+        "instruction": "Match each statement with the correct country, A–G.",
+        "options": [
+          [
+            "A",
+            "China"
+          ],
+          [
+            "B",
+            "Japan"
+          ],
+          [
+            "C",
+            "Portugal"
+          ],
+          [
+            "D",
+            "Holland"
+          ],
+          [
+            "E",
+            "France"
+          ],
+          [
+            "F",
+            "England"
+          ],
+          [
+            "G",
+            "Russia"
+          ]
+        ],
+        "context": null,
+        "questions": [
+          {
+            "id": 9,
+            "prompt": "Claims that tea might be harmful failed to affect it popularity.",
+            "answer": "D",
+            "options": []
+          },
+          {
+            "id": 10,
+            "prompt": "Tea lost favour to other drinks.",
+            "answer": "E",
+            "options": []
+          },
+          {
+            "id": 11,
+            "prompt": "Special buildings were constructed in which to drink tea.",
+            "answer": "B",
+            "options": []
+          },
+          {
+            "id": 12,
+            "prompt": "Animals were involved in importing tea.",
+            "answer": "G",
+            "options": []
+          },
+          {
+            "id": 13,
+            "prompt": "A ruler's specialist knowledge led to an interest in tea.",
+            "answer": "A",
+            "options": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 50,
+    "title": "Australian Parrots and Their Adaptation to Habitat Change",
+    "pages": "259–263",
+    "text": "A Parrots are found across the tropic and in all southern hemisphere continents except Antarctica, but nowhere do the display such a richness of diversity and form as in Australia. One- sixth of the world's 345 parrot species are found there, and Australia has long been renowned for the number and variety of its parrots.\n B In the 16th century, the German cartographer Mercator made a world map that included a place, somewhere near present-day Australia, that he named Terra Psittacorum - the Land of Parrots - and the first European settlers in Australia often referred to the country as Parrot Land. In 1865, the celebrated British naturalist and wildlife artist John Gould said: \"No group of birds gives Australia so tropical and benign an air as the numerous species of this great family by which it is tenanted.\n C Parrots are descendants of an ancient line. Due to their great diversity, and since most species inhabit Africa, Australia and South America, it seems almost certain that parrots originated millions of years ago on the ancient southern continent of Gondwana, before it broke up into the separate southern hemisphere continents we know today. Much of Gondwana comprised vast rainforests intersected by huge slow-flowing rivers and expansive lakes, but by eight million years ago, great changes were underway. The center of the continent of Australia had begun to dry out, and the rainforests that once covered it gradually contracted to the continental margins, where, to a limited extent, they still exist today.\n D The creatures that remained in those shrinking rainforests had to adapt to the drier conditions or face extinction. Reacting to these desperate circumstances, the parrot family, typically found in jungles in other parts of the world, has populated some of Australia's harshest environments. The parrots spread from ancestral forests through eucalypt woodlands to colonies the central deserts of Australia, and as a consequence they diversified into a wide range of species with adaptations that reflect the many changes animals and plants had to make to survive in these areas.\n E These evolutionary pressures helped mould keratin, the substance from which breaks are made into a range of tools capable of gathering the new food types favored by various species of parrot. The size of a parrot's short, blunt beak and the length of that beak's do curved upper section are related to the type of food each species eats. Some have comparatively long beaks that are perfect for extracting seeds from fruit; others have broader and stronger beaks that are designed for cracking hard seeds.\n F Differently shaped beaks are not the only adaptations that have been made during the developing relationship between parrots and their food plants. Like all of Australia's many honey eating birds, the rainbow-coloured lorikeets and the flowers on which they feed have long coevolved with features such as the shape and colour of the flowers adapted to the bird's particular needs, and physical a example, red is the most I attractive colour to birds, and thus flowers which depend on birds for pollination are more often red, and lorikeets' to gues have bristles which help them to collect as much pollen as possible.\n G Today, most of Australia's parrots inhabit woodland and open forest, and their numbers decline towards both deserts and wetter areas. The majority are nomadic to some degree, moving around to take advantage of feeding and breeding places. Two of the dry country parrots, the pink and grey galah and the pink, white and yellow corella have expanded their ranges in recent years. They are among the species that have adapted well to the changes brought about by European settlement forest telling created grasslands where galahs and corellas thrive.\n H But other parrot species did not fare so well when their environments were altered. The clearing of large areas of rainforest is probably responsible for the disappearance of the double-eyed fig parrot, and numbers of ground parrots declined when a great part of their habitat was destroyed by the draining of coastal swamps. Even some parrot species that benefited from forest clearing at first are now comforted by a shortage of nesting sites due to further man-made changes.\n I New conditions also sometimes favour an incoming species over one that originally inhabited the area. For example, after farmers cleared large areas of forest on Kangaroo Island off the coast of South Australia, the island was colonised by galahs. They were soon going down holes and destroying black cockatoo eggs in order to take the hole for their own use. Their success precipitated a partial collapse in the black cockatoo population when the later lost the struggle for scarce nesting hollows.\n J There may be no final answer to ensuring an equitable balance between parrot species. Nest box programmers help ease the shortage of nesting sites in some places, but there are not enough, they are expensive and they are not an adequate substitute by large, old trees, such as the habitat they represent and nectar, pollen and seeds they provide. Competition between parrots for nest sites is a result of the changes we humans have made to the Earth. We are the most widespread and dangerous competitors that parrots have ever had to face, but we also have the knowledge and skill to maintain the wonderfully rich diversity of Australia's parrots. All we need is the wild to do so.",
+    "notes": "PDF 重复的第 8 题按题组顺序整理为第 9 题。第 7、8 题答案表与正文 C、E 段冲突，采用正文支持的 C、D。摘要按空位与答案页整理为第 10–13 题。",
+    "groups": [
+      {
+        "type": "段落信息匹配",
+        "instruction": "Which paragraph contains the following information? Choose A–J.",
+        "options": [
+          [
+            "A",
+            "Paragraph A"
+          ],
+          [
+            "B",
+            "Paragraph B"
+          ],
+          [
+            "C",
+            "Paragraph C"
+          ],
+          [
+            "D",
+            "Paragraph D"
+          ],
+          [
+            "E",
+            "Paragraph E"
+          ],
+          [
+            "F",
+            "Paragraph F"
+          ],
+          [
+            "G",
+            "Paragraph G"
+          ],
+          [
+            "H",
+            "Paragraph H"
+          ],
+          [
+            "I",
+            "Paragraph I"
+          ],
+          [
+            "J",
+            "Paragraph J"
+          ]
+        ],
+        "context": null,
+        "questions": [
+          {
+            "id": 1,
+            "prompt": "An example of how one parrot species may survive at the expense of another",
+            "answer": "I",
+            "options": []
+          },
+          {
+            "id": 2,
+            "prompt": "A description of how plants may adapt to attract birds",
+            "answer": "F",
+            "options": []
+          },
+          {
+            "id": 3,
+            "prompt": "Example of two parrot species which benefited from changes to the environment",
+            "answer": "G",
+            "options": []
+          },
+          {
+            "id": 4,
+            "prompt": "How the varied Australian landscape resulted in a great variety of parrot species",
+            "answer": "D",
+            "options": []
+          },
+          {
+            "id": 5,
+            "prompt": "A reason why most parrot species are native to the southern hemisphere",
+            "answer": "C",
+            "options": []
+          },
+          {
+            "id": 6,
+            "prompt": "An example of a parrot species which did not survive changes to its habitat",
+            "answer": "H",
+            "options": []
+          }
+        ]
+      },
+      {
+        "type": "单选题",
+        "instruction": "Choose the correct letter A, B, C or D.",
+        "options": [],
+        "context": null,
+        "questions": [
+          {
+            "id": 7,
+            "prompt": "The writer believes that most parrot species",
+            "answer": "C",
+            "options": [
+              [
+                "A",
+                "Move from Africa and South America to Australia"
+              ],
+              [
+                "B",
+                "Had ancestors in either Africa, Australia or South America"
+              ],
+              [
+                "C",
+                "Had ancestors in a continent which later split up"
+              ],
+              [
+                "D",
+                "Came from a continent now covered by water"
+              ]
+            ]
+          },
+          {
+            "id": 8,
+            "prompt": "What does the Writer say about parrot's beak?",
+            "answer": "D",
+            "options": [
+              [
+                "A",
+                "They are longer than those of other birds"
+              ],
+              [
+                "B",
+                "They are made of a unique material"
+              ],
+              [
+                "C",
+                "They are used more efficiently than those of other species"
+              ],
+              [
+                "D",
+                "They are specially adapted to suit the diet"
+              ]
+            ]
+          },
+          {
+            "id": 9,
+            "prompt": "Which of the following is NOT mentioned by the writer as a disadvantage of nesting boxes?",
+            "answer": "B",
+            "options": [
+              [
+                "A",
+                "They cost too much"
+              ],
+              [
+                "B",
+                "They need to be maintained"
+              ],
+              [
+                "C",
+                "They provide only shelter, not food"
+              ],
+              [
+                "D",
+                "They are too few of them"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "type": "摘要填空",
+        "instruction": "Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage for each answer.",
+        "options": [],
+        "context": "There are 345 varieties of parrot in existence and, of these, [10] live in Australia. As early as the [11], the mapmaker [12] recognized that parrots lived in that part of the world. [13], the famous painter of animals and birds, commented on the size and beauty of the Australian parrot family.",
+        "questions": [
+          {
+            "id": 10,
+            "prompt": "Blank 10",
+            "answer": "one-sixth",
+            "options": []
+          },
+          {
+            "id": 11,
+            "prompt": "Blank 11",
+            "answer": "16th century",
+            "options": []
+          },
+          {
+            "id": 12,
+            "prompt": "Blank 12",
+            "answer": "Mercator",
+            "options": []
+          },
+          {
+            "id": 13,
+            "prompt": "Blank 13",
+            "answer": "John Gould",
+            "options": []
+          }
+        ]
+      }
+    ]
+  }
+]

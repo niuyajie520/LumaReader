@@ -1,0 +1,263 @@
+{
+  "id": -1,
+  "title": "A Rainwater Project",
+  "pages": "",
+  "text": "A\nIn 2022, a community garden in Eastbank began collecting rainwater from the roof of its tool shed. The garden team wanted to reduce its use of mains water. A mesh screen above the tank keeps leaves out. The team uses the collected water on plants and never supplies it as drinking water.\n\nB\nEvery Monday, volunteers read the gauge and record the water level. During the first winter, the team found that a loose lid allowed rain to splash out. A local workshop supplied a tighter lid. The garden also put a marked watering can beside the tank so volunteers could measure how much they used.\n\nC\nThe project coordinator argues that small rainwater projects should start with a simple design. In her view, a clear maintenance rota matters more than expensive equipment. The community garden is considering a second tank, but the team has not decided what size it will buy.",
+  "notes": "原创题型样例",
+  "groups": [
+    {
+      "type": "TRUE / FALSE / NOT GIVEN",
+      "instruction": "Do the following statements agree with the information given in the passage?",
+      "options": [],
+      "questions": [
+        {
+          "id": 1,
+          "prompt": "The garden started collecting rainwater in 2022.",
+          "answer": "TRUE",
+          "options": []
+        },
+        {
+          "id": 2,
+          "prompt": "The tank supplies drinking water.",
+          "answer": "FALSE",
+          "options": []
+        },
+        {
+          "id": 3,
+          "prompt": "The original tank was donated by a school.",
+          "answer": "NOT GIVEN",
+          "options": []
+        }
+      ]
+    },
+    {
+      "type": "YES / NO / NOT GIVEN",
+      "instruction": "Do the following statements agree with the views of the project coordinator?",
+      "options": [],
+      "questions": [
+        {
+          "id": 4,
+          "prompt": "New projects should begin with a simple design.",
+          "answer": "YES",
+          "options": []
+        },
+        {
+          "id": 5,
+          "prompt": "Expensive equipment is more important than a maintenance rota.",
+          "answer": "NO",
+          "options": []
+        },
+        {
+          "id": 6,
+          "prompt": "All projects should be funded by local businesses.",
+          "answer": "NOT GIVEN",
+          "options": []
+        }
+      ]
+    },
+    {
+      "type": "多选题",
+      "instruction": "Choose TWO letters, A–E.",
+      "options": [],
+      "questions": [
+        {
+          "id": 7,
+          "prompt": "Which TWO items help the volunteers measure water?",
+          "answer": "A,D",
+          "options": [
+            [
+              "A",
+              "A gauge"
+            ],
+            [
+              "B",
+              "A roof"
+            ],
+            [
+              "C",
+              "A mesh screen"
+            ],
+            [
+              "D",
+              "A marked watering can"
+            ],
+            [
+              "E",
+              "A tighter lid"
+            ]
+          ],
+          "requiredSelections": 2
+        }
+      ]
+    },
+    {
+      "type": "句尾匹配",
+      "instruction": "Complete each sentence with the correct ending, A–C.",
+      "options": [
+        [
+          "A",
+          "replace the loose lid."
+        ],
+        [
+          "B",
+          "install a second tank."
+        ],
+        [
+          "C",
+          "keep leaves out of the tank."
+        ]
+      ],
+      "questions": [
+        {
+          "id": 8,
+          "prompt": "The mesh screen was fitted to",
+          "answer": "C",
+          "options": []
+        },
+        {
+          "id": 9,
+          "prompt": "A local workshop helped to",
+          "answer": "A",
+          "options": []
+        }
+      ]
+    },
+    {
+      "type": "句子填空",
+      "instruction": "Choose ONE WORD ONLY from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 10,
+          "prompt": "The rainwater comes from the roof of the tool [10].",
+          "answer": "shed",
+          "options": []
+        }
+      ]
+    },
+    {
+      "type": "笔记填空",
+      "instruction": "Choose ONE WORD ONLY from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 11,
+          "prompt": "Blank 11",
+          "answer": "Monday",
+          "options": []
+        },
+        {
+          "id": 12,
+          "prompt": "Blank 12",
+          "answer": "winter",
+          "options": []
+        }
+      ],
+      "context": "Volunteer records\n• Water level checked every [11]\n• Water loss first noticed in the first [12]"
+    },
+    {
+      "type": "表格填空",
+      "instruction": "Choose ONE WORD ONLY from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 13,
+          "prompt": "Blank 13",
+          "answer": "mesh",
+          "options": []
+        },
+        {
+          "id": 14,
+          "prompt": "Blank 14",
+          "answer": "lid",
+          "options": []
+        }
+      ],
+      "table": [
+        [
+          "Location",
+          "Component"
+        ],
+        [
+          "Above the tank",
+          "[13] screen"
+        ],
+        [
+          "Top of the tank",
+          "Tighter [14]"
+        ]
+      ]
+    },
+    {
+      "type": "流程图填空",
+      "instruction": "Choose ONE WORD ONLY from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 15,
+          "prompt": "Blank 15",
+          "answer": "gauge",
+          "options": []
+        },
+        {
+          "id": 16,
+          "prompt": "Blank 16",
+          "answer": "plants",
+          "options": []
+        }
+      ],
+      "context": "Collect rainwater from the shed roof\nCheck the [15] and record the level\nUse the water on [16]"
+    },
+    {
+      "type": "图示标注",
+      "instruction": "Label the diagram. Choose ONE WORD ONLY from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 17,
+          "prompt": "Screen material",
+          "answer": "mesh",
+          "options": []
+        },
+        {
+          "id": 18,
+          "prompt": "Cover of the tank",
+          "answer": "lid",
+          "options": []
+        }
+      ],
+      "diagramAsset": "IELTSReadingRainwaterDiagram",
+      "diagramLabels": [
+        {
+          "id": 17,
+          "x": 0.77,
+          "y": 0.3
+        },
+        {
+          "id": 18,
+          "x": 0.77,
+          "y": 0.58
+        }
+      ]
+    },
+    {
+      "type": "简答题",
+      "instruction": "Choose NO MORE THAN TWO WORDS from the passage for each answer.",
+      "options": [],
+      "questions": [
+        {
+          "id": 19,
+          "prompt": "Where is the garden located?",
+          "answer": "Eastbank",
+          "options": []
+        },
+        {
+          "id": 20,
+          "prompt": "What does the coordinator say matters more than expensive equipment?",
+          "answer": "maintenance rota",
+          "options": []
+        }
+      ]
+    }
+  ]
+}

@@ -194,8 +194,8 @@ struct ContentView: View {
         .onChange(of:studyVisible){_,shown in if !shown{studySession?.suspend()}}
         .onChange(of:studyMode) { oldMode,mode in
             guard studyVisible else{return}
-            let wasPractice=oldMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(oldMode)
-            let nowPractice=mode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(mode)
+            let wasPractice=oldMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(oldMode)
+            let nowPractice=mode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(mode)
             if nowPractice && !wasPractice {
                 studyPreviousVisibility = .all; studyPreviousAI = store.aiPanelVisible
                 columnVisibility = .detailOnly; store.aiPanelVisible = false
@@ -322,17 +322,18 @@ struct ContentView: View {
 
     /// 保持 macOS 原生红黄绿在标准 22pt 位置，彻底消除点击顶部按钮时的闪烁与跳动。
     private var trafficLightTarget:CGFloat { store.selectedBook != nil ? 30 : 22 }
-    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(studyMode))}
+    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(studyMode))}
     /// 侧栏列。主题布局决定它在窗口左侧还是右侧；练习模式（detailOnly）宽度为 0，听写输入框位置不受影响。
     private var sidebarColumn: some View {
-        sidebar
+        let sidebarHidden = columnVisibility == .detailOnly || studyPractice
+        return sidebar
             .zIndex(2)
             .environment(\.lumaSurfacePolish,true)
             .frame(width:215)
-            .frame(width:columnVisibility == .detailOnly ? 0:215,alignment:.leading)
+            .frame(width:sidebarHidden ? 0:215,alignment:.leading)
             .clipped()
-            .allowsHitTesting(columnVisibility != .detailOnly)
-            .accessibilityHidden(columnVisibility == .detailOnly)
+            .allowsHitTesting(!sidebarHidden)
+            .accessibilityHidden(sidebarHidden)
     }
 
     private var lumaNavigation: some View {
@@ -340,6 +341,8 @@ struct ContentView: View {
             sidebarColumn
             GeometryReader { geometry in
             let aiWidth = min(max(340,min(geometry.size.width*0.60,geometry.size.width-336)),max(340,CGFloat(store.aiPanelExpanded ? 520:savedAIPanelWidth)))
+            let aiMotionEnabled = !reduceMotion && store.effectiveMotionLevel != .off
+            let aiMotion = aiMotionEnabled ? (store.aiPanelVisible ? LumaMotionSpring.panelOpen : LumaMotionSpring.panelClose) : nil
             ZStack(alignment:.topTrailing) {
             primaryContent
                 .environment(\.lumaSurfacePolish,true)
@@ -347,8 +350,6 @@ struct ContentView: View {
                 .clipped()
                 .padding(.top,(store.immersive && store.selectedBook == nil) || studyPractice ? 0:workspaceHeaderHeight+readerHeaderTopInset)
                 .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
-                .animation(nil,value:aiWidth)
-                .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? LumaMotionSpring.panelOpen:LumaMotionSpring.panelClose),value:store.aiPanelVisible)
         appHeader(availableWidth:geometry.size.width-(store.aiPanelVisible ? aiWidth+16:0))
             .background(ReaderHeaderHoverRegion().frame(height:workspaceHeaderHeight))
             .frame(height:workspaceHeaderHeight,alignment:.top)
@@ -358,17 +359,20 @@ struct ContentView: View {
             .allowsHitTesting(store.selectedBook != nil && readerChromeVisible && !studyPractice)
             LumaModernAIChatPanel(store:store,controller:controller,onCollapse:{ store.aiPanelVisible = false })
                 .frame(width:aiWidth)
-                .animation(aiDragWidth != nil || reduceMotion || store.effectiveMotionLevel == .off ? nil:LumaMotionSpring.panelOpen,value:store.aiPanelExpanded)
                 .frame(maxHeight:.infinity)
                 .background(store.paper(dark:colorScheme == .dark))
                 .clipShape(RoundedRectangle(cornerRadius:18,style:.continuous))
                 .overlay { RoundedRectangle(cornerRadius:18,style:.continuous).strokeBorder(muted.opacity(0.20),lineWidth:0.5).allowsHitTesting(false) }
                 .overlay(alignment:.leading) {
                     AIResizeHandle(width:Double(aiWidth),onStart:{
-                        aiDragWidth = aiWidth; savedAIPanelWidth = Double(aiWidth);  store.aiPanelExpanded = false
+                        aiResizeTask?.cancel()
+                        controller.beginViewportChange()
+                        aiDragWidth = aiWidth
+                        savedAIPanelWidth = Double(aiWidth)
+                        store.aiPanelExpanded = false
                     },onResize:{ value in
                         savedAIPanelWidth = min(Double(max(340,min(geometry.size.width*0.60,geometry.size.width-336))),max(340,value))
-                    },onEnd:{ aiDragWidth = nil; settleAILayout(delay:0) })
+                    },onEnd:{ aiDragWidth = nil; settleAILayout() })
                     .frame(width:12).frame(maxHeight:.infinity).zIndex(10)
                     .accessibilityLabel(L10n.text("调整 AI 面板宽度"))
                     .accessibilityAdjustableAction { direction in
@@ -376,15 +380,17 @@ struct ContentView: View {
                         savedAIPanelWidth = min(Double(max(340,geometry.size.width-336)),max(340,savedAIPanelWidth+(direction == .increment ? 20:-20)))
                     }
                 }
-                .shadow(color:.black.opacity(colorScheme == .dark ? 0.38:0.12),radius:store.aiPanelVisible ? 22:8,x:0,y:store.aiPanelVisible ? 10:2)
+                .shadow(color:.black.opacity(colorScheme == .dark ? 0.38:0.12),radius:22,x:0,y:10)
                 .padding(.vertical,8)
                 .padding(.trailing,8)
-                .scaleEffect(reduceMotion || store.effectiveMotionLevel == .off ? 1:(store.aiPanelVisible ? 1:0.96),anchor:.trailing)
-                .opacity(store.aiPanelVisible ? 1:0)
-                .offset(x:store.aiPanelVisible ? 0:(reduceMotion || store.effectiveMotionLevel == .off ? 0:56))
+                .animation(aiMotion) { panel in
+                    panel
+                        .scaleEffect(aiMotionEnabled && !store.aiPanelVisible ? 0.96 : 1, anchor:.trailing)
+                        .opacity(store.aiPanelVisible ? 1 : 0)
+                        .offset(x:aiMotionEnabled && !store.aiPanelVisible ? 56 : 0)
+                }
                 .allowsHitTesting(store.aiPanelVisible)
                 .accessibilityHidden(!store.aiPanelVisible)
-                .animation(reduceMotion || store.effectiveMotionLevel == .off ? nil:(store.aiPanelVisible ? LumaMotionSpring.panelOpen:LumaMotionSpring.panelClose),value:store.aiPanelVisible)
                 .zIndex(3)
             }
             .background(ReaderChromeMonitor(enabled:store.selectedBook != nil,trailingInset:store.aiPanelVisible ? aiWidth+16:0,pageTurnPulse:controller.pageTurnPulse,onTopHover:{ inside in
@@ -411,18 +417,20 @@ struct ContentView: View {
             }).frame(width:0,height:0))
 
             .onPreferenceChange(ReadingViewportWidthPreference.self) { width in
-                guard width > 0 else { return }; settleAILayout(delay:0)
+                guard width > 0, aiDragWidth == nil else { return }
+                settleAILayout()
             }
             .onChange(of:store.aiPanelVisible) { _,visible in
                 if !visible { aiDragWidth = nil }
-                 settleAILayout(delay:visible ? 500:650)
+                settleAILayout()
             }
-            .onChange(of:aiWidth) { _,_ in  settleAILayout(delay:0) }
             }
         }
         .coordinateSpace(name:"lumaWindow")
-        .overlayPreferenceValue(SearchAnchorPreference.self) { anchor in searchOverlay(anchor) }
-        .animation(LumaMotion.adjusted(SurfaceMotion.popover,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:showBookSearch)
+        .overlayPreferenceValue(SearchAnchorPreference.self) { anchor in
+            searchOverlay(anchor)
+                .animation(LumaMotion.adjusted(SurfaceMotion.popover,level:store.effectiveMotionLevel,reduceMotion:reduceMotion),value:showBookSearch)
+        }
         .ignoresSafeArea(.container,edges:.top)
     }
 
@@ -490,11 +498,14 @@ struct ContentView: View {
         }
     }
 
-    private func settleAILayout(delay:Int) {
+    private func settleAILayout() {
         aiResizeTask?.cancel()
         aiResizeTask = Task { @MainActor in
-            do { try await Task.sleep(for:.milliseconds(delay)) } catch { return }
-            guard !Task.isCancelled else { return }; controller.finishViewportChange(); aiResizeTask = nil
+            // Coalesce viewport updates while the user is resizing or toggling the panel.
+            do { try await Task.sleep(for:.milliseconds(90)) } catch { return }
+            guard !Task.isCancelled else { return }
+            controller.finishViewportChange()
+            aiResizeTask = nil
         }
     }
 
@@ -1063,6 +1074,8 @@ struct ContentView: View {
             LumaSidebarSection("学习",key:"studySectionExpanded",symbol:"graduationcap",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
                     studyRow("听力", mode:"学习_听力", symbol:"headphones")
+                    studyRow("雅思阅读", mode:"学习_雅思阅读", symbol:"doc.text.magnifyingglass")
+                    studyRow("阅读词汇", mode:"学习_阅读词汇", symbol:"text.book.closed")
                     studyRow("写作", mode:"学习_写作_Task1题库", symbol:"pencil")
                     studyRow("学习统计", mode:"学习_统计", symbol:"chart.bar")
                 }.padding(.horizontal,10)
@@ -1219,11 +1232,11 @@ struct ContentView: View {
             #if DEBUG
             studySession=LumaStudySession(storageDirectory:DebugReaderAcceptance.studyDirectory)
             #else
-            studySession=LumaStudySession()
+            studySession=LumaStudySession.shared
             #endif
         }
         let destination=resume ? studySession!.destination(for:mode,directResume:directResume):mode
-        let isPracticeDest = destination.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习"].contains(destination)
+        let isPracticeDest = destination.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(destination)
         showCloudDashboard = false
         store.returnToLibrary()
         studyPreviousVisibility = .all
@@ -1260,7 +1273,7 @@ struct ContentView: View {
         } label: {
             Label(title,systemImage:symbol).font(store.homeFont(13))
                 .frame(maxWidth:.infinity,minHeight:44,alignment:.leading).padding(.horizontal,11)
-        }.buttonStyle(LumaSidebarButtonStyle(isSelected:studyVisible && (studyMode == mode || (mode=="学习_听力" && studyMode.hasPrefix("学习_听力")) || (mode=="学习_写作_Task1题库" && (studyMode.contains("写作") || studyMode=="学习_草稿"))),accent:store.accent))
+        }.buttonStyle(LumaSidebarButtonStyle(isSelected:studyVisible && (studyMode == mode || (mode=="学习_听力" && studyMode.hasPrefix("学习_听力")) || (mode=="学习_阅读词汇" && (studyMode.hasPrefix("学习_阅读") || studyMode.hasPrefix("学习_背词") || studyMode.hasPrefix("学习_易混词"))) || (mode=="学习_写作_Task1题库" && (studyMode.contains("写作") || studyMode=="学习_草稿"))),accent:store.accent))
     }
 
     private func sideRow(_ title: String, symbol: String, count: Int?) -> some View {

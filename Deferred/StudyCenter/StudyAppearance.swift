@@ -200,13 +200,13 @@ public struct StudyGlassCapsuleButtonStyle: ButtonStyle {
 
 public enum StudyMotion {
     /// 页面切换（交叉淡入淡出）
-    public static let page: Animation = .easeInOut(duration: 0.36)
+    public static let page: Animation = .easeOut(duration: 0.20)
     /// 分段标签选中底色滑动
-    public static let tab: Animation = .easeInOut(duration: 0.34)
+    public static let tab: Animation = .easeOut(duration: 0.20)
     /// 悬停高亮
-    public static let hover: Animation = .easeInOut(duration: 0.22)
+    public static let hover: Animation = .easeOut(duration: 0.13)
     /// 按下反馈
-    public static let press: Animation = .easeOut(duration: 0.18)
+    public static let press: Animation = .easeOut(duration: 0.09)
 }
 
 // MARK: - 与看书中心一致的页面骨架组件

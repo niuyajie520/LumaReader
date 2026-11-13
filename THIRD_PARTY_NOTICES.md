@@ -72,3 +72,9 @@ MaterialColorUtilities Package.swift tools-version directive is moved to its fir
 
 - [Kitten Nano INT8](https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8) and [Kitten Micro](https://huggingface.co/KittenML/kitten-tts-micro-0.8) weights and voices are in `Assets/KittenSpeech`, with the model license included.
 - The Python speech worker uses the same `kittenml==0.9.7` synthesis path as B82. Its installer installs the runtime dependencies and loads weights directly from the app bundle.
+
+## ECDICT
+
+https://github.com/skywind3000/ECDICT
+
+The English–Chinese glosses in the reading vocabulary resource incorporate a cleaned subset of ECDICT. The MIT license is included at `ThirdParty/ECDICT-LICENSE.txt`.

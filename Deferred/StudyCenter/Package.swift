@@ -31,12 +31,20 @@ let package = Package(
                 "StudyPersistence.swift",
                 "StudyPromptView.swift",
                 "StudyReview.swift",
+                "ReadingVocabularyView.swift",
+                "IELTSReadingPractice.swift",
+                "ReadingChoiceQuiz.swift",
                 "WrongWordsCenter.swift",
                 "StudyWorkspace.swift",
                 "VocabularyImport.swift",
                 "VocabularyImportReview.swift",
+                "ConfusablePractice.swift",
+                "ConfusableViews.swift",
+                "MiniPracticeWindow.swift",
             ],
-            resources: [.copy("Resources/CoraVocabulary")]
+            resources: [.copy("Resources/CoraVocabulary"), .copy("Resources/ReadingVocabulary.json"), .copy("Resources/IELTSReadingSamples.json"),
+                        .copy("Resources/IELTSReadingLayoutSample.json"),
+                        .copy("Resources/IELTSReadingRainwaterDiagram.png")]
         ),
         .testTarget(
             name: "LumaReaderStudyKitTests",

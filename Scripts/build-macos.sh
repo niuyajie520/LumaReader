@@ -33,6 +33,7 @@ find "$BIN_DIR" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP_PATH/Contents/
 if [[ -d "Deferred/StudyCenter/Resources/CoraVocabulary" ]]; then
   cp -R "Deferred/StudyCenter/Resources/CoraVocabulary" "$APP_PATH/Contents/Resources/"
 fi
+cp Deferred/StudyCenter/Resources/ReadingVocabulary.json ThirdParty/ECDICT-LICENSE.txt "$APP_PATH/Contents/Resources/"
 cp Sources/LumaReader/Resources/Reader.js Sources/LumaReader/Resources/Reader.css Sources/LumaReader/Resources/AIChat.{html,css,js} Sources/LumaReader/Resources/AIHealth.js Sources/LumaReader/Resources/AppStrings.{js,json} "$APP_PATH/Contents/Resources/"
 cp Sources/LumaReader/Resources/{StPageFlip,PaperFlip}.js "$APP_PATH/Contents/Resources/"
 cp -R Assets/KittenSpeech "$APP_PATH/Contents/Resources/"

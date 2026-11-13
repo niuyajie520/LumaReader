@@ -253,7 +253,7 @@ class KokoroWSOLAEngine:
 
     def _final_cache_path(self, text: str, voice: str, speed: float) -> Path:
         norm_speed = round(max(0.5, min(2.5, float(speed))), 2)
-        key = hashlib.md5(f"audio-v9_{self.selected_model}_{text.strip().lower()}_{voice}_{norm_speed:.2f}".encode("utf-8")).hexdigest()
+        key = hashlib.md5(f"audio-v10_{self.selected_model}_{text.strip().lower()}_{voice}_{norm_speed:.2f}".encode("utf-8")).hexdigest()
         return STRETCH_CACHE_DIR / f"{key}.wav"
 
     def _synthesize_macos_fallback(self, text: str, voice: str, out_path: Path):
@@ -642,23 +642,21 @@ try:
         return s
 
     def _luma_trim_sigh_audio(wav, sr=24000):
-        arr = _np.asarray(wav, dtype=_np.float32).flatten()
+        # 1.12.1: no more hard slicing of the tail (the old [350:-1100] cut into the last phoneme and
+        # produced the odd final sound). Only drop clearly silent/near-silent tail samples, keep a
+        # generous 70 ms margin, then apply a smooth 25 ms fade-out.
+        arr = _np.asarray(wav, dtype=_np.float32).flatten().copy()
         if arr.size <= 2500:
             return arr
-        arr = arr[350:-1100]
-        win = int(sr * 0.015)
-        if arr.size > win * 5:
-            peak = float(_np.max(_np.abs(arr))) + 1e-7
-            thresh = peak * 0.038
-            end_i = arr.size
-            for idx in range(arr.size - win, win * 2, -(win // 2)):
-                if float(_np.max(_np.abs(arr[idx:idx + win]))) > thresh:
-                    end_i = min(arr.size, idx + win + int(sr * 0.025))
-                    break
+        peak = float(_np.max(_np.abs(arr))) + 1e-7
+        thresh = peak * 0.006
+        nz = _np.nonzero(_np.abs(arr) > thresh)[0]
+        if nz.size:
+            end_i = min(arr.size, int(nz[-1]) + int(sr * 0.07))
             arr = arr[:end_i]
-        fade = min(int(sr * 0.012), arr.size // 4)
+        fade = min(int(sr * 0.025), arr.size // 4)
         if fade > 1:
-            arr[-fade:] *= _np.linspace(1.0, 0.0, fade, dtype=_np.float32)
+            arr[-fade:] *= _np.linspace(1.0, 0.0, fade, dtype=_np.float32) ** 1.5
         return arr
 
     import kittentts.onnx_model as _kom
@@ -666,8 +664,6 @@ try:
         _orig_gen = _kom.KittenTTS_1_Onnx.generate
         def _patched_gen(self, text, voice="expr-voice-2-f", speed=1.0, **kwargs):
             clean_t = _luma_clean_short_text(text) or text
-            if isinstance(clean_t, str) and len(clean_t.split(" ")) <= 2 and 0.95 <= float(speed) <= 1.04:
-                speed = 1.06
             raw = _orig_gen(self, clean_t, voice=voice, speed=speed, **kwargs)
             return _luma_trim_sigh_audio(raw)
         _kom.KittenTTS_1_Onnx.generate = _patched_gen

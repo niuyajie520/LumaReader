@@ -33,7 +33,7 @@ find "$PWD/Sources" "$PWD/Deferred" -name "* 2.swift" -delete 2>/dev/null || tru
 mkdir -p Logs
 BUILD_LOG="$PWD/Logs/build-$(date +%Y%m%d-%H%M%S).log"
 echo "=========================================================="
-echo "🚀 Luma Reader V${APP_VERSION} · build ${APP_BUILD} · 正在编译主题重设计版（15 套独立主题+主题专属布局+废土终端+特色错误反馈+三级分类+错词中心+红线保护）（暗莓听写UI + 阅读顶栏水平中心对齐 + 目录主题色 + Apple语音修复）"
+echo "🚀 Luma Reader V${APP_VERSION} · build ${APP_BUILD} · 正在编译（易混词 + 悬浮小窗练习 + 背词独立词库 + 15 套独立主题+主题专属布局+废土终端+特色错误反馈+三级分类+错词中心+红线保护）（暗莓听写UI + 阅读顶栏水平中心对齐 + 目录主题色 + Apple语音修复）"
 echo "=========================================================="
 export LUMA_TOOLCHAIN_LOG="$BUILD_LOG"
 source "$PWD/Scripts/select-developer-tools.sh"

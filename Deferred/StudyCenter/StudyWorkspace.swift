@@ -43,6 +43,8 @@ public struct StudyWorkspaceState: Codable, Equatable, Sendable {
 /// Preserves independent state across Reading, Listening/Dictation, and Writing modules,
 /// and keeps formal exam countdowns running continuously in real time across view switches.
 @MainActor public final class LumaStudySession {
+    /// 主窗口学习中心与悬浮小窗共用同一个会话，避免两份数据互相覆盖。
+    public static let shared = LumaStudySession()
     let model: LumaStudyCenterHostView.HostStateModel
     public init(storageDirectory: URL? = nil) {
         model = LumaStudyCenterHostView.HostStateModel(storageDirectory: storageDirectory)
@@ -106,7 +108,14 @@ import SwiftUI
 import Foundation
 import AppKit
 
-@MainActor final class ListeningDailyGoal: ObservableObject {
+@MainActor final class StudyDailyTimer: ObservableObject {
+    enum Scope: String {
+        case listening, reading
+    }
+
+    private let scope: Scope
+    private var secondsKeyPrefix: String { "luma.\(scope.rawValue).seconds." }
+
     @Published var target: Int = 300
     @Published private(set) var seconds: Int = 0
     @Published private(set) var running = false
@@ -115,8 +124,9 @@ import AppKit
     private var startedAt: Date?
     private var ticker: Task<Void, Never>?
 
-    init() {
-        let saved = defaults.integer(forKey: "luma.listening.dailyTarget")
+    init(scope: Scope = .listening) {
+        self.scope = scope
+        let saved = scope == .listening ? defaults.integer(forKey: "luma.listening.dailyTarget") : 0
         target = saved > 0 ? saved : 300
         restoreToday()
     }
@@ -126,7 +136,7 @@ import AppKit
     }
     private func restoreToday() {
         day = Self.key(Date())
-        seconds = defaults.integer(forKey: "luma.listening.seconds." + day)
+        seconds = defaults.integer(forKey: secondsKeyPrefix + day)
     }
     func setTarget(_ value: Int) {
         target = min(10000, max(1, value))
@@ -140,7 +150,7 @@ import AppKit
                 let boundary = Calendar.current.startOfDay(for: nextDay)
                 let end = min(boundary, now)
                 let dateKey = Self.key(cursor)
-                let storeKey = "luma.listening.seconds." + dateKey
+                let storeKey = secondsKeyPrefix + dateKey
                 defaults.set(defaults.integer(forKey: storeKey) + max(0, Int(end.timeIntervalSince(cursor))), forKey: storeKey)
                 cursor = end
             }
@@ -152,7 +162,7 @@ import AppKit
         guard !running, NSApplication.shared.isActive else { return }
         restoreToday(); startedAt = Date(); running = true
         // dictation_focus_v7
-        NotificationCenter.default.post(name: Notification.Name("LumaReader.DictationFocusChanged"), object: nil, userInfo: ["enabled": true])
+        if scope == .listening { notifyDictationFocus(true) }
         ticker = Task { @MainActor [weak self] in
             var ticks = 0
             while !Task.isCancelled {
@@ -163,15 +173,18 @@ import AppKit
                 else {
                     let today = Self.key(Date())
                     if today != self.day { self.checkpoint() }
-                    else { self.seconds = self.defaults.integer(forKey: "luma.listening.seconds." + today) + Int(Date().timeIntervalSince(self.startedAt ?? Date())) }
+                    else { self.seconds = self.defaults.integer(forKey: secondsKeyPrefix + today) + Int(Date().timeIntervalSince(self.startedAt ?? Date())) }
                 }
             }
         }
     }
     func pause() {
         checkpoint(); running = false; startedAt = nil
-        NotificationCenter.default.post(name: Notification.Name("LumaReader.DictationFocusChanged"), object: nil, userInfo: ["enabled": false])
+        if scope == .listening { notifyDictationFocus(false) }
         ticker?.cancel(); ticker = nil
+    }
+    private func notifyDictationFocus(_ enabled: Bool) {
+        NotificationCenter.default.post(name: Notification.Name("LumaReader.DictationFocusChanged"), object: nil, userInfo: ["enabled": enabled])
     }
     var formatted: String {
         String(format: "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
@@ -179,7 +192,7 @@ import AppKit
 }
 
 struct ListeningDailyGoalCard: View {
-    @ObservedObject var timer: ListeningDailyGoal
+    @ObservedObject var timer: StudyDailyTimer
     let completed: Int
     var compact: Bool = false
     @State private var settingsShown = false

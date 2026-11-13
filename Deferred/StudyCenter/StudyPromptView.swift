@@ -117,6 +117,7 @@ public struct StudyPromptView: View {
 /// Native popovers live outside the scroll view, so the question/chart cannot clip them.
 @MainActor
 final class LumaPromptInteractiveTextView: NSTextView, NSPopoverDelegate {
+    var positionsActionsBelowSelection = false
     var onHighlightsChanged: (([StudyTextHighlight]) -> Void)?
     var currentHighlights: [StudyTextHighlight] = []
     var promptAppearance = StudyAppearance.current
@@ -270,7 +271,14 @@ final class LumaPromptInteractiveTextView: NSTextView, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(rootView: content)
         popover.appearance = NSAppearance(named: promptAppearance.isDark ? .darkAqua : .aqua)
         actionPopover = popover
-        popover.show(relativeTo: rect, of: self, preferredEdge: .maxY)
+        if positionsActionsBelowSelection, let host = window?.contentView {
+            // Convert to the host coordinate system before choosing its physical bottom edge.
+            var anchor = convert(rect, to: host)
+            anchor.origin.y += host.isFlipped ? 5 : -5
+            popover.show(relativeTo: anchor, of: host, preferredEdge: host.isFlipped ? .maxY : .minY)
+        } else {
+            popover.show(relativeTo: rect, of: self, preferredEdge: .maxY)
+        }
     }
 
     private func addHighlight(_ range: NSRange, note: String?) {

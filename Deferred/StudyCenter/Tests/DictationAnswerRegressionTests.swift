@@ -69,6 +69,22 @@ final class DictationAnswerRegressionTests: XCTestCase {
         XCTAssertTrue(DictationAnswerPolicy.matches("member-ship", targetWord: "membership"))
     }
 
+    func testTodayCountIgnoresWrongAndPreviousDayAttemptsAndDeduplicatesWords() {
+        let today = "2026-11-12"
+        let apple = word("a", "apple")
+        let pear = word("b", "pear")
+        var current = DictationSessionStateMachine(dateString: today, initialWords: [apple, pear])
+        _ = current.submitAnswer("wrong")
+        _ = current.submitAnswer("apple")
+        _ = current.submitAnswer("wrong")
+        var yesterday = DictationSessionStateMachine(dateString: "2026-11-11", initialWords: [pear])
+        _ = yesterday.submitAnswer("pear")
+        let logs = current.attemptLogs + current.attemptLogs + yesterday.attemptLogs
+
+        XCTAssertEqual(DictationSessionStateMachine.todayDictatedWordCount(from: logs, on: today), 1)
+        XCTAssertEqual(DictationSessionStateMachine.todayDictatedWordCount(from: [], on: today), 0)
+    }
+
     func testRetryIntervalsAreTenFiftyHundredTwoHundred() {
         XCTAssertEqual(DictationSessionStateMachine.expandingRetryOffsets, [10, 50, 100, 200])
     }

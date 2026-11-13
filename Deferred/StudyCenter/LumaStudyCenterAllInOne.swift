@@ -3797,6 +3797,8 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     private var daemonLog: FileHandle?
     private var runtimeObservers: [NSObjectProtocol] = []
     private var runtimeSuspended = false
+    private(set) var isDisplaySuspended = false
+    private var miniPlaybackActive = false
     private var backgroundReleaseTask: Task<Void, Never>?
     private var cacheTouches: [String: Date] = [:]
     private let cacheMetadataQueue = DispatchQueue(label: "luma.speech.cache-metadata", qos: .utility)
@@ -3810,20 +3812,35 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
 
     private func suspendRuntime(terminateWorker: Bool) {
         runtimeSuspended = true
+        if terminateWorker { isDisplaySuspended = true }
         modelSwitchTask?.cancel(); modelSwitchTask = nil
-        stop()
+        if terminateWorker || !miniPlaybackActive { stop() }
         backgroundReleaseTask?.cancel(); backgroundReleaseTask = nil
-        if terminateWorker { releaseOwnedWorker() }
-        else {
-            suspendPreload()
-            backgroundReleaseTask = Task { @MainActor [weak self] in
+        if terminateWorker {
+            releaseOwnedWorker()
+        } else if !isDisplaySuspended {
+            if !miniPlaybackActive { suspendPreload() }
+            scheduleBackgroundWorkerRelease()
+        }
+    }
+
+    private func scheduleBackgroundWorkerRelease() {
+        backgroundReleaseTask?.cancel()
+        backgroundReleaseTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(30)) } catch { return }
-                guard let self, self.runtimeSuspended else { return }
-                self.releaseOwnedWorker()
+                guard let self, self.runtimeSuspended, !self.isDisplaySuspended else { return }
+                if !self.isPreparingAudio && !EmbeddedNeuralSpeechEngine.shared.isPlaying {
+                    self.releaseOwnedWorker()
+                    return
+                }
             }
         }
     }
 
+    private func playbackAllowed(fromMiniPanel: Bool) -> Bool {
+        !isDisplaySuspended && (!runtimeSuspended || fromMiniPanel)
+    }
 
     public var engineDirectory: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -3863,7 +3880,10 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
             MainActor.assumeIsolated { self?.runtimeSuspended = false; self?.backgroundReleaseTask?.cancel() }
         })
         runtimeObservers.append(center.addObserver(forName: Notification.Name("LumaReader.RuntimeDidResume"), object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.runtimeSuspended = !NSApp.isActive }
+            MainActor.assumeIsolated {
+                self?.isDisplaySuspended = false
+                self?.runtimeSuspended = !NSApp.isActive
+            }
         })
         runtimeObservers.append(center.addObserver(forName: Notification.Name("LumaReader.MemoryPressure"), object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -4035,13 +4055,17 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     }
 
     public func ensureDaemonRunning(preserveSelectedModel: Bool = false) async {
-        guard !isRunningInTestRunner, !isInstallingModels, !runtimeSuspended, !Task.isCancelled else { return }
+        await ensureDaemonRunning(preserveSelectedModel: preserveSelectedModel, fromMiniPanel: false)
+    }
+
+    private func ensureDaemonRunning(preserveSelectedModel: Bool, fromMiniPanel: Bool) async {
+        guard !isRunningInTestRunner, !isInstallingModels, playbackAllowed(fromMiniPanel: fromMiniPanel), !Task.isCancelled else { return }
         syncBundledDaemonScriptsIfNeeded()
         if await checkStatus(preserveSelectedModel: preserveSelectedModel) { return }
-        guard !runtimeSuspended, !Task.isCancelled else { return }
+        guard playbackAllowed(fromMiniPanel: fromMiniPanel), !Task.isCancelled else { return }
         if isServiceOnline {
             for _ in 0..<40 {
-                if Task.isCancelled || daemonLoadFailed { return }
+                guard playbackAllowed(fromMiniPanel: fromMiniPanel), !Task.isCancelled, !daemonLoadFailed else { return }
                 try? await Task.sleep(for: .milliseconds(250))
                 if await checkStatus(preserveSelectedModel: preserveSelectedModel) { return }
             }
@@ -4085,7 +4109,7 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
                 catch { statusText = "语音服务启动失败：\(error.localizedDescription)"; return }
             }
             for _ in 0..<25 {
-                guard !runtimeSuspended, !Task.isCancelled else { return }
+                guard playbackAllowed(fromMiniPanel: fromMiniPanel), !Task.isCancelled else { return }
                 do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
                 if await checkStatus(preserveSelectedModel: preserveSelectedModel) { return }
                 if daemonLoadFailed { return }
@@ -4093,7 +4117,7 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
             }
         } else {
             for _ in 0..<20 {
-                guard !runtimeSuspended, !Task.isCancelled else { return }
+                guard playbackAllowed(fromMiniPanel: fromMiniPanel), !Task.isCancelled else { return }
                 do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
                 if await checkStatus(preserveSelectedModel: preserveSelectedModel) { return }
             }
@@ -4141,12 +4165,17 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
 
     private func stretchedCacheURL(text: String, voice: String, speed: Float) -> URL {
         let normSpeed = String(format: "%.2f", max(0.5, min(2.5, Double(speed))))
-        let rawKey = "audio-v9_\(selectedModel)_\(text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())_\(voice)_\(normSpeed)"
+        let rawKey = "audio-v10_\(selectedModel)_\(text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())_\(voice)_\(normSpeed)"
         let digest = Insecure.MD5.hash(data: Data(rawKey.utf8)).map { String(format: "%02x", $0) }.joined()
         return engineDirectory.appendingPathComponent("cache/stretched/\(digest).wav")
     }
 
+    func stopMiniPlayback() {
+        if miniPlaybackActive { stop() }
+    }
+
     public func stop() {
+        miniPlaybackActive = false
         synthesisTask?.cancel(); synthesisTask = nil
         activeSpeechRequestID = nil; pendingRequestKey = nil; pendingPlaybackIntent = nil; isPreparingAudio = false
         EmbeddedNeuralSpeechEngine.shared.stop()
@@ -4161,25 +4190,34 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
     /// Plays the word using Kitten ONNX + WSOLA time-stretching + 80ms silence padding.
     /// Returns true if neural playback succeeded or started asynchronously.
     @discardableResult
-    public func play(text: String, speed: Float, voiceOverride: String? = nil, repeats: Int = 1, interval: Double = 0.5, onFailure: (@MainActor () -> Void)? = nil) -> Bool {
+    public func play(text: String, speed: Float, voiceOverride: String? = nil, repeats: Int = 1, interval: Double = 0.5, prefetch: [String] = [], onFailure: (@MainActor () -> Void)? = nil) -> Bool {
+        play(text: text, speed: speed, voiceOverride: voiceOverride, repeats: repeats, interval: interval,
+             fromMiniPanel: false, prefetch: prefetch, onFailure: onFailure)
+    }
+
+    @discardableResult
+    func play(text: String, speed: Float, voiceOverride: String? = nil, repeats: Int = 1, interval: Double = 0.5, fromMiniPanel: Bool, prefetch: [String] = [], onFailure: (@MainActor () -> Void)? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !runtimeSuspended, !trimmed.isEmpty, !isSwitching, !isInstallingModels else { return false }
+        guard playbackAllowed(fromMiniPanel: fromMiniPanel), !trimmed.isEmpty, !isSwitching, !isInstallingModels else { return false }
+        if fromMiniPanel && runtimeSuspended { scheduleBackgroundWorkerRelease() }
         if let process = ownedDaemon, !process.isRunning { isReady = false; isServiceOnline = false }
         let model = selectedModel
         let voice = voiceOverride ?? activeSlots[currentSlot] ?? defaultVoice(for: currentSlot, model: model)
         let key = "\(model)|\(voice)|\(trimmed)"
         let intent = (speed: min(2.5, max(0.5, speed)), repeats: min(5, max(1, repeats)), interval: max(0, interval))
         // Replaying a word that is still generating keeps its existing request alive.
-        if isPreparingAudio, pendingRequestKey == key {
+        if isPreparingAudio, pendingRequestKey == key, miniPlaybackActive == fromMiniPanel {
             pendingPlaybackIntent = intent
             statusText = "正在准备 \(trimmed)，音频就绪后会播放…"
             return true
         }
         stop()
+        miniPlaybackActive = fromMiniPanel
         let rate = min(2.5, max(0.5, speed))
         let cached = stretchedCacheURL(text: trimmed, voice: voice, speed: 1.0)
         if FileManager.default.fileExists(atPath: cached.path) {
             playWAVFile(at: cached, text: trimmed, speed: rate, repeats: repeats, interval: interval, onFailure: onFailure)
+            preload(phrases: prefetch)
             return true
         }
         let requestID = UUID()
@@ -4199,9 +4237,9 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
                 }
             }
             if !isReady {
-                await ensureDaemonRunning(preserveSelectedModel: true)
+                await ensureDaemonRunning(preserveSelectedModel: true, fromMiniPanel: fromMiniPanel)
             }
-            guard !Task.isCancelled, activeSpeechRequestID == requestID, !runtimeSuspended else { return }
+            guard !Task.isCancelled, activeSpeechRequestID == requestID, playbackAllowed(fromMiniPanel: fromMiniPanel) else { return }
             guard isReady else { onFailure?(); return }
             do {
                 guard let url = URL(string: "http://127.0.0.1:\(port)/synthesize") else { return }
@@ -4223,6 +4261,9 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
                 }
                 let latest = pendingPlaybackIntent ?? intent
                 playWAVFile(at: URL(fileURLWithPath: path), text: trimmed, speed: latest.speed, repeats: latest.repeats, interval: latest.interval, onFailure: onFailure)
+                // The daemon can finish a running background job before serving foreground work.
+                // Enqueue upcoming words only after the current word has been generated.
+                preload(phrases: prefetch)
                 statusText = "\(modelTitle) · \(voice)"
             } catch {
                 if !Task.isCancelled, activeSpeechRequestID == requestID {

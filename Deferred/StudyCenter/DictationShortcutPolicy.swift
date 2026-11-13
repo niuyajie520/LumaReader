@@ -24,5 +24,5 @@ enum DictationShortcutPolicy {
         }
         return nil
     }
-    static let helpText = "⌘R　重新播放\n⇧⌘R　慢放 0.75×\n⌥⌘P　暂停／继续\n⌥⌘M　显示／隐藏中文\n⌘/　首字母提示\n⌥⌘←　上一个已完成单词\nReturn　提交答案\n⇧⌘/　显示快捷键\n\n仅在当前听写窗口生效。⌘H 保留为 macOS 隐藏应用。"
+    static let helpText = "⌘R　重新播放\n⇧⌘R　慢放 0.75×\n⌥⌘P　暂停／继续\n空格　计时已暂停时继续（切回应用后直接按）\n⌥⌘M　显示／隐藏中文\n⌘/　首字母提示\n⌥⌘←　上一个已完成单词\nReturn　提交答案\n⇧⌘/　显示快捷键\n\n仅在当前听写窗口生效。⌘H 保留为 macOS 隐藏应用。"
 }

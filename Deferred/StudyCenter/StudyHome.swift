@@ -12,6 +12,7 @@ import SwiftUI
 import AppKit
 import Combine
 import Charts
+import GameController
 import UniformTypeIdentifiers
 #if canImport(SwiftUI) && canImport(AppKit)
 
@@ -840,7 +841,7 @@ public struct LumaStudyCenterHostView: View {
             guard save() else { storeSnapshot = original; currentDraft = active; suppressDraftAutosave = wasSuppressed; return false }
             return true
         }
-        func submitDictationInput() -> DictationSubmitOutcome? {
+        func submitDictationInput(_ input: String? = nil, newWordStrategy: NewWordDictationStrategy? = nil) -> DictationSubmitOutcome? {
             let now = Date()
             let latency: Double
             if let finishedAt = audioPlaybackFinishedAt {
@@ -849,7 +850,7 @@ public struct LumaStudyCenterHostView: View {
                 latency = 2.0
             }
             lastSubmittedReactionSeconds = latency
-            guard let result = dictationMachine.submitAnswer(dictationInput, durationSeconds: latency) else { return nil }
+            guard let result = dictationMachine.submitAnswer(input ?? dictationInput, durationSeconds: latency, newWordStrategy: newWordStrategy) else { return nil }
             showMeaning = dictationMachine.attemptLogs.last?.isCorrect == false
             return result
         }
@@ -1381,6 +1382,7 @@ public struct LumaStudyCenterHostView: View {
     @State private var dictationErrorFlash: Bool = false
     @State private var dictationErrorPulse = 0
     @State private var dictationErrorFeedbackTask: Task<Void,Never>?
+    @State private var pendingDictationPlayback: Task<Void, Never>?
     @StateObject private var kokoro = KokoroNeuralBridge.shared
     @State private var deckToRename: String? = nil
     @AppStorage("luma.study.pinnedDecks") private var pinnedDecksRaw: String = ""
@@ -1425,12 +1427,14 @@ public struct LumaStudyCenterHostView: View {
     @State private var deckRenameText: String = ""
     @State private var deckToDelete: String? = nil
     @State private var deckEditing: LumaDeckEditTarget? = nil
+    private enum DictationSettingsTab: String, CaseIterable {
+        case practice = "练习"
+        case voice = "发音"
+        case more = "更多"
+    }
+
     @State private var dictationMoreShown = false
-    @State private var dictationSettingsCategory: String = "听力与词库"
-    @State private var dictationCategoryHistory: [String] = ["听力与词库"]
-    @State private var dictationHistoryIndex: Int = 0
-    @State private var dictationSettingsSearch: String = ""
-    @AppStorage("luma.settings.iconStyle") private var dictationSettingsIconStyle: String = "unified"
+    @State private var dictationSettingsTab: DictationSettingsTab = .practice
     @AppStorage("luma.listening.speechRate") private var globalListeningSpeechRate: Double = 1.0
     @AppStorage("luma.listening.defaultShowMeaning") private var globalDefaultShowMeaning: Bool = false
     @AppStorage("luma.listening.defaultShowHint") private var globalDefaultShowHint: Bool = false
@@ -1449,7 +1453,8 @@ public struct LumaStudyCenterHostView: View {
     @State private var draftToDelete: UUID?
     @State private var clockToken = UUID()
     // listening_daily_goal_v1
-    @StateObject private var listeningDailyTimer = ListeningDailyGoal()
+    @State private var readingQuizSpeechIssue: (word: String, message: String)?
+    @StateObject private var listeningDailyTimer = StudyDailyTimer()
     @StateObject private var vm: HostStateModel
     @StateObject private var audio = SpeechAudioPipeline()
     @State private var importDraft: VocabularyImportDraft?
@@ -1482,6 +1487,17 @@ public struct LumaStudyCenterHostView: View {
     @FocusState private var task2SearchFocused: Bool
 
     @State private var categoryWordLimit: Int = 80
+    /// 1.11.0 选择题背词：当前背诵的词库（与听写会话的 selectedDeck 分开，互不影响）。
+    @State private var readingReviewWords: [VocabularyWord] = []
+    @State private var readingVocabularyPosition = ReadingVocabularyPosition()
+    @State private var readingFolderPath: [String] = []
+    @State private var readingFolderSearch = ""
+    @State private var readingFolderCardID: String?
+    @State private var listeningCardID: String?
+    @State private var readingQuizReturn = "学习_阅读词汇"
+    @AppStorage("luma.choiceQuiz.deck") private var choiceQuizDeckID: String = ""
+    @ObservedObject private var choiceLibrary = LumaChoiceLibrary.shared
+    @AppStorage("luma.confusable.scope") private var confusableScope: String = "all"
 
     private var allWords: [VocabularyWord] {
         vm.fastAllWords
@@ -1529,24 +1545,14 @@ public struct LumaStudyCenterHostView: View {
         ZStack {
             appearance.background.ignoresSafeArea()
 
-            VStack(spacing: (mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习") ? 0 : 12) {
+            VStack(spacing: ["学习_听力", "学习_听力_我的词库", "学习_听力_今日计划", "学习_听力_错词复习"].contains(mode) ? 0 : 12) {
                 // 听写练习页（今日计划/错词复习）顶部仅保留「词汇听写 34 / 968」与右侧「1.5× │ ☰」「01:03:01」两枚胶囊，
                 // 词库、多本重练、错词、记录、语音及设置统一收纳在「☰」菜单中。
-                if mode != "学习_听力_今日计划" && mode != "学习_听力_错词复习" && !mode.contains("模拟机考") {
+                if mode != "学习_听力_今日计划" && mode != "学习_听力_错词复习" && !mode.hasPrefix("学习_阅读") && !mode.hasPrefix("学习_背词") && !mode.hasPrefix("学习_易混词") && !mode.contains("模拟机考") {
                 HStack(spacing: 12) {
                     if mode.contains("听力") || ((mode.contains("写作") || mode == "学习_草稿") && !mode.contains("模拟机考")) {
                         HStack(spacing: 6) {
                             if mode.contains("听力") {
-                                if mode != "学习_听力_今日计划" && mode != "学习_听力_错词复习" {
-                                    Button {
-                                        mode = vm.dictationMachine.mode == .wrongWordReview ? "学习_听力_错词复习" : "学习_听力_今日计划"
-                                    } label: {
-                                        Label("继续听写", systemImage: "play.fill")
-                                    }
-                                    .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: hasUnfinishedListeningSession, horizontalPadding: 14, height: 32))
-                                    .disabled(!hasUnfinishedListeningSession)
-                                    .transition(.scale(scale: 0.92).combined(with: .opacity))
-                                }
                                 Button("词库") {
                                     showListeningCategoryBar = false
                                     mode = "学习_听力"
@@ -1561,8 +1567,15 @@ public struct LumaStudyCenterHostView: View {
                                     mode = "学习_听力_分类"
                                 }
                                 .buttonStyle(StudyGlassCapsuleButtonStyle(selected: mode == "学习_听力_分类", horizontalPadding: 12, height: 32))
-
-
+                                if hasUnfinishedListeningSession {
+                                    Button {
+                                        mode = vm.dictationMachine.mode == .wrongWordReview ? "学习_听力_错词复习" : "学习_听力_今日计划"
+                                    } label: {
+                                        Label("继续听写", systemImage: "play.fill")
+                                    }
+                                    .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 32))
+                                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                                }
 
                             } else {
                                 if hasUnfinishedWritingDraft {
@@ -1616,6 +1629,10 @@ public struct LumaStudyCenterHostView: View {
                     Menu {
                         if mode.contains("听力") {
                             Section("听力") {
+                                Button {
+                                    NotificationCenter.default.post(name: LumaMiniPracticeNotification.open, object: nil,
+                                                                    userInfo: ["source": "listening", "scope": vm.selectedDeck])
+                                } label: { Label("小窗听写（悬浮置顶）", systemImage: "pip") }
                                 Button { mode = "学习_听力_学习记录" } label: { Label("学习记录", systemImage: "chart.bar.xaxis") }
                                 Button { mode = "学习_听力_慢反应词" } label: { Label("慢反应词 (\((vm.storeSnapshot.slowReactionWords ?? []).count))", systemImage: "tortoise") }
                                 Button { mode = "学习_听力_顽固单词" } label: { Label("顽固单词", systemImage: "exclamationmark.triangle") }
@@ -1674,7 +1691,6 @@ public struct LumaStudyCenterHostView: View {
                     }
                 }
                 .zIndex(1)
-                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: mode)
                 .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.9), value: topSyncToast)
                 .task(id: topSyncToast) {
                     guard topSyncToast != nil else { return }
@@ -1725,6 +1741,14 @@ public struct LumaStudyCenterHostView: View {
                     listeningCenterView(submode: .wrongWordReview)
                 case "学习_听力_错词":
                     wrongWordsCenterPage
+                case "学习_阅读词汇", "学习_阅读错词", "学习_阅读分类", "学习_背词", "学习_易混词":
+                    readingVocabularySection
+                case "学习_雅思阅读":
+                    IELTSReadingPractice()
+                case "学习_背词_练习":
+                    choiceQuizPage
+                case "学习_易混词_练习":
+                    LumaConfusablePracticePage(scope: confusableScope, onExit: { mode = "学习_易混词" })
                 case "学习_听力_慢反应词":
                     slowReactionWordsDedicatedView
                 case "学习_听力_顽固单词":
@@ -1867,7 +1891,7 @@ public struct LumaStudyCenterHostView: View {
                 onRestoreDefaults: { vm.restoreDeletedBuiltInQuestions() }
             )
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: mode)
+        // 1.12.1: 去掉整页 value: mode 的隐式动画——它会让整棵听写页面（含侧栏宽度变化）在切换瞬间一起做布局动画，造成卡顿和不跟手。
         // 离开写作确认：改用应用内自绘对话框（系统 alert 在写作计时界面里按钮会失效）
         .sheet(isPresented: $showWritingExit, onDismiss: {
             if !writingExitResolved { cancelWritingExit() }
@@ -1907,12 +1931,18 @@ public struct LumaStudyCenterHostView: View {
         .onChange(of: listeningDailyTimer.running) { _, running in
             if running {
                 let rate = resumePlaybackRate; resumePlaybackRate = nil
-                speakCurrentWord(overrideRate: rate)
                 answerFocused = true
+                if let rate {
+                    speakCurrentWord(overrideRate: rate)
+                } else if pendingDictationPlayback == nil {
+                    scheduleDictationPlayback()
+                }
             } else {
+                pendingDictationPlayback?.cancel()
+                pendingDictationPlayback = nil
                 answerFocused = false
                 ttsEngine.stop(); audio.stop(); kokoro.stop(); kokoro.suspendPreload()
-                vm.save()
+                vm.scheduleSave(after: 0.3)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.DictationAudioFinished"))) { notification in
@@ -2025,10 +2055,18 @@ public struct LumaStudyCenterHostView: View {
             dictationErrorFeedbackTask?.cancel()
             withTransaction(Transaction(animation:nil)) { dictationErrorFlash = false; dictationErrorShake = 0 }
         }
-        .onDisappear { dictationErrorFeedbackTask?.cancel(); dictationErrorFlash = false; kokoro.suspendPreload(); listeningDailyTimer.pause(); if vm.clockOwner == clockToken { vm.clockOwner = nil }; vm.save(); ttsEngine.stop(); audio.stop(); kokoro.stop() }
+        .onDisappear {
+            pendingDictationPlayback?.cancel()
+            pendingDictationPlayback = nil
+            dictationErrorFeedbackTask?.cancel(); dictationErrorFlash = false; kokoro.suspendPreload(); listeningDailyTimer.pause(); if vm.clockOwner == clockToken { vm.clockOwner = nil }; vm.save(); ttsEngine.stop(); audio.stop(); kokoro.stop()
+        }
         .onChange(of: mode) { previous, destination in
             if destination == "学习_听力_今日计划" || destination == "学习_听力_错词复习" { listeningDailyTimer.start() }
-            else { listeningDailyTimer.pause() }
+            else {
+                pendingDictationPlayback?.cancel()
+                pendingDictationPlayback = nil
+                listeningDailyTimer.pause()
+            }
             if previous.contains("模拟机考"), !destination.contains("模拟机考"), !vm.allowWritingNavigation {
                 writingExitDestination = destination; exitToReading = false
                 mode = previous; showWritingExit = true; return
@@ -2972,7 +3010,10 @@ public struct LumaStudyCenterHostView: View {
                 .frame(width: 1, height: 18)
 
             // 3. 三个点功能键（参考主页右上角 ellipsis.circle 排版）：统一收纳词库、多本重练、错词、记录、语音与设置
-            Button { dictationMoreShown.toggle() } label: {
+            Button {
+                if !dictationMoreShown { dictationSettingsTab = .practice }
+                dictationMoreShown.toggle()
+            } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(dictTextPrimary.opacity(0.92))
@@ -2981,7 +3022,8 @@ public struct LumaStudyCenterHostView: View {
             }
             .menuIndicator(.hidden)
             .menuStyle(.borderlessButton)
-            .help("词库、多本重练、错词、记录、语音及设置菜单")
+            .help("听写设置")
+            .accessibilityLabel("听写设置")
             .accessibilityIdentifier("study.dictation.more")
             .popover(isPresented: $dictationMoreShown, arrowEdge: .top) {
                 dictationMorePanel
@@ -3006,465 +3048,246 @@ public struct LumaStudyCenterHostView: View {
         }
     }
 
-    private struct DictationSettingsSidebarItem: Identifiable {
-        let id: String
-        let title: String
-        let symbol: String
-        let badgeColor: Color
-        let keywords: [String]
-    }
-
-    private var dictationSettingsSidebarItems: [DictationSettingsSidebarItem] {
-        [
-            DictationSettingsSidebarItem(
-                id: "听力与词库",
-                title: "听力与词库",
-                symbol: "headphones",
-                badgeColor: Color(red: 0.58, green: 0.38, blue: 0.92),
-                keywords: ["词库", "倍速", "语速", "中文", "释义", "首字母", "目标", "间隔", "错词合练", "重新开始"]
-            ),
-            DictationSettingsSidebarItem(
-                id: "语音与声线",
-                title: "语音与声线",
-                symbol: "waveform",
-                badgeColor: Color(red: 0.91, green: 0.36, blue: 0.53),
-                keywords: ["发音", "引擎", "模型", "Kokoro", "Kitten", "美音", "英音", "男声", "女声", "删除", "试听"]
-            ),
-            DictationSettingsSidebarItem(
-                id: "模块与同步",
-                title: "模块与同步",
-                symbol: "square.grid.2x2.fill",
-                badgeColor: Color(red: 0.24, green: 0.56, blue: 0.96),
-                keywords: ["返回", "错词复习", "慢反应", "顽固", "学习记录", "云盘", "同步", "阅读"]
-            )
-        ]
-    }
-
-    private var filteredDictationSettingsSidebarItems: [DictationSettingsSidebarItem] {
-        let q = dictationSettingsSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return dictationSettingsSidebarItems }
-        return dictationSettingsSidebarItems.filter { item in
-            item.title.lowercased().contains(q) || item.keywords.contains(where: { $0.lowercased().contains(q) })
-        }
-    }
-
-    private func selectDictationSettingsCategory(_ cat: String) {
-        guard cat != dictationSettingsCategory else { return }
-        dictationSettingsCategory = cat
-        if dictationHistoryIndex < dictationCategoryHistory.count - 1 {
-            dictationCategoryHistory = Array(dictationCategoryHistory.prefix(dictationHistoryIndex + 1))
-        }
-        dictationCategoryHistory.append(cat)
-        dictationHistoryIndex = dictationCategoryHistory.count - 1
-    }
-
-    /// 听力设置面板（仿照全局设置左右分栏排版，紧凑「一小半」窗口尺寸）
     private var dictationMorePanel: some View {
-        let rowBg = dictCardColor.opacity(0.84)
-        let dark = appearance.isDark
-        let useUnifiedIcons: Bool = {
-            switch dictationSettingsIconStyle {
-            case "colorful": return false
-            case "auto": return dark
-            default: return true
+        VStack(spacing: 0) {
+            HStack {
+                Text("听写设置").lumaFont(size: 17, weight: .semibold)
+                Spacer()
+                Button("完成") { dictationMoreShown = false }
+                    .keyboardShortcut(.defaultAction)
             }
-        }()
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
 
-        return HStack(spacing: 0) {
-            // MARK: 左侧紧凑导航栏（模仿第二张图片 ReaderSettings 分栏样式）
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(dictTextSecondary)
-                    TextField("搜索", text: $dictationSettingsSearch)
-                        .textFieldStyle(.plain)
-                        .lumaFont(size: 12)
-                        .foregroundStyle(dictTextPrimary)
-                    if !dictationSettingsSearch.isEmpty {
-                        Button {
-                            dictationSettingsSearch = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(dictTextSecondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+            Picker("设置分类", selection: $dictationSettingsTab) {
+                ForEach(DictationSettingsTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(dictTextPrimary.opacity(dark ? 0.08 : 0.06))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .strokeBorder(dictTextPrimary.opacity(0.12), lineWidth: 0.8)
-                        )
-                )
-                .padding(.horizontal, 10)
-                .padding(.top, 12)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(filteredDictationSettingsSidebarItems) { item in
-                            let isSelected = (dictationSettingsCategory == item.id)
-                            Button {
-                                selectDictationSettingsCategory(item.id)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    ZStack {
-                                        if useUnifiedIcons {
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(dictAccentPink.opacity(isSelected ? 0.28 : (dark ? 0.16 : 0.12)))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                        .strokeBorder(dictAccentPink.opacity(isSelected ? 0.62 : 0.28), lineWidth: 0.8)
-                                                )
-                                                .frame(width: 22, height: 22)
-                                            Image(systemName: item.symbol)
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .foregroundStyle(isSelected ? dictTextPrimary : dictAccentPink)
-                                        } else {
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(item.badgeColor.gradient)
-                                                .frame(width: 22, height: 22)
-                                            Image(systemName: item.symbol)
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .foregroundStyle(.white)
-                                        }
-                                    }
-                                    Text(item.title)
-                                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
-                                        .foregroundStyle(dictTextPrimary)
-                                        .lineLimit(1)
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(isSelected ? dictAccentPink.opacity(dark ? 0.24 : 0.16) : Color.clear)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .strokeBorder(isSelected ? dictAccentPink.opacity(0.45) : Color.clear, lineWidth: 0.8)
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                }
-
-                Spacer(minLength: 0)
             }
-            .frame(width: 148)
-            .background(dictCardColor.opacity(dark ? 0.45 : 0.58))
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
 
             Divider().opacity(0.25)
-
-            // MARK: 右侧详情功能区（模仿第二张图片顶部 < | > 标题栏 + 完成按钮 + 分组卡片）
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    HStack(spacing: 1) {
-                        Button {
-                            guard dictationHistoryIndex > 0 else { return }
-                            dictationHistoryIndex -= 1
-                            dictationSettingsCategory = dictationCategoryHistory[dictationHistoryIndex]
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 24, height: 22)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(dictationHistoryIndex <= 0)
-                        .opacity(dictationHistoryIndex > 0 ? 0.9 : 0.35)
-
-                        Rectangle()
-                            .fill(dictTextPrimary.opacity(0.14))
-                            .frame(width: 1, height: 12)
-
-                        Button {
-                            guard dictationHistoryIndex < dictationCategoryHistory.count - 1 else { return }
-                            dictationHistoryIndex += 1
-                            dictationSettingsCategory = dictationCategoryHistory[dictationHistoryIndex]
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 24, height: 22)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(dictationHistoryIndex >= dictationCategoryHistory.count - 1)
-                        .opacity(dictationHistoryIndex < dictationCategoryHistory.count - 1 ? 0.9 : 0.35)
-                    }
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(dictTextPrimary.opacity(dark ? 0.08 : 0.05))
-                            .overlay(Capsule(style: .continuous).strokeBorder(dictTextPrimary.opacity(0.12), lineWidth: 0.8))
-                    )
-
-                    Text(dictationSettingsCategory)
-                        .lumaFont(size: 15, weight: .semibold)
-                        .foregroundStyle(dictTextPrimary)
-
-                    Spacer()
-
-                    Button {
-                        dictationMoreShown = false
-                    } label: {
-                        Text("完成")
-                            .lumaFont(size: 12.5, weight: .semibold)
-                            .foregroundStyle(dictOnAccent)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(dictAccentPink)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.defaultAction)
+            Form {
+                switch dictationSettingsTab {
+                case .practice: dictationPracticeSettings
+                case .voice: dictationVoiceSettings
+                case .more: dictationAdditionalSettings
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-
-                Divider().opacity(0.22)
-
-                Form {
-                    if dictationSettingsCategory == "听力与词库" {
-                        Section("听写与词库") {
-                            Picker("当前词库", selection: dictationDeckBinding) {
-                                if vm.selectedDeck.hasPrefix("__mixed_wrong__") {
-                                    Text("多词本错词合练").tag(vm.selectedDeck)
-                                }
-                                ForEach(visibleListeningDeckIDs, id: \.self) { id in
-                                    Text(deckTitle(for: id)).tag(id)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Picker("语音声线", selection: dictationVoiceBinding) {
-                                ForEach(KokoroVoiceSlot.allCases) { slot in
-                                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Picker("播报倍速", selection: $vm.speechRateMultiplier) {
-                                ForEach([Float(0.5), 0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.8, 2.0], id: \.self) { spd in
-                                    Text(Self.formatSpeedText(spd)).tag(spd)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Toggle("显示中文释义", isOn: Binding(
-                                get: { vm.showMeaning },
-                                set: { vm.showMeaning = $0; vm.save() }
-                            ))
-
-                            Toggle("显示首字母提示", isOn: $showFirstLetterHint)
-
-                            Picker("每日目标时长", selection: Binding(
-                                get: { max(10, listeningDailyTimer.target / 60) },
-                                set: { listeningDailyTimer.setTarget($0 * 60) }
-                            )) {
-                                ForEach([10, 15, 20, 30, 45, 60], id: \.self) { mins in
-                                    Text("\(mins) 分钟").tag(mins)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            LabeledContent("播报语速调节") {
-                                HStack(spacing: 8) {
-                                    Slider(value: Binding(
-                                        get: { Double(vm.speechRateMultiplier) },
-                                        set: { vm.speechRateMultiplier = Float($0) }
-                                    ), in: 0.5...2.0, step: 0.05)
-                                    Text(Self.formatSpeedText(vm.speechRateMultiplier))
-                                        .monospacedDigit()
-                                        .frame(width: 44, alignment: .trailing)
-                                }
-                            }
-
-                            LabeledContent("重复间隔") {
-                                HStack(spacing: 8) {
-                                    Slider(value: Binding(
-                                        get: { vm.storeSnapshot.speechInterval ?? 0.5 },
-                                        set: { vm.storeSnapshot.speechInterval = $0; vm.save() }
-                                    ), in: 0.2...2.0, step: 0.1)
-                                    Text(String(format: "%.1fs", vm.storeSnapshot.speechInterval ?? 0.5))
-                                        .monospacedDigit()
-                                        .frame(width: 44, alignment: .trailing)
-                                }
-                            }
-                        }
-                        .listRowBackground(rowBg)
-
-                        Section("词库操作") {
-                            Button("多词本错词合练…", systemImage: "square.stack") {
-                                dictationMoreShown = false
-                                showMixedWrongSelector()
-                            }
-                            Button("重新开始本轮", systemImage: "arrow.clockwise") {
-                                dictationMoreShown = false
-                                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: vm.dictationMachine.mode, resume: false)
-                            }
-                            if isImportedDeck(vm.selectedDeck) {
-                                deckActions(vm.selectedDeck)
-                            }
-                        }
-                        .listRowBackground(rowBg)
-                    }
-
-                    if dictationSettingsCategory == "语音与声线" {
-                        Section("发音引擎与神经声线") {
-                            Picker("发音引擎", selection: $kokoro.useAppleSystemSpeech) {
-                                Text("本地神经语音（Kitten）").tag(false)
-                                Text("Apple 系统语音").tag(true)
-                            }
-                            .pickerStyle(.menu)
-
-                            if !kokoro.useAppleSystemSpeech {
-                                Picker("本地神经模型", selection: Binding(
-                                    get: { kokoro.selectedModel },
-                                    set: { kokoro.switchModel($0) }
-                                )) {
-                                    Text("Kitten Micro · 40M (轻量快速)").tag("kitten-micro")
-                                    Text("Kitten Nano · 15M (超低内存)").tag("kitten-nano")
-                                }
-                                .pickerStyle(.menu)
-                                .disabled(kokoro.isSwitching)
-                            }
-
-                            Picker("当前默认发音人", selection: dictationVoiceBinding) {
-                                ForEach(KokoroVoiceSlot.allCases) { slot in
-                                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            if !kokoro.useAppleSystemSpeech {
-                                ForEach(KokoroVoiceSlot.allCases) { slot in
-                                    Picker(slot.kittenDisplayName, selection: Binding(
-                                        get: { kokoro.activeSlots[slot] ?? kokoro.defaultVoice(for: slot) },
-                                        set: { newVoice in
-                                            kokoro.selectVoice(newVoice, for: slot)
-                                            speakCurrentWord()
-                                        }
-                                    )) {
-                                        ForEach(kokoro.voicesForSlot(slot), id: \.self) { voiceID in
-                                            Text(voiceID).tag(voiceID)
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
-                                }
-
-                            }
-                            LabeledContent("引擎状态") {
-                                Text(kokoro.statusText)
-                                    .font(.caption)
-                                    .foregroundStyle(kokoro.isReady ? dictAccentPink : dictTextSecondary)
-                            }
-
-                            Button("试听当前声线", systemImage: "speaker.wave.2.fill") {
-                                speakCurrentWord()
-                            }
-
-                            if !kokoro.hasBundledModels {
-                                Button(role: .destructive) {
-                                    kokoro.deleteModel(kokoro.selectedModel)
-                                } label: {
-                                    Label("删除当前模型文件 (\(kokoro.modelTitle))", systemImage: "trash")
-                                }
-
-                            }
-                            Button("在 Finder 中打开模型目录…", systemImage: "folder") {
-                                kokoro.revealModelDirectoryInFinder()
-                            }
-
-                            Button("更多发音与语音服务设置…", systemImage: "slider.horizontal.3") {
-                                dictationMoreShown = false
-                                openSpeechSettings()
-                            }
-                        }
-                        .listRowBackground(rowBg)
-                    }
-
-                    if dictationSettingsCategory == "模块与同步" {
-                        Section("模块导航与数据同步") {
-                            Button("听写快捷键…", systemImage: "keyboard") {
-                                dictationMoreShown = false
-                                DispatchQueue.main.async { showListeningShortcuts = true }
-                            }
-                            Button("返回词库主页", systemImage: "books.vertical") {
-                                dictationMoreShown = false
-                                vm.save()
-                                mode = "学习_听力"
-                            }
-                            Button("错词复习", systemImage: "arrow.counterclockwise") {
-                                dictationMoreShown = false
-                                openWrongWordReviewPage()
-                            }
-                            Button("慢反应词提速 (1.25×)", systemImage: "bolt.badge.clock") {
-                                dictationMoreShown = false
-                                vm.speechRateMultiplier = 1.25
-                                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .slowReactionReview, resume: false)
-                            }
-                            Button("顽固单词", systemImage: "exclamationmark.triangle") {
-                                dictationMoreShown = false
-                                vm.save()
-                                mode = "学习_听力_顽固单词"
-                            }
-                            Button("学习记录", systemImage: "chart.bar.doc.horizontal") {
-                                dictationMoreShown = false
-                                vm.save()
-                                mode = "学习_听力_学习记录"
-                            }
-                            Button("同步学习数据到云盘", systemImage: "icloud.and.arrow.up") {
-                                dictationMoreShown = false
-                                let count = vm.syncWithConnectedCloudDrives()
-                                topSyncToast = count > 0 ? "已同步至 \(count) 个云盘" : "已保存本地快照"
-                            }
-                            Button("继续阅读  ⌥⌘5", systemImage: "book.pages") {
-                                dictationMoreShown = false
-                                vm.save()
-                                NotificationCenter.default.post(name: Notification.Name("LumaReader.ResumeReadingWorkspace"), object: nil)
-                            }
-                        }
-                        .listRowBackground(rowBg)
-                    }
-                }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
-        .frame(width: 530, height: 370)
+        .frame(width: 416, height: 390)
         .foregroundStyle(dictTextPrimary)
         .tint(dictAccentPink)
-        .background(dictBgColor.opacity(0.96))
-        .studyGlassCapsule(cornerRadius: 18)
+        .background(dictBgColor)
         .environment(\.studyAppearance, appearance)
         .preferredColorScheme(appearance.isDark ? .dark : .light)
-        .task {
-            await kokoro.ensureDaemonRunning()
-        }
-        .onChange(of: deckToRename != nil || deckToDelete != nil || deckEditing != nil) { _, editing in
+        .onChange(of: deckToRename != nil || deckToDelete != nil || deckEditing != nil || showListeningCategoryEditor) { _, editing in
             if editing { dictationMoreShown = false }
         }
     }
 
+    @AppStorage("luma.dictation.newWordStrategy") private var newWordStrategy = NewWordDictationStrategy.quick
+
+    @ViewBuilder
+    private var dictationPracticeSettings: some View {
+        let rowBg = dictCardColor.opacity(0.84)
+        Section("本轮练习") {
+            if vm.dictationMachine.mode == .newTask {
+                Picker("新词练习模式", selection: $newWordStrategy) {
+                    Text("快速过词").tag(NewWordDictationStrategy.quick)
+                    Text("循环复习").tag(NewWordDictationStrategy.repeating)
+                }
+                .pickerStyle(.menu)
+                .help("快速过词：错一次就跳过。循环复习：订正后按 5、55、155、255 词间隔复现。")
+            }
+            Picker("当前词库", selection: dictationDeckBinding) {
+                if vm.selectedDeck.hasPrefix("__mixed_wrong__") {
+                    Text("多词本错词合练").tag(vm.selectedDeck)
+                }
+                ForEach(visibleListeningDeckIDs, id: \.self) { id in
+                    Text(deckTitle(for: id)).tag(id)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Toggle("显示中文释义", isOn: Binding(
+                get: { vm.showMeaning },
+                set: { vm.showMeaning = $0; vm.save() }
+            ))
+
+            Toggle("显示首字母提示", isOn: $showFirstLetterHint)
+
+            LabeledContent("播报倍速") {
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { Double(vm.speechRateMultiplier) },
+                        set: { vm.speechRateMultiplier = Float($0) }
+                    ), in: 0.5...2.0, step: 0.05)
+                    Text(Self.formatSpeedText(vm.speechRateMultiplier))
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .trailing)
+                }
+            }
+        }
+        .listRowBackground(rowBg)
+    }
+
+    @ViewBuilder
+    private var dictationVoiceSettings: some View {
+        let rowBg = dictCardColor.opacity(0.84)
+        Section("语音播放") {
+            Picker("发音引擎", selection: $kokoro.useAppleSystemSpeech) {
+                Text("本地神经语音（Kitten）").tag(false)
+                Text("Apple 系统语音").tag(true)
+            }
+            .pickerStyle(.menu)
+
+            Picker("当前声线", selection: dictationVoiceBinding) {
+                ForEach(KokoroVoiceSlot.allCases) { slot in
+                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Button("试听当前声线", systemImage: "speaker.wave.2.fill") {
+                speakCurrentWord()
+            }
+
+            LabeledContent("重复间隔") {
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { vm.storeSnapshot.speechInterval ?? 0.5 },
+                        set: { vm.storeSnapshot.speechInterval = $0; vm.save() }
+                    ), in: 0.2...2.0, step: 0.1)
+                    Text(String(format: "%.1fs", vm.storeSnapshot.speechInterval ?? 0.5))
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .trailing)
+                }
+            }
+        }
+        .listRowBackground(rowBg)
+
+        Section {
+            DisclosureGroup("模型与音色") {
+                if !kokoro.useAppleSystemSpeech {
+                    Picker("本地神经模型", selection: Binding(
+                        get: { kokoro.selectedModel },
+                        set: { kokoro.switchModel($0) }
+                    )) {
+                        Text("Kitten Micro · 40M (轻量快速)").tag("kitten-micro")
+                        Text("Kitten Nano · 15M (超低内存)").tag("kitten-nano")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(kokoro.isSwitching)
+                }
+
+                if !kokoro.useAppleSystemSpeech {
+                    DisclosureGroup("各声线的具体音色") {
+                        ForEach(KokoroVoiceSlot.allCases) { slot in
+                            Picker(slot.kittenDisplayName, selection: Binding(
+                                get: { kokoro.activeSlots[slot] ?? kokoro.defaultVoice(for: slot) },
+                                set: { newVoice in
+                                    kokoro.selectVoice(newVoice, for: slot)
+                                    speakCurrentWord()
+                                }
+                            )) {
+                                ForEach(kokoro.voicesForSlot(slot), id: \.self) { voiceID in
+                                    Text(voiceID).tag(voiceID)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                }
+                LabeledContent("引擎状态") {
+                    Text(kokoro.statusText)
+                        .font(.caption)
+                        .foregroundStyle(kokoro.isReady ? dictAccentPink : dictTextSecondary)
+                }
+
+                if !kokoro.hasBundledModels {
+                    Button(role: .destructive) {
+                        kokoro.deleteModel(kokoro.selectedModel)
+                    } label: {
+                        Label("删除当前模型文件 (\(kokoro.modelTitle))", systemImage: "trash")
+                    }
+                }
+            }
+        }
+        .listRowBackground(rowBg)
+    }
+
+    @ViewBuilder
+    private var dictationAdditionalSettings: some View {
+        let rowBg = dictCardColor.opacity(0.84)
+        Section("复习入口") {
+            Button("错词复习", systemImage: "arrow.counterclockwise") {
+                dictationMoreShown = false
+                openWrongWordReviewPage()
+            }
+            Button("慢反应词提速 (1.25×)", systemImage: "bolt.badge.clock") {
+                dictationMoreShown = false
+                vm.speechRateMultiplier = 1.25
+                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .slowReactionReview, resume: false)
+            }
+            Button("顽固单词", systemImage: "exclamationmark.triangle") {
+                dictationMoreShown = false
+                vm.save()
+                mode = "学习_听力_顽固单词"
+            }
+        }
+        .listRowBackground(rowBg)
+
+        Section("学习数据") {
+            Button("学习记录", systemImage: "chart.bar.doc.horizontal") {
+                dictationMoreShown = false
+                vm.save()
+                mode = "学习_听力_学习记录"
+            }
+            Button("同步学习数据到云盘", systemImage: "icloud.and.arrow.up") {
+                dictationMoreShown = false
+                let count = vm.syncWithConnectedCloudDrives()
+                topSyncToast = count > 0 ? "已同步至 \(count) 个云盘" : "已保存本地快照"
+            }
+        }
+        .listRowBackground(rowBg)
+
+        Section("词库操作") {
+            Button("多词本错词合练…", systemImage: "square.stack") {
+                dictationMoreShown = false
+                showMixedWrongSelector()
+            }
+            Button("重新开始本轮", systemImage: "arrow.clockwise") {
+                dictationMoreShown = false
+                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: vm.dictationMachine.mode, resume: false)
+            }
+            if isImportedDeck(vm.selectedDeck) {
+                Menu("管理当前词库") {
+                    deckActions(vm.selectedDeck)
+                }
+            }
+        }
+        .listRowBackground(rowBg)
+
+        Section {
+            Button("听写快捷键…", systemImage: "keyboard") {
+                dictationMoreShown = false
+                DispatchQueue.main.async { showListeningShortcuts = true }
+            }
+        }
+        .listRowBackground(rowBg)
+    }
+
     /// 进度压缩为一行紧凑文字（取代原通栏进度条）；数据与原卡片完全相同：已完成 / 总数、剩余、今日、百分比。
-    private var dictationProgressCard: some View {
+    private func dictationProgressCard(total: Int, todayCount: Int) -> some View {
         let done = vm.dictationMachine.completedWordIDs.count
         let remaining = vm.dictationMachine.pendingQueue.count
-        let total = max(1, dictationTotalWords)
-        let todayCount = DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString())
         let pct = min(100.0, max(0.0, Double(done) / Double(total) * 100.0))
         let line = "已完成 \(done) / \(total) · 剩余 \(remaining) · 今日 \(todayCount) · " + String(format: "%.1f%%", pct)
 
@@ -3509,6 +3332,14 @@ public struct LumaStudyCenterHostView: View {
         .accessibilityValue(line)
     }
 
+    private var dictationLogsNewestFirst: some Sequence<DictationAttemptLog> {
+        let batches: [ReversedCollection<[DictationAttemptLog]>] = [
+            vm.dictationMachine.attemptLogs.reversed(),
+            vm.storeSnapshot.dictationLogs.reversed()
+        ]
+        return batches.joined()
+    }
+
     /// 收集最近实际出错的最多 5 个英文词汇（未揭晓当前词答案前绝不提前透露当前词）
     private var recentWrongWordStrings: [String] {
         let currentUnrevealedID: String? = {
@@ -3520,7 +3351,7 @@ public struct LumaStudyCenterHostView: View {
         }()
         var seen = Set<String>()
         var result: [String] = []
-        let allLogs = vm.dictationMachine.attemptLogs.reversed() + vm.storeSnapshot.dictationLogs.reversed()
+        let allLogs = dictationLogsNewestFirst
         for log in allLogs where !log.isCorrect {
             if let unrevealed = currentUnrevealedID, log.wordID == unrevealed {
                 continue
@@ -3644,7 +3475,7 @@ public struct LumaStudyCenterHostView: View {
     private func dictationStaticStatusLine(currentWord: VocabularyWord) -> String {
         if vm.dictationMachine.requiresCorrection && vm.revealedWordID == currentWord.id {
             let sessionErr = vm.dictationMachine.sessionErrorCounts[currentWord.id, default: 1]
-            let historyErr = vm.storeSnapshot.dictationLogs.filter {
+            let historyErr = vm.storeSnapshot.dictationLogs.lazy.filter {
                 $0.wordID == currentWord.id && !$0.isCorrect && $0.sessionID != vm.dictationMachine.sessionID
             }.count
             let totalErr = max(1, sessionErr + historyErr)
@@ -3653,18 +3484,18 @@ public struct LumaStudyCenterHostView: View {
                 ?? 2.0
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", currentWord.word, totalErr, react)
         }
-        let allLogs = vm.dictationMachine.attemptLogs.reversed() + vm.storeSnapshot.dictationLogs.reversed()
+        let allLogs = dictationLogsNewestFirst
         if let wrongLog = allLogs.first(where: { !$0.isCorrect && $0.wordID != currentWord.id }) {
             let totalErr = max(
                 1,
                 wrongLog.sessionErrorCountForWord,
-                vm.storeSnapshot.dictationLogs.filter { $0.wordID == wrongLog.wordID && !$0.isCorrect }.count
+                vm.storeSnapshot.dictationLogs.lazy.filter { $0.wordID == wrongLog.wordID && !$0.isCorrect }.count
             )
             let react = wrongLog.durationSeconds > 0 ? wrongLog.durationSeconds : (vm.lastSubmittedReactionSeconds ?? 2.0)
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", wrongLog.word, totalErr, react)
         }
         if let lastCompleted = allLogs.first(where: { $0.wordID != currentWord.id }) {
-            let totalErr = vm.storeSnapshot.dictationLogs.filter { $0.wordID == lastCompleted.wordID && !$0.isCorrect }.count
+            let totalErr = vm.storeSnapshot.dictationLogs.lazy.filter { $0.wordID == lastCompleted.wordID && !$0.isCorrect }.count
             let react = lastCompleted.durationSeconds > 0 ? lastCompleted.durationSeconds : (vm.lastSubmittedReactionSeconds ?? 2.0)
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", lastCompleted.word, totalErr, react)
         }
@@ -3676,11 +3507,9 @@ public struct LumaStudyCenterHostView: View {
     // 听写进度条（dictationProgressRail）：提供主听写进度通栏、今日听写数、剩余词数与精确百分比。
     // Preserve dictation progress rail, geometry, and real-time statistics.
     // === PROJECT RED LINE / 项目红线 END ===
-    private var dictationProgressRail: some View {
+    private func dictationProgressRail(total: Int, todayCount: Int) -> some View {
         let done = vm.dictationMachine.completedWordIDs.count
         let remaining = vm.dictationMachine.pendingQueue.count
-        let total = max(1, dictationTotalWords)
-        let todayCount = DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString())
         let ratio = min(1.0, max(0.0, Double(done) / Double(total)))
         let pct = ratio * 100.0
         return VStack(alignment: .leading, spacing: 9) {
@@ -3774,6 +3603,9 @@ public struct LumaStudyCenterHostView: View {
                 .frame(maxWidth: .infinity, minHeight: minimumHeight)
                 .accessibilityIdentifier("study.dictation.answer")
                 .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+                .onAppear {
+                    if listeningDailyTimer.running && !kokoro.isSwitching { answerFocused = true }
+                }
                 .onSubmit {
                     submitCurrentDictation()
                 }
@@ -3822,17 +3654,27 @@ public struct LumaStudyCenterHostView: View {
                 }
                 if vm.dictationMachine.requiresCorrection {
                     if vm.revealedWordID == word.id {
-                        let wrongAttempts = vm.dictationMachine.attemptLogs.filter { $0.wordID == word.id && !$0.isCorrect }.map(\.userTyped)
-                        Text(
-                            WordErrorLetterAnalyzer.highlightedAttributedWord(
-                                word.word,
-                                typedAttempts: wrongAttempts,
-                                baseFont: .system(size: 22, weight: .bold, design: .rounded),
-                                normalColor: dictTextPrimary,
-                                errorColor: .red
+                        let lastAttempt = vm.dictationMachine.attemptLogs.last { $0.wordID == word.id && !$0.isCorrect }
+                        let currentInput = vm.dictationInput
+                        let attempt = currentInput.isEmpty ? lastAttempt?.userTyped ?? "" : currentInput
+                        let font = Font.system(size: 22, weight: .bold, design: .rounded)
+                        if DictationAnswerPolicy.matches(attempt, targetWord: word.word) {
+                            Text(word.word)
+                                .font(font)
+                                .foregroundStyle(dictTextPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text(
+                                WordErrorLetterAnalyzer.highlightedAttributedWord(
+                                    word.word,
+                                    typedAttempts: [attempt],
+                                    baseFont: font,
+                                    normalColor: dictTextPrimary,
+                                    errorColor: .red
+                                )
                             )
-                        )
-                        .fixedSize(horizontal: false, vertical: true)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
                     } else {
                         Button("查看拼写 (⌘')") { vm.revealedWordID = word.id; vm.save() }
                             .buttonStyle(.plain)
@@ -3884,7 +3726,7 @@ public struct LumaStudyCenterHostView: View {
     }
 
     @ViewBuilder private func listeningCenterView(submode: DictationSessionMode) -> some View {
-        if visibleListeningDeckIDs.isEmpty && submode != .slowReactionReview {
+        if vm.fastVisibleBaseDecks.isEmpty && submode != .slowReactionReview {
             VStack(spacing: 14) {
                 Image(systemName: "tray.and.arrow.down").font(.system(size: 38, weight: .light)).foregroundStyle(dictAccentPink)
                 Text(submode == .wrongWordReview ? "还没有错词" : "还没有词库").font(.title3.weight(.semibold)).foregroundStyle(dictTextPrimary)
@@ -3934,7 +3776,7 @@ public struct LumaStudyCenterHostView: View {
         } else {
             listeningCenterContent(submode: submode)
                 .onAppear {
-                    if !vm.selectedDeck.hasPrefix("__mixed_wrong__"), !visibleListeningDeckIDs.contains(vm.selectedDeck), let first = visibleListeningDeckIDs.first {
+                    if !vm.selectedDeck.hasPrefix("__mixed_wrong__"), !vm.fastVisibleBaseDecks.contains(vm.selectedDeck), let first = visibleListeningDeckIDs.first {
                         if submode == .wrongWordReview && wrongWordsForDeck(first).isEmpty {
                             vm.selectedDeck = first
                         } else {
@@ -3954,7 +3796,7 @@ public struct LumaStudyCenterHostView: View {
     }
 
     /// 头部两行：①左侧安全留白（避开红绿灯）+ 返回 + 标题/紧凑进度 + 计时·倍速·更多胶囊；②最近错词。
-    private var dictationPracticeHeader: some View {
+    private func dictationPracticeHeader(total: Int, todayCount: Int) -> some View {
         VStack(spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 Color.clear.frame(width: 72, height: 1).allowsHitTesting(false)
@@ -3964,7 +3806,7 @@ public struct LumaStudyCenterHostView: View {
                         .lumaFont(size: 16, weight: .semibold)
                         .foregroundStyle(dictTextPrimary)
                         .lineLimit(1)
-                    dictationProgressCard
+                    dictationProgressCard(total: total, todayCount: todayCount)
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 8)
@@ -3973,9 +3815,10 @@ public struct LumaStudyCenterHostView: View {
             dictationRecentWrongWordsCard
                 .padding(.leading, 84)
         }
+        .modifier(DictationHeaderEntrance(enabled: dictRichMotion))
     }
 
-    private func dictationPracticeActions(availableWidth: CGFloat) -> some View {
+    private var dictationPracticeStatus: some View {
         VStack(spacing: 10) {
             dictationAnswerHints
             if let word = vm.dictationMachine.currentWord {
@@ -3986,92 +3829,95 @@ public struct LumaStudyCenterHostView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, minHeight: 20)
             }
-            // One unified action area: the same six native Buttons, actions, shortcuts,
-            // disabled conditions and Tab order. Secondary actions are icon-only with help text.
-            let compact = availableWidth < LumaControlMetric.actionBarCompactThreshold
-            let layout = compact
-                ? AnyLayout(VStackLayout(spacing: 6))
-                : AnyLayout(HStackLayout(spacing: 6))
-            layout {
-                HStack(spacing: 2) {
-                    dictationIconAction(
-                        symbol: "backward.end.fill",
-                        label: "上一个",
-                        help: "上一个词",
-                        disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
-                    ) {
-                        revisitPreviousWord()
-                    }
-
-                    dictationActionDivider
-
-                    dictationIconAction(
-                        symbol: kokoro.isPreparingAudio ? "hourglass" : "speaker.wave.2.fill",
-                        label: "重播",
-                        help: kokoro.isPreparingAudio ? "语音准备中… · ⌘R" : "重播 · ⌘R",
-                        value: kokoro.isPreparingAudio ? "准备中" : "",
-                        busy: kokoro.isPreparingAudio
-                    ) {
-                        replayCurrentWord()
-                    }
-
-                    dictationIconAction(
-                        symbol: "tortoise.fill",
-                        label: "慢放",
-                        help: "慢放 0.75× · ⇧⌘R"
-                    ) {
-                        replayCurrentWord(overrideRate: 0.75)
-                    }
-
-                    dictationActionDivider
-
-                    dictationIconAction(
-                        symbol: "character.bubble",
-                        label: vm.showMeaning ? "隐藏中文" : "显示中文",
-                        help: (vm.showMeaning ? "隐藏中文" : "显示中文") + " · ⌥⌘M",
-                        selected: vm.showMeaning
-                    ) {
-                        vm.showMeaning.toggle()
-                        vm.save()
-                    }
-
-                    dictationIconAction(
-                        symbol: "lightbulb",
-                        label: showFirstLetterHint ? "隐藏提示" : "首字母提示",
-                        help: (showFirstLetterHint ? "隐藏提示" : "首字母提示") + " · ⌘/",
-                        selected: showFirstLetterHint
-                    ) {
-                        showFirstLetterHint.toggle()
-                    }
-                }
-
-                Button {
-                    submitCurrentDictation()
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "return").font(.system(size: 14, weight: .semibold))
-                        Text("提交").lumaFont(size: 14.5, weight: .semibold)
-                    }
-                    .padding(.horizontal, 20)
-                    .frame(minWidth: 96)
-                    .frame(height: LumaControlMetric.actionHeight)
-                }
-                .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, emphasis: .prominent,
-                                                 onAccent: dictOnAccent, motionEnabled: !reduceMotion))
-                .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
-                .help("提交答案 · 回车")
-                .accessibilityLabel("提交")
-            }
-            .padding(LumaControlMetric.actionBarPadding)
-            .studyGlassCapsule(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius)
-            .overlay(
-                RoundedRectangle(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius,
-                                 style: .continuous)
-                    .strokeBorder(dictTextSecondary.opacity(0.22), lineWidth: 1)
-            )
-            .fixedSize()
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private func dictationPracticeActions(availableWidth: CGFloat) -> some View {
+        // One unified action area: the same six native Buttons, actions, shortcuts,
+        // disabled conditions and Tab order. Secondary actions are icon-only with help text.
+        let compact = availableWidth < LumaControlMetric.actionBarCompactThreshold
+        let layout = compact
+            ? AnyLayout(VStackLayout(spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 6))
+        return layout {
+            HStack(spacing: 2) {
+                dictationIconAction(
+                    symbol: "backward.end.fill",
+                    label: "上一个",
+                    help: "上一个词",
+                    disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
+                ) {
+                    revisitPreviousWord()
+                }
+
+                dictationActionDivider
+
+                dictationIconAction(
+                    symbol: kokoro.isPreparingAudio ? "hourglass" : "speaker.wave.2.fill",
+                    label: "重播",
+                    help: kokoro.isPreparingAudio ? "语音准备中… · ⌘R" : "重播 · ⌘R",
+                    value: kokoro.isPreparingAudio ? "准备中" : "",
+                    busy: kokoro.isPreparingAudio
+                ) {
+                    replayCurrentWord()
+                }
+
+                dictationIconAction(
+                    symbol: "tortoise.fill",
+                    label: "慢放",
+                    help: "慢放 0.75× · ⇧⌘R"
+                ) {
+                    replayCurrentWord(overrideRate: 0.75)
+                }
+
+                dictationActionDivider
+
+                dictationIconAction(
+                    symbol: "character.bubble",
+                    label: vm.showMeaning ? "隐藏中文" : "显示中文",
+                    help: (vm.showMeaning ? "隐藏中文" : "显示中文") + " · ⌥⌘M",
+                    selected: vm.showMeaning
+                ) {
+                    vm.showMeaning.toggle()
+                    vm.save()
+                }
+
+                dictationIconAction(
+                    symbol: "lightbulb",
+                    label: showFirstLetterHint ? "隐藏提示" : "首字母提示",
+                    help: (showFirstLetterHint ? "隐藏提示" : "首字母提示") + " · ⌘/",
+                    selected: showFirstLetterHint
+                ) {
+                    showFirstLetterHint.toggle()
+                }
+            }
+
+            Button {
+                submitCurrentDictation()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "return").font(.system(size: 14, weight: .semibold))
+                    Text("提交").lumaFont(size: 14.5, weight: .semibold)
+                }
+                .padding(.horizontal, 20)
+                .frame(minWidth: 96)
+                .frame(height: LumaControlMetric.actionHeight)
+            }
+            .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, emphasis: .prominent,
+                                             onAccent: dictOnAccent, motionEnabled: !reduceMotion))
+            .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+            .help("提交答案 · 回车")
+            .accessibilityLabel("提交")
+        }
+        .padding(LumaControlMetric.actionBarPadding)
+        .studyGlassCapsule(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: compact ? LumaControlMetric.actionBarCompactRadius : LumaControlMetric.actionBarRadius,
+                             style: .continuous)
+                .strokeBorder(dictTextSecondary.opacity(0.22), lineWidth: 1)
+        )
+        .fixedSize()
+        .frame(maxWidth: .infinity)
     }
 
     private var dictationActionDivider: some View {
@@ -4106,6 +3952,8 @@ public struct LumaStudyCenterHostView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    @State private var actionBarHeight: CGFloat = 0
+
     private func listeningCenterContent(submode: DictationSessionMode) -> some View {
         deckManagement(
             GeometryReader { viewport in
@@ -4115,32 +3963,47 @@ public struct LumaStudyCenterHostView: View {
                 let answerScale = contentWidth / 940
                 let answerWidth = 916 * answerScale
                 let answerHeight = 260 * answerScale
-                ScrollView(.vertical) {
-                    if vm.dictationMachine.currentWord != nil {
-                        DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32)) {
-                            dictationPracticeHeader
-                            dictationProgressRail
-                            dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
-                            dictationPracticeActions(availableWidth: contentWidth)
+                let total = max(1, dictationTotalWords)
+                let todayCount = DictationSessionStateMachine.todayDictatedWordCount(
+                    from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString()
+                )
+                VStack(spacing: 0) {
+                    ScrollView(.vertical) {
+                        if vm.dictationMachine.currentWord != nil {
+                            DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32 - actionBarHeight)) {
+                                dictationPracticeHeader(total: total, todayCount: todayCount)
+                                dictationProgressRail(total: total, todayCount: todayCount)
+                                dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
+                                dictationPracticeStatus
+                            }
+                            .frame(width: contentWidth)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 16)
+                        } else {
+                            VStack(spacing: 20) {
+                                dictationPracticeHeader(total: total, todayCount: todayCount)
+                                dictationSummaryView
+                            }
+                            .padding(24)
                         }
-                        .frame(width: contentWidth)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
-                    } else {
-                        VStack(spacing: 20) {
-                            dictationPracticeHeader
-                            dictationSummaryView
-                        }
-                        .padding(24)
                     }
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                // 返回胶囊随画布滚动；对齐目标按静止位置计算，红黄绿不跟随滚动漂移。
-                .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                    geometry.contentOffset.y + geometry.contentInsets.top
-                } action: { _, offset in
-                    if abs(dictationScrollOffsetY - offset) > 0.5 { dictationScrollOffsetY = offset }
+                    .scrollBounceBehavior(.basedOnSize)
+                    // 返回胶囊随画布滚动；对齐目标按静止位置计算，红黄绿不跟随滚动漂移。
+                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.contentOffset.y + geometry.contentInsets.top
+                    } action: { _, offset in
+                        if abs(dictationScrollOffsetY - offset) > 0.5 { dictationScrollOffsetY = offset }
+                    }
+                    if vm.dictationMachine.currentWord != nil {
+                        dictationPracticeActions(availableWidth: contentWidth)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 4)
+                            .padding(.bottom, 16)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                actionBarHeight = height
+                            }
+                    }
                 }
 
             }
@@ -4162,7 +4025,17 @@ public struct LumaStudyCenterHostView: View {
                        event.window?.attachedSheet == nil,
                        let editor = event.window?.firstResponder as? NSTextView,
                        !editor.hasMarkedText(), listeningDailyTimer.running, !kokoro.isSwitching {
-                        submitCurrentDictation()
+                        if !event.isARepeat { submitCurrentDictation(editorText: editor.string) }
+                        return true
+                    }
+                    // 1.12.2: 切到后台计时会自动暂停；回来后单按空格即可继续计时（不用再点按钮）。
+                    if event.keyCode == 49, flags.intersection([.command, .option, .control, .shift]).isEmpty,
+                       !listeningDailyTimer.running, !event.isARepeat,
+                       mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习",
+                       event.window?.isKeyWindow == true, event.window?.isMainWindow == true,
+                       event.window?.attachedSheet == nil, !dictationMoreShown, !showListeningShortcuts,
+                       vm.dictationMachine.currentWord != nil, !kokoro.isSwitching {
+                        listeningDailyTimer.start()
                         return true
                     }
                     guard event.window?.isKeyWindow == true, event.window?.isMainWindow == true,
@@ -4370,6 +4243,9 @@ public struct LumaStudyCenterHostView: View {
             onGoToDictation: { mode = "学习_听力" },
             onExportRecords: { exportWrongWordsRecordsTXT() },
             onStartTodayQueue: { startTodayWrongQueue() },
+            onStartDueQueue: {
+                startWrongWordDrill(model.allEntries.filter(\.isDue).map(\.wordID), sessionDeckKey: "__listening_due_queue__")
+            },
             onStartAllWrongWords: { startAllWrongWordsDictation() },
             onStartMicroDrill: { ids in startWrongWordDrill(ids) }
         )
@@ -4406,18 +4282,19 @@ public struct LumaStudyCenterHostView: View {
         startWrongWordDrill(words)
     }
 
-    private func startWrongWordDrill(_ ids: [String]) {
+    private func startWrongWordDrill(_ ids: [String], sessionDeckKey: String? = nil) {
         let set = Set(ids)
         let words = vm.fastAllWords.filter { set.contains($0.id) }
         guard !words.isEmpty else { return }
-        startWrongWordDrill(words)
+        startWrongWordDrill(words, sessionDeckKey: sessionDeckKey)
     }
 
-    private func startWrongWordDrill(_ words: [VocabularyWord]) {
+    private func startWrongWordDrill(_ words: [VocabularyWord], sessionDeckKey: String? = nil) {
         guard !words.isEmpty else { return }
         ttsEngine.stop(); audio.stop(); kokoro.stop()
         vm.save()
         vm.selectedDeck = words.first?.deckID ?? vm.selectedDeck
+        vm.activeDictationDeckKey = sessionDeckKey ?? vm.selectedDeck
         vm.dictationMachine = DictationSessionStateMachine(
             mode: .wrongWordReview,
             dateString: Self.todayDateString(),
@@ -5469,99 +5346,105 @@ public struct LumaStudyCenterHostView: View {
         }.buttonStyle(StudyFluidPressStyle())
     }
 
+    private var readingVocabularySection: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                readingVocabularyTab("词库", destination: "学习_阅读词汇", selected: mode == "学习_阅读词汇" || mode == "学习_易混词")
+                readingVocabularyTab("错词", destination: "学习_阅读错词", selected: mode == "学习_阅读错词")
+                readingVocabularyTab("分类", destination: "学习_阅读分类", selected: mode == "学习_阅读分类" || mode == "学习_背词")
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .studyGlassCapsule(cornerRadius: 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, VocabularyPageLayout.inset)
+            .padding(.vertical, 10)
+
+            switch mode {
+            case "学习_阅读分类", "学习_背词":
+                choiceLibraryPage
+            case "学习_阅读错词":
+                ReadingWrongWordsView(library: choiceLibrary) { words in
+                    readingReviewWords = words
+                    startReadingQuiz(LumaChoiceLibrary.reviewDeckID)
+                }
+            case "学习_易混词":
+                LumaConfusableLibraryView(library: LumaConfusableLibrary.shared) { scope in
+                    confusableScope = scope
+                    mode = "学习_易混词_练习"
+                }
+            default:
+                ReadingVocabularyView(library: choiceLibrary, onStart: startReadingQuiz, onConfusable: {
+                    mode = "学习_易混词"
+                }, position: $readingVocabularyPosition)
+            }
+        }
+    }
+
+    private func readingVocabularyTab(_ title: String, destination: String, selected: Bool) -> some View {
+        Button(title) { mode = destination }
+            .buttonStyle(StudyGlassCapsuleButtonStyle(selected: selected, horizontalPadding: 12, height: 32))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     private var listeningHome: some View {
         deckManagement(ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .center) {
-                    Text("听力").lumaFont(size: 28, weight: .bold, design: .serif)
-                    Spacer()
-                    HStack(spacing: 2) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(appearance.ink.opacity(0.6))
-                            TextField("搜索词库", text: $deckSearch)
-                                .textFieldStyle(.plain)
-                                .lumaFont(size: 13)
-                                .foregroundStyle(appearance.ink)
-                            if !deckSearch.isEmpty {
-                                Button {
-                                    deckSearch = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 12.5))
-                                        .foregroundStyle(appearance.ink.opacity(0.5))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.leading, 12)
-                        .padding(.trailing, 6)
-                        .frame(width: 215, height: 38)
-
-                        Rectangle()
-                            .fill(appearance.ink.opacity(0.14))
-                            .frame(width: 1, height: 18)
-                            .padding(.horizontal, 2)
-
-                        Menu {
-                            Button {
-                                importShown = true
-                            } label: {
-                                Label("导入词库 (TXT / CSV / JSON)…", systemImage: "plus.circle")
-                            }
-                            Button {
-                                showMixedWrongSelector()
-                            } label: {
-                                Label("多词本错词合练…", systemImage: "square.stack")
-                            }
-                            Divider()
-                            Button {
-                                mode = "学习_听力_权威词典"
-                            } label: {
-                                Label("浏览内置权威词典", systemImage: "character.book.closed")
-                            }
-                            Button {
-                                mode = "学习_听力_慢反应词"
-                            } label: {
-                                Label("慢反应词提速巩固", systemImage: "bolt.badge.clock")
-                            }
-                            Button {
-                                mode = "学习_听力_顽固单词"
-                            } label: {
-                                Label("顽固单词本", systemImage: "exclamationmark.triangle")
-                            }
-                            Divider()
-                            Button {
-                                openSpeechSettings()
-                            } label: {
-                                Label("发音与神经语音设置…", systemImage: "waveform")
-                            }
+            VStack(alignment: .leading, spacing: VocabularyPageLayout.spacing) {
+                VocabularyPageHeading(title: "听力", placeholder: "搜索词库", search: $deckSearch) {
+                    Menu {
+                        Button {
+                            importShown = true
                         } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(appearance.ink.opacity(0.88))
-                                .frame(width: 38, height: 38)
-                                .contentShape(Rectangle())
+                            Label("导入词库 (TXT / CSV / JSON)…", systemImage: "plus.circle")
                         }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("导入词库、多词本合练与发音设置")
+                        Button {
+                            showMixedWrongSelector()
+                        } label: {
+                            Label("多词本错词合练…", systemImage: "square.stack")
+                        }
+                        Divider()
+                        Button {
+                            mode = "学习_听力_权威词典"
+                        } label: {
+                            Label("浏览内置权威词典", systemImage: "character.book.closed")
+                        }
+                        Button {
+                            mode = "学习_听力_慢反应词"
+                        } label: {
+                            Label("慢反应词提速巩固", systemImage: "bolt.badge.clock")
+                        }
+                        Button {
+                            mode = "学习_听力_顽固单词"
+                        } label: {
+                            Label("顽固单词本", systemImage: "exclamationmark.triangle")
+                        }
+                        Divider()
+                        Button {
+                            openSpeechSettings()
+                        } label: {
+                            Label("发音与神经语音设置…", systemImage: "waveform")
+                        }
+                    } label: {
+                        VocabularyPageMenuLabel()
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .studyGlassCapsule(cornerRadius: 22)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .help("导入词库、多词本合练与发音设置")
+                    .accessibilityLabel("听力词库操作")
                 }
 
                 ListeningDailyGoalCard(timer: listeningDailyTimer, completed: DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString()))
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Picker("复习词库", selection: $vm.selectedDeck) {
                         ForEach(visibleListeningDeckIDs, id: \.self) { deck in
                             Text(deckTitle(for: deck)).tag(deck)
                         }
-                    }.frame(maxWidth: 260)
-                    Text("到期 \(dueReviewCount) 个").font(.caption)
+                    }
+                    .frame(maxWidth: 260)
+                    Text("到期 \(dueReviewCount) 词")
+                        .lumaFont(size: 12, monospacedDigits: true)
+                        .foregroundStyle(appearance.ink.opacity(0.66))
                     Button("开始到期复习") {
                         selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .wrongWordReview, resume: true, dueOnly: true)
                         mode = "学习_听力_错词复习"
@@ -5569,21 +5452,16 @@ public struct LumaStudyCenterHostView: View {
                     .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: dueReviewCount > 0, horizontalPadding: 14, height: 30))
                     .disabled(dueReviewCount == 0)
 
-                    Spacer()
-                    let slowCount = (vm.storeSnapshot.slowReactionWords ?? []).count
-                    Button("⚡ 慢反应词提速巩固 (\(slowCount))") {
-                        mode = "学习_听力_慢反应词"
-                    }
-                    .buttonStyle(StudyGlassCapsuleButtonStyle(selected: slowCount > 0, horizontalPadding: 14, height: 30))
+                    Spacer(minLength: 0)
                 }
-
-
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(appearance.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
 
                 if filteredListeningDeckIDs.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "tray.and.arrow.down").font(.system(size: 34, weight: .light)).foregroundStyle(appearance.accent)
                         Text(visibleListeningDeckIDs.isEmpty ? "还没有词库" : "当前分类「\(selectedListeningCategory)」下暂无匹配词库").font(.headline).foregroundStyle(appearance.ink)
-                        Text("可点击右上角「⋯」导入单词表，或在词库卡片菜单中调整所属分类").font(.caption).foregroundStyle(appearance.ink.opacity(0.6))
                         HStack(spacing: 10) {
                             if selectedListeningCategory != "全部" {
                                 Button("显示全部词库") { selectedListeningCategory = "全部"; selectedScenarioPreviewDeckID = nil }
@@ -5597,7 +5475,7 @@ public struct LumaStudyCenterHostView: View {
                 }
 
                 let gridWordsByDeck = vm.fastWordsByDeck
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 185, maximum: 235), spacing: 20)], alignment: .leading, spacing: 20) {
+                LazyVGrid(columns: VocabularyPageLayout.columns, alignment: .leading, spacing: VocabularyPageLayout.spacing) {
                     ForEach(filteredListeningDeckIDs, id: \.self) { deck in
                         let words = gridWordsByDeck[deck] ?? []
                         let title = words.first?.deckTitle ?? BundledCoraVocabulary.defaultTitleByDeckID[deck] ?? deck
@@ -5605,25 +5483,28 @@ public struct LumaStudyCenterHostView: View {
                         let isPreviewingThisDeck = (selectedScenarioPreviewDeckID == deck && showListeningCategoryWordBrowser)
                         let key = HostStateModel.sessionKey(mode: .newTask, date: Self.todayDateString(), deck: deck)
                         let savedSession = (vm.dictationMachine.mode == .newTask && (vm.dictationMachine.currentWord?.deckID ?? vm.selectedDeck) == deck) ? vm.dictationMachine : vm.storeSnapshot.dictationSessions?[key]
-                        VStack(alignment: .leading, spacing: 12) {
-                            Spacer(minLength: 22)
+                        let resumable = savedSession.flatMap { session in
+                            !session.isSessionFinished && (!session.completedWordIDs.isEmpty || !session.attemptLogs.isEmpty) ? session : nil
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Spacer(minLength: 16)
                             HStack(spacing: 10) {
                                 Image(systemName: deck == "vocab_writing_accumulations" ? "pencil.and.list.clipboard" : "headphones")
-                                    .font(.system(size: 26, weight: .light))
+                                    .font(.system(size: 23, weight: .light))
                                     .foregroundStyle(appearance.accent)
                                 Spacer()
                             }
                             Text(title)
-                                .font(.title3.weight(.semibold))
+                                .lumaFont(size: 16, weight: .semibold)
                                 .foregroundStyle(appearance.ink)
                                 .multilineTextAlignment(.leading)
                                 .lineLimit(2)
-                            if let savedSession, !savedSession.isSessionFinished, (!savedSession.completedWordIDs.isEmpty || !savedSession.attemptLogs.isEmpty) {
-                                Text("进行中：已完成 \(savedSession.completedWordIDs.count)/\(savedSession.completedWordIDs.count + savedSession.pendingQueue.count) 词")
+                            if let resumable {
+                                Text("\(resumable.completedWordIDs.count) / \(resumable.completedWordIDs.count + resumable.pendingQueue.count)")
                                     .font(.caption)
                                     .foregroundStyle(appearance.accent)
                             } else {
-                                Text("共 \(words.count) 个场景核心词")
+                                Text("\(words.count) 词")
                                     .font(.caption)
                                     .foregroundStyle(appearance.ink.opacity(0.68))
                             }
@@ -5655,14 +5536,12 @@ public struct LumaStudyCenterHostView: View {
                                 .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, selected: isPreviewingThisDeck, horizontalPadding: 8, height: 28))
 
                                 Button {
-                                    selectDeckAndStartDictation(deck: deck, mode: .newTask, resume: true)
-                                    mode = "学习_听力_今日计划"
-                                    answerFocused = true
+                                    startDictationFromLibraryCard(deck)
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "play.fill")
                                             .font(.system(size: 10.5, weight: .semibold))
-                                        Text("开始听写")
+                                        Text(resumable == nil ? "开始听写" : "继续听写")
                                             .lumaFont(size: 11.5, weight: .semibold)
                                     }
                                     .frame(maxWidth: .infinity)
@@ -5670,8 +5549,8 @@ public struct LumaStudyCenterHostView: View {
                                 .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, prominent: true, horizontalPadding: 8, height: 28))
                             }
                         }
-                        .padding(18)
-                        .frame(maxWidth: .infinity, minHeight: 215, alignment: .leading)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, minHeight: VocabularyPageLayout.cardHeight, alignment: .leading)
                         .background(appearance.secondaryGradient, in: RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
@@ -5682,9 +5561,7 @@ public struct LumaStudyCenterHostView: View {
                         )
                         .contentShape(RoundedRectangle(cornerRadius: 16))
                         .onTapGesture(count: 2) {
-                            selectDeckAndStartDictation(deck: deck, mode: .newTask, resume: true)
-                            mode = "学习_听力_今日计划"
-                            answerFocused = true
+                            startDictationFromLibraryCard(deck)
                         }
                         .onTapGesture(count: 1) {
                             withAnimation(.easeOut(duration: 0.16)) {
@@ -5744,11 +5621,16 @@ public struct LumaStudyCenterHostView: View {
                             .help("词库操作（置顶 / 排序 / 编辑词条 / 重命名 / 删除）")
                         }
                         .scaleEffect(dropTargetDeckID == deck ? 1.02 : 1.0)
+                        .id(deck)
                     }
                 }
+                .scrollTargetLayout()
 
-            }.padding(32)
+            }
+            .padding(.horizontal, VocabularyPageLayout.inset)
+            .padding(.vertical, VocabularyPageLayout.topInset)
         }
+        .scrollPosition(id: $listeningCardID)
         .scrollClipDisabled(false)
         .mask(Rectangle())
         .background(appearance.background))
@@ -6479,9 +6361,9 @@ public struct LumaStudyCenterHostView: View {
     }
 
     private func startDictationForFolder(path: [String], words: [VocabularyWord]) {
-        guard !words.isEmpty else { return }
-        if path.count == 2, let singleDeck = Set(words.map(\.deckID)).first, Set(words.map(\.deckID)).count == 1 {
-            selectDeckAndStartDictation(deck: singleDeck, mode: .newTask, resume: true)
+        guard let firstWord = words.first else { return }
+        if path.count == 2, words.allSatisfy({ $0.deckID == firstWord.deckID }) {
+            selectDeckAndStartDictation(deck: firstWord.deckID, mode: .newTask, resume: true)
             mode = "学习_听力_今日计划"
             answerFocused = true
             return
@@ -6499,9 +6381,9 @@ public struct LumaStudyCenterHostView: View {
         showFirstLetterHint = globalDefaultShowHint
         vm.dictationInput = ""
         vm.dictationFeedback = "正在听写文件夹《\(folderTitle)》（共 \(words.count) 词）"
-        vm.save()
+        vm.scheduleSave(after: 0.4)
         mode = "学习_听力_今日计划"
-        speakCurrentWord()
+        scheduleDictationPlayback()
         answerFocused = true
     }
 
@@ -8426,45 +8308,48 @@ public struct LumaStudyCenterHostView: View {
         let hasErrors: Bool = totalErrors > 0
         return VStack(alignment: .leading, spacing: StudyMetrics.sectionSpacing) {
             HStack(spacing: 16) {
-                statCard(title: "本轮单词", value: "\(rows.count) 词", subtitle: deckTitle(for: vm.selectedDeck))
-                statCard(title: "一次拼对", value: "\(firstTry) 词", subtitle: rows.isEmpty ? "—" : String(format: "%.0f%%", Double(firstTry) / Double(max(1, rows.count)) * 100))
-                statCard(title: "错误次数", value: "\(totalErrors) 次", subtitle: "顽固单词 \(vm.dictationMachine.stubbornWordsMap.count) 个")
+                statCard(title: "一次拼对率", value: rows.isEmpty ? "—" : String(format: "%.0f%%", Double(firstTry) / Double(rows.count) * 100),
+                         subtitle: "\(firstTry) / \(rows.count) 词")
+                statCard(title: "错词", value: "\(rows.filter { $0.errors > 0 }.count) 词", subtitle: "共错 \(totalErrors) 次")
             }
 
             HStack(spacing: 10) {
-                Button {
-                    selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .newTask, resume: false)
-                } label: {
-                    Label("再来一轮", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: !hasErrors, horizontalPadding: 16, height: 36))
-
                 if hasErrors {
                     Button {
-                        selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .wrongWordReview, resume: false)
-                        mode = "学习_听力_错词复习"
+                        startWrongWordDrill(rows.filter { $0.errors > 0 }.map(\.id), sessionDeckKey: "__listening_round_review__")
                     } label: {
                         Label("复习错词", systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 16, height: 36))
                 }
-
-                Spacer()
-
                 Button {
-                    exportDictationReport(rows: rows, firstTry: firstTry, totalErrors: totalErrors)
+                    selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .newTask, resume: false)
+                    mode = "学习_听力_今日计划"
                 } label: {
-                    Label("导出 TXT", systemImage: "square.and.arrow.up")
+                    Label("再练一轮", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 16, height: 36))
-                .disabled(rows.isEmpty)
+                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: !hasErrors, horizontalPadding: 16, height: 36))
+                Spacer()
+                Menu {
+                    Button("导出 TXT", systemImage: "square.and.arrow.up") {
+                        exportDictationReport(rows: rows, firstTry: firstTry, totalErrors: totalErrors)
+                    }
+                    .disabled(rows.isEmpty)
+                } label: {
+                    VocabularyPageMenuLabel()
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .accessibilityLabel("结果操作")
             }
 
             if !rows.isEmpty {
-                LazyVStack(spacing: 0) {
-                    ForEach(rows) { row in
-                        dictationSummaryRowView(row)
-                        Divider().opacity(0.3)
+                DisclosureGroup("练习明细") {
+                    LazyVStack(spacing: 0) {
+                        ForEach(rows) { row in
+                            dictationSummaryRowView(row)
+                            Divider().opacity(0.3)
+                        }
                     }
                 }
             }
@@ -8575,19 +8460,110 @@ public struct LumaStudyCenterHostView: View {
         return deckWords.filter { wrong.contains($0.id) && !quarantined.contains($0.id) && (vm.storeSnapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast) <= now }.count
     }
 
+    // MARK: 1.11.1 背词（独立词库，与听力完全分开）
+
+    private func speakReadingQuizWord(_ text: String) {
+        guard NSApp.isActive, !kokoro.isDisplaySuspended, mode == "学习_背词_练习" else { return }
+        readingQuizSpeechIssue = nil
+        guard !kokoro.useAppleSystemSpeech else {
+            speakArbitraryWord(text)
+            return
+        }
+
+        ttsEngine.stop()
+        audio.stop()
+        // A long background stay can release the worker. The neural bridge starts
+        // it on demand, so temporary unreadiness should never pick another voice.
+        let accepted = kokoro.play(text: text, speed: vm.speechRateMultiplier, onFailure: {
+            guard NSApp.isActive, mode == "学习_背词_练习", !kokoro.useAppleSystemSpeech else { return }
+            readingQuizSpeechIssue = (text, "神经语音暂不可用，点击喇叭重试")
+        })
+        if !accepted {
+            readingQuizSpeechIssue = (text, "神经语音暂不可用，点击喇叭重试")
+        }
+    }
+
+    private func startReadingQuiz(_ deck: String) {
+        let words = deck == LumaChoiceLibrary.reviewDeckID ? readingReviewWords : choiceLibrary.readingWords(in: deck)
+        guard !words.isEmpty else { return }
+        readingQuizSpeechIssue = nil
+        readingQuizReturn = mode
+        choiceQuizDeckID = deck
+        ttsEngine.stop(); audio.stop(); kokoro.stop()
+        mode = "学习_背词_练习"
+    }
+
+    private var choiceLibraryPage: some View {
+        LumaChoiceLibraryView(library: choiceLibrary, onStart: { deck in
+            readingFolderCardID = deck
+            startReadingQuiz(deck)
+        }, path: $readingFolderPath, search: $readingFolderSearch, cardID: $readingFolderCardID)
+    }
+
+    private var choiceQuizPage: some View {
+        let library = choiceLibrary
+        var decks = library.readingDecks.filter { !library.readingWords(in: $0.id).isEmpty }
+        if !readingReviewWords.isEmpty && readingQuizReturn == "学习_阅读错词" {
+            decks.insert(LumaChoiceQuizDeck(id: LumaChoiceLibrary.reviewDeckID, title: "阅读错词"), at: 0)
+        }
+        let ids = Set(decks.map(\.id))
+        return LumaChoiceQuizView(
+            deckID: $choiceQuizDeckID,
+            decks: decks,
+            wordsForDeck: { $0 == LumaChoiceLibrary.reviewDeckID ? readingReviewWords : library.readingWords(in: $0) },
+            globalPool: library.allReadingWords,
+            speak: { speakReadingQuizWord($0) },
+            speechIssue: readingQuizSpeechIssue,
+            preparingSpeech: !kokoro.useAppleSystemSpeech && kokoro.isPreparingAudio,
+            stopSpeech: { ttsEngine.stop(); audio.stop(); kokoro.stop() },
+            onExit: { mode = readingQuizReturn },
+            onMiss: { library.recordReadingMiss($0.id) },
+            onReviewCorrect: { library.deferReadingReview($0.id) }
+        )
+        .onAppear {
+            if !ids.contains(choiceQuizDeckID), let first = decks.first { choiceQuizDeckID = first.id }
+        }
+    }
+
+    /// Give the new page its first frames before preparing speech. A new session,
+    /// explicit playback or leaving practice cancels the pending start.
+    private func scheduleDictationPlayback() {
+        pendingDictationPlayback?.cancel()
+        pendingDictationPlayback = nil
+        guard let wordID = vm.dictationMachine.currentWord?.id else { return }
+        let sessionID = vm.dictationMachine.sessionID
+        pendingDictationPlayback = Task { @MainActor in
+            do { try await Task.sleep(for: .milliseconds(48)) } catch { return }
+            guard !Task.isCancelled else { return }
+            pendingDictationPlayback = nil
+            guard mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习",
+                  vm.dictationMachine.sessionID == sessionID,
+                  vm.dictationMachine.currentWord?.id == wordID else { return }
+            speakCurrentWord()
+        }
+    }
+
+    private func startDictationFromLibraryCard(_ deck: String) {
+        listeningCardID = deck
+        selectDeckAndStartDictation(deck: deck, mode: .newTask, resume: true)
+        // Enable the field in the same update that mounts the practice view.
+        listeningDailyTimer.start()
+        mode = "学习_听力_今日计划"
+    }
+
     private func selectDeckAndStartDictation(deck: String, mode: DictationSessionMode, resume: Bool = true, dueOnly: Bool = false) {
         if deck.hasPrefix("__mixed_wrong__") && mode == .newTask {
-            vm.save()
+            vm.scheduleSave(after: 0.4)
             vm.selectedDeck = deck
             startDictation(mode: .wrongWordReview, resume: resume)
             return
         }
-        vm.save()
+        vm.scheduleSave(after: 0.4)
         let activeDeck = vm.dictationMachine.currentWord?.deckID ?? vm.dictationMachine.attemptLogs.last?.deckID ?? vm.selectedDeck
         if resume && !vm.selectedDeck.hasPrefix("__mixed_wrong__") && activeDeck == deck && vm.dictationMachine.mode == mode && vm.dictationMachine.dateString == Self.todayDateString() && !vm.dictationMachine.isSessionFinished {
             vm.selectedDeck = deck
-            vm.save()
-            speakCurrentWord()
+            vm.scheduleSave(after: 0.4)
+            scheduleDictationPlayback()
             return
         }
         vm.selectedDeck = deck
@@ -8600,7 +8576,9 @@ public struct LumaStudyCenterHostView: View {
             startMixedWrongReview(decks: decks, resume: resume)
             return
         }
-        guard visibleListeningDeckIDs.contains(vm.selectedDeck) || mode == .slowReactionReview else {
+        guard vm.fastVisibleBaseDecks.contains(vm.selectedDeck) || mode == .slowReactionReview else {
+            pendingDictationPlayback?.cancel()
+            pendingDictationPlayback = nil
             ttsEngine.stop(); audio.stop(); kokoro.stop()
             return
         }
@@ -8628,32 +8606,44 @@ public struct LumaStudyCenterHostView: View {
                 vm.showMeaning = false
                 vm.revealedWordID = nil
             }
-            vm.save()
-            speakCurrentWord()
+            vm.scheduleSave(after: 0.4)
+            scheduleDictationPlayback()
             return
         }
-        let stubbornIDs = Set(vm.storeSnapshot.stubbornWords.map(\.wordID))
-        let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect && $0.deckID == vm.selectedDeck }.map(\.wordID))
-        let slowIDs = Set((vm.storeSnapshot.slowReactionWords ?? []).map(\.wordID))
-        var words = allWords.filter {
-            $0.deckID == vm.selectedDeck &&
-            (mode == .newTask
-                || (mode == .stubbornWordReview && stubbornIDs.contains($0.id))
-                || (mode == .wrongWordReview && wrongIDs.contains($0.id))
-                || (mode == .slowReactionReview && slowIDs.contains($0.id))) &&
-            (!dueOnly || (vm.storeSnapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast) <= Date())
+        let snapshot = vm.storeSnapshot
+        let deck = vm.selectedDeck
+        let reviewIDs: Set<String>?
+        switch mode {
+        case .newTask:
+            reviewIDs = nil
+        case .stubbornWordReview:
+            reviewIDs = Set(snapshot.stubbornWords.map(\.wordID))
+        case .wrongWordReview:
+            reviewIDs = Set(snapshot.dictationLogs.lazy.filter { !$0.isCorrect && $0.deckID == deck }.map(\.wordID))
+        case .slowReactionReview:
+            reviewIDs = Set((snapshot.slowReactionWords ?? []).map(\.wordID))
+        }
+        let deckWords = vm.fastWordsByDeck[deck] ?? []
+        let now = Date()
+        var words = if reviewIDs == nil && !dueOnly {
+            deckWords
+        } else {
+            deckWords.filter {
+                (reviewIDs?.contains($0.id) ?? true) &&
+                (!dueOnly || (snapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast) <= now)
+            }
         }
         if mode == .wrongWordReview {
-            let now = Date()
             words.sort { a, b in
-                let ra = vm.storeSnapshot.reviewSchedule?[a.id]?.ebbinghausRetrievability(at: now) ?? 0.0
-                let rb = vm.storeSnapshot.reviewSchedule?[b.id]?.ebbinghausRetrievability(at: now) ?? 0.0
+                let ra = snapshot.reviewSchedule?[a.id]?.ebbinghausRetrievability(at: now) ?? 0.0
+                let rb = snapshot.reviewSchedule?[b.id]?.ebbinghausRetrievability(at: now) ?? 0.0
                 if abs(ra - rb) > 0.001 { return ra < rb }
                 return a.id < b.id
             }
         }
-        if mode == .slowReactionReview && words.isEmpty {
-            words = allWords.filter { slowIDs.contains($0.id) && visibleListeningDeckIDs.contains($0.deckID) }
+        if mode == .slowReactionReview, words.isEmpty, let reviewIDs {
+            let visibleDecks = Set(vm.fastVisibleBaseDecks)
+            words = allWords.filter { reviewIDs.contains($0.id) && visibleDecks.contains($0.deckID) }
         }
         vm.dictationMachine = DictationSessionStateMachine(
             mode: mode,
@@ -8666,10 +8656,8 @@ public struct LumaStudyCenterHostView: View {
         vm.revealedWordID = nil
         showFirstLetterHint = false
         vm.dictationInput = ""
-        vm.save()
-        if !words.isEmpty {
-            speakCurrentWord()
-        }
+        vm.scheduleSave(after: 0.4)
+        scheduleDictationPlayback()
     }
 
     private func enableLocalSpeechServiceSettings() {
@@ -8700,8 +8688,10 @@ public struct LumaStudyCenterHostView: View {
 
     private func speakCurrentWord(overrideRate: Float? = nil) {
         guard listeningDailyTimer.running else { return }
+        pendingDictationPlayback?.cancel()
+        pendingDictationPlayback = nil
         guard let word = vm.dictationMachine.currentWord else { return }
-        guard visibleListeningDeckIDs.contains(word.deckID) || vm.dictationMachine.mode == .slowReactionReview else { return }
+        guard vm.fastVisibleBaseDecks.contains(word.deckID) || vm.dictationMachine.mode == .slowReactionReview else { return }
         let activeRate = overrideRate ?? vm.speechRateMultiplier
         let repeats = overrideRate != nil ? 1 : (vm.storeSnapshot.speechRepeatCount ?? 1)
         let interval = vm.storeSnapshot.speechInterval ?? 0.5
@@ -8710,11 +8700,11 @@ public struct LumaStudyCenterHostView: View {
         if !kokoro.useAppleSystemSpeech {
             ttsEngine.stop()
             audio.stop()
-            if kokoro.play(text: word.word, speed: activeRate, repeats: repeats, interval: interval, onFailure: {
+            let upcoming = vm.dictationMachine.pendingQueue.dropFirst().prefix(3).map(\.word)
+            if kokoro.play(text: word.word, speed: activeRate, repeats: repeats, interval: interval, prefetch: upcoming, onFailure: {
                 guard listeningDailyTimer.running, vm.dictationMachine.currentWord?.id == word.id else { return }
                 playFallbackWord(word.word, rate: activeRate, repeats: repeats, interval: interval)
             }) {
-                kokoro.preload(phrases: Array(vm.dictationMachine.pendingQueue.dropFirst().prefix(3).map(\.word)), startIndex: 0, speed: vm.speechRateMultiplier)
                 return
             }
         }
@@ -8777,9 +8767,9 @@ public struct LumaStudyCenterHostView: View {
         }
     }
 
-    private func submitCurrentDictation() {
+    private func submitCurrentDictation(editorText: String? = nil) {
         guard listeningDailyTimer.running, !kokoro.isSwitching else { return }
-        guard let word = vm.dictationMachine.currentWord, let outcome = vm.submitDictationInput() else { return }
+        guard let word = vm.dictationMachine.currentWord, let outcome = vm.submitDictationInput(editorText, newWordStrategy: newWordStrategy) else { return }
         let reactionSecs = vm.lastSubmittedReactionSeconds ?? 2.0
 
         if let log = vm.dictationMachine.attemptLogs.last {
@@ -8832,6 +8822,10 @@ public struct LumaStudyCenterHostView: View {
         vm.save()
         answerFocused = true
         switch outcome {
+        case .skippedIncorrect:
+            dictationErrorFlash = false
+            vm.dictationFeedback = "已记入错词，继续下一词"
+            speakCurrentWord()
         case .needsCorrection(let count):
             vm.dictationFeedback = "拼写有误（今日第 \(count) 次），请订正"
             triggerDictationErrorAnimation()
@@ -8841,13 +8835,13 @@ public struct LumaStudyCenterHostView: View {
             if reactionSecs > SlowReactionWordRecord.slowThresholdSeconds {
                 vm.dictationFeedback = String(format: "✓ 拼写正确，但从语音播完到敲下回车耗时 %.1f 秒（> 5.0 秒阈值），已自动标记为「慢反应词」加入提速巩固！", reactionSecs)
             } else {
-                vm.dictationFeedback = String(format: "✓ %@（反应耗时 %.1f 秒，达标 ≤5.0s）", exited ? "完成全部 4 轮错词循环 (+3→+13→+53→+200)，已彻底掌握！" : "拼写正确。", reactionSecs)
+                vm.dictationFeedback = String(format: "✓ %@（反应耗时 %.1f 秒，达标 ≤5.0s）", exited ? "本轮复习完成。" : "拼写正确。", reactionSecs)
             }
             speakCurrentWord()
         case .requeuedForRetry(_, let offset):
             dictationErrorFlash = false
             let cycle = vm.dictationMachine.wrongRetryCycleByWordID[word.id, default: 1]
-            vm.dictationFeedback = "✓ 艾宾浩斯错词循环（第 \(cycle)/4 轮）：将在第 \(offset) 个单词后再次复现检测（序列：+10 → +50 → +100 → +200 词）"
+            vm.dictationFeedback = "✓ 艾宾浩斯错词循环（第 \(cycle)/4 轮）：将在第 \(offset) 个单词后再次复现检测"
             speakCurrentWord()
         case .promotedToStubbornWords:
             vm.dictationFeedback = "已进入顽固单词，拼对后继续"
@@ -9857,6 +9851,19 @@ public struct LumaStudyCenterHostView: View {
 }
 #endif
 
+private struct DictationHeaderEntrance: ViewModifier {
+    let enabled: Bool
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .animation(enabled ? .easeOut(duration: 0.14) : nil) { header in
+                header.opacity(enabled && !appeared ? 0.82 : 1)
+            }
+            .task { appeared = true }
+    }
+}
+
 /// 听写页右上角三合一胶囊内按钮样式（对齐主页右上角 InteractiveToolbarButtonStyle 交互与排版）
 struct DictationToolbarClusterButtonStyle: ButtonStyle {
     @State private var hovered = false
@@ -9868,8 +9875,8 @@ struct DictationToolbarClusterButtonStyle: ButtonStyle {
             .scaleEffect(scale)
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.72), value: hovered)
-            .animation(reduceMotion ? nil : .spring(response: 0.18, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .spring(response: 0.16, dampingFraction: 0.8), value: hovered)
+            .animation(reduceMotion ? nil : .spring(response: 0.12, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -9880,7 +9887,7 @@ struct StudyFluidPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.97 : 1))
             .opacity(configuration.isPressed ? 0.78 : 1)
-            .animation(reduceMotion ? nil : .spring(response: configuration.isPressed ? 0.2 : 0.32, dampingFraction: configuration.isPressed ? 0.78 : 0.72), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .spring(response: configuration.isPressed ? 0.12 : 0.2, dampingFraction: configuration.isPressed ? 0.82 : 0.8), value: configuration.isPressed)
     }
 }
 
@@ -10101,5 +10108,1670 @@ private struct LumaDisclosureChevron: View {
         .onHover { hovered = $0 }
         .accessibilityLabel(Text(expanded ? "折叠" : "展开"))
         .accessibilityValue(Text(expanded ? "已展开" : "已折叠"))
+    }
+}
+
+// MARK: - 1.11.0 选择题背词（不听写，ABCD 四选一中文释义）
+//
+// 设计目标：
+// - 不改动听写会话、错词日志与持久化结构；进度只保存在 UserDefaults（每个词库一个游标）。
+// - 跟随 StudyAppearance（Monet / Space / Manga 等主题的 paper/ink/accent/surface），Manga 不使用玻璃。
+// - 自动播放发音；键盘全程可操作；静态背景 + 四周暗角 + 柔化文字对比度，减少长时间使用的视疲劳；
+//   单词居于视线中心，选项在其下方安静排列，周边信息全部弱化。
+
+enum LumaChoiceQuizProgress {
+    private static let key = "luma.choiceQuiz.cursorByDeck"
+    static func cursor(for deck: String) -> Int {
+        (UserDefaults.standard.dictionary(forKey: key) as? [String: Int])?[deck] ?? 0
+    }
+    static func setCursor(_ value: Int, for deck: String) {
+        var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: Int]) ?? [:]
+        all[deck] = max(0, value)
+        UserDefaults.standard.set(all, forKey: key)
+    }
+    private static func draftKey(_ deck: String) -> String { "luma.choiceQuiz.draft." + deck }
+
+    static func draft(for deck: String) -> ReadingQuizDraft? {
+        guard let data = UserDefaults.standard.data(forKey: draftKey(deck)) else { return nil }
+        return try? JSONDecoder().decode(ReadingQuizDraft.self, from: data)
+    }
+
+    static func saveDraft(_ draft: ReadingQuizDraft?, for deck: String) {
+        if let draft, let data = try? JSONEncoder().encode(draft) {
+            UserDefaults.standard.set(data, forKey: draftKey(deck))
+        } else if draft == nil {
+            UserDefaults.standard.removeObject(forKey: draftKey(deck))
+        }
+    }
+
+}
+
+struct LumaChoiceQuizDeck: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+private enum ReadingQuizGamepadAction: Sendable {
+    case answer(Int)
+    case replay
+    case advance
+    case help
+}
+
+@MainActor
+private struct ReadingQuizGamepadMonitor: NSViewRepresentable {
+    let onPress: @MainActor (ReadingQuizGamepadAction) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.start(in: view, onPress: onPress)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onPress = onPress
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private weak var view: NSView?
+        private var buttonsByController: [ObjectIdentifier: [GCControllerButtonInput]] = [:]
+        var onPress: (@MainActor (ReadingQuizGamepadAction) -> Void)?
+
+        func start(in view: NSView, onPress: @escaping @MainActor (ReadingQuizGamepadAction) -> Void) {
+            self.view = view
+            self.onPress = onPress
+            let notifications = NotificationCenter.default
+            for name in [NSNotification.Name.GCControllerDidConnect, .GCControllerDidDisconnect] {
+                notifications.addObserver(self, selector: #selector(controllersChanged(_:)), name: name, object: nil)
+            }
+            refreshControllers()
+        }
+
+        func stop() {
+            NotificationCenter.default.removeObserver(self)
+            onPress = nil
+            view = nil
+            for buttons in buttonsByController.values {
+                for button in buttons { button.pressedChangedHandler = nil }
+            }
+            buttonsByController.removeAll()
+        }
+
+        @objc private func controllersChanged(_ notification: Notification) {
+            refreshControllers()
+        }
+
+        private func refreshControllers() {
+            let controllers = GCController.controllers()
+            let connectedIDs = Set(controllers.map { ObjectIdentifier($0) })
+            for id in Array(buttonsByController.keys) where !connectedIDs.contains(id) {
+                for button in buttonsByController.removeValue(forKey: id) ?? [] {
+                    button.pressedChangedHandler = nil
+                }
+            }
+            for controller in controllers {
+                let id = ObjectIdentifier(controller)
+                guard buttonsByController[id] == nil, let gamepad = controller.extendedGamepad else { continue }
+                let bindings: [(GCControllerButtonInput, ReadingQuizGamepadAction)] = [
+                    (gamepad.buttonA, .answer(0)), (gamepad.buttonB, .answer(1)),
+                    (gamepad.buttonX, .answer(2)), (gamepad.buttonY, .answer(3)),
+                    (gamepad.leftShoulder, .replay), (gamepad.rightShoulder, .advance),
+                    (gamepad.buttonMenu, .help)
+                ]
+                buttonsByController[id] = bindings.map { $0.0 }
+                for (button, action) in bindings {
+                    button.pressedChangedHandler = { [weak self] _, _, pressed in
+                        guard pressed else { return }
+                        Task { @MainActor [weak self] in self?.deliver(action, from: id) }
+                    }
+                }
+            }
+        }
+
+        private func deliver(_ action: ReadingQuizGamepadAction, from id: ObjectIdentifier) {
+            guard buttonsByController[id] != nil, NSApp.isActive, NSApp.modalWindow == nil,
+                  let window = view?.window, window.isKeyWindow, window.attachedSheet == nil else { return }
+            onPress?(action)
+        }
+    }
+}
+
+private struct ReadingQuizTimer: View {
+    let active: Bool
+    @StateObject private var timer = StudyDailyTimer(scope: .reading)
+
+    var body: some View {
+        Button {
+            if timer.running { timer.pause() } else { timer.start() }
+        } label: {
+            Label(timer.formatted, systemImage: timer.running ? "pause.fill" : "play.fill")
+                .lumaFont(size: 12, weight: .medium, monospacedDigits: true)
+        }
+        .buttonStyle(StudyGlassCapsuleButtonStyle(selected: timer.running, horizontalPadding: 10, height: 32))
+        .fixedSize()
+        .disabled(!active)
+        .accessibilityLabel(timer.running ? "暂停阅读计时" : "继续阅读计时")
+        .accessibilityValue(timer.formatted)
+        .help(timer.running ? "暂停阅读计时" : "继续阅读计时")
+        .onChange(of: active, initial: true) { _, active in
+            if active { timer.start() } else { timer.pause() }
+        }
+        .onDisappear { timer.pause() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+            timer.pause()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.AppDidResignActive"))) { _ in
+            timer.pause()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            timer.pause()
+        }
+    }
+}
+
+struct LumaChoiceQuizView: View {
+    static let shortcutRows: [String] = [
+        "1–4 / A–D|选择对应选项", "Space / R / ⌘R|重播发音", "Return / →|下一个",
+        "H|提示：排除两个错误选项", "E|看答案（记为不会）", "P|自动播放开关",
+        "W|结果页：复习错题", "?|显示 / 隐藏快捷键", "Esc|返回词库"
+    ]
+
+    private static let gamepadRows: [(String, String)] = [
+        ("面键下／右／左／上", "选择选项 A / B / C / D"),
+        ("左肩键 LB / L1", "重播发音"),
+        ("右肩键 RB / R1", "下一题／下一组"),
+        ("菜单键", "显示／关闭操作说明")
+    ]
+
+    @Environment(\.studyAppearance) private var envAppearance
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.lumaDynamicMotion) private var dynamicMotion
+
+    @Binding var deckID: String
+    let decks: [LumaChoiceQuizDeck]
+    let wordsForDeck: @MainActor (String) -> [VocabularyWord]
+    let globalPool: [VocabularyWord]
+    let speak: @MainActor (String) -> Void
+    let speechIssue: (word: String, message: String)?
+    let preparingSpeech: Bool
+    let stopSpeech: @MainActor () -> Void
+    let onExit: @MainActor () -> Void
+    let onMiss: @MainActor (VocabularyWord) -> Void
+    let onReviewCorrect: @MainActor (VocabularyWord) -> Void
+
+    @AppStorage("luma.choiceQuiz.roundSize") private var roundSize: Int = 20
+    @AppStorage("luma.choiceQuiz.autoplay") private var autoplay: Bool = true
+    @AppStorage("luma.choiceQuiz.autoAdvance") private var autoAdvance: Bool = true
+    @AppStorage("luma.choiceQuiz.calm") private var calmMode: Bool = true
+    @AppStorage("luma.choiceQuiz.showPhonetic") private var showPhonetic: Bool = true
+
+    @State private var questions: [LumaChoiceQuizQuestion] = []
+    @State private var index = 0
+    @State private var picked: Int? = nil
+    @State private var eliminated: Set<Int> = []
+    @State private var revealedByHelp = false
+    @State private var correctIDs: [String] = []
+    @State private var wrongWords: [VocabularyWord] = []
+    @State private var finished = false
+    @State private var isReviewRound = false
+    @State private var showHelp = false
+    @State private var advanceTask: Task<Void, Never>? = nil
+    @State private var roundStartCursor = 0
+    @State private var roundEndCursor = 0
+    @State private var reviewCursor = 0
+    @State private var showSummaryWords = false
+
+    private var appearance: StudyAppearance { StudyAppearance.liveOverride ?? envAppearance }
+    private var animated: Bool { dynamicMotion && !reduceMotion }
+    private var isManga: Bool { appearance.visualThemeSystem == "manga" }
+    private var current: LumaChoiceQuizQuestion? { questions.indices.contains(index) ? questions[index] : nil }
+    private var deckTitle: String { decks.first { $0.id == deckID }?.title ?? "词库" }
+    private var answered: Bool { picked != nil }
+    /// 正文柔化：不用纯黑/纯白，降低长时间注视时的亮度对比。
+    private var softInk: Color { appearance.ink.opacity(calmMode ? 0.84 : 0.94) }
+    private var quietInk: Color { appearance.ink.opacity(calmMode ? 0.46 : 0.58) }
+    private var wrongTint: Color { Color(red: 0.86, green: 0.38, blue: 0.36) }
+
+    var body: some View {
+        ZStack {
+            calmBackdrop
+            VStack(spacing: 0) {
+                topBar
+                    .padding(.leading, 96)
+                    .padding(.trailing, 28)
+                    .padding(.top, 14)
+                if finished {
+                    summary.frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let q = current {
+                    questionStage(q).frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    StudyEmptyState("这个词库还没有可背的单词", symbol: "character.book.closed")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            if showHelp { helpOverlay }
+            StudyKeyboardEventMonitor { event in handleKey(event) }.frame(width: 0, height: 0)
+            ReadingQuizGamepadMonitor(onPress: handleGamepad)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+        .saturation(calmMode ? 0.9 : 1.0)
+        .onAppear { if questions.isEmpty { resumeOrStartRound() } }
+        .onChange(of: deckID) { _, _ in
+            reviewCursor = 0
+            resumeOrStartRound()
+        }
+        .onDisappear { pauseReadingPlayback() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+            pauseReadingPlayback()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.AppDidResignActive"))) { _ in
+            pauseReadingPlayback()
+        }
+        .task(id: current?.id) {
+            guard autoplay, let q = current, !finished else { return }
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            guard NSApp.isActive, current?.id == q.id, autoplay, !finished else { return }
+            speak(q.word.word)
+        }
+    }
+
+    private func pauseReadingPlayback() {
+        advanceTask?.cancel()
+        stopSpeech()
+    }
+
+    // MARK: 背景：静态、无动画；中心微亮，四周暗角把视线收拢到单词上
+
+    private var calmBackdrop: some View {
+        ZStack {
+            appearance.background
+            appearance.paper.opacity(calmMode ? 0.55 : 0.25)
+            RadialGradient(colors: [appearance.accent.opacity(appearance.isDark ? 0.07 : 0.05), .clear],
+                           center: UnitPoint(x: 0.5, y: 0.36), startRadius: 10, endRadius: 520)
+            RadialGradient(colors: [.clear, Color.black.opacity(appearance.isDark ? (calmMode ? 0.34 : 0.22) : (calmMode ? 0.10 : 0.05))],
+                           center: UnitPoint(x: 0.5, y: 0.42), startRadius: 260, endRadius: 980)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    // MARK: 顶栏：与截图一致的极简布局（返回 · 进度 · 右侧图标）
+
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            Button { stopSpeech(); onExit() } label: { Image(systemName: "house") }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 11, height: 32))
+                .help("返回词库  Esc")
+            Text(finished ? "完成" : "\(min(index + 1, max(questions.count, 1)))/\(max(questions.count, 1))")
+                .lumaFont(size: 15, weight: .semibold, monospacedDigits: true)
+                .foregroundStyle(softInk)
+                .contentTransition(.numericText())
+            if isReviewRound {
+                Text("错题复习").lumaFont(size: 11, weight: .semibold)
+                    .foregroundStyle(appearance.accent)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(appearance.accent.opacity(0.14)))
+            }
+            Spacer(minLength: 8)
+            ReadingQuizTimer(active: current != nil && !finished)
+            Menu {
+                ForEach(decks) { deck in
+                    Button { deckID = deck.id } label: {
+                        Label(deck.title, systemImage: deck.id == deckID ? "checkmark" : "book.closed")
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "books.vertical")
+                    Text(deckTitle).lineLimit(1).frame(maxWidth: 180)
+                }
+            }
+            .menuStyle(.button).menuIndicator(.hidden)
+            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
+            .fixedSize()
+            .help("切换词库")
+            Button { autoplay.toggle(); if autoplay, let q = current { speak(q.word.word) } } label: {
+                Image(systemName: autoplay ? "play.square" : "play.slash")
+            }
+            .buttonStyle(StudyGlassCapsuleButtonStyle(selected: autoplay, horizontalPadding: 11, height: 32))
+            .help(autoplay ? "自动播放：开（P）" : "自动播放：关（P）")
+            Menu {
+                Section("每组单词数") {
+                    ForEach([10, 20, 30, 50], id: \.self) { n in
+                        Button { roundSize = n } label: { Label("\(n) 词", systemImage: roundSize == n ? "checkmark" : "number") }
+                    }
+                }
+                Toggle("答对自动下一题", isOn: $autoAdvance)
+                Toggle("护眼柔和模式", isOn: $calmMode)
+                Toggle("显示音标", isOn: $showPhonetic)
+                Divider()
+                Button { LumaChoiceQuizProgress.setCursor(0, for: deckID); LumaChoiceQuizProgress.saveDraft(nil, for: deckID); reviewCursor = 0; startRound() } label: { Label("从词库开头重新背", systemImage: "arrow.counterclockwise") }
+                Button { showHelp = true } label: { Label("键盘与手柄操作", systemImage: "gamecontroller") }
+            } label: { Image(systemName: "ellipsis") }
+            .menuStyle(.button).menuIndicator(.hidden)
+            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
+            .fixedSize()
+        }
+    }
+
+    // MARK: 题目舞台
+
+    private func questionStage(_ q: LumaChoiceQuizQuestion) -> some View {
+        GeometryReader { geo in
+            let compact = geo.size.height < 620
+            VStack(spacing: 0) {
+                Spacer(minLength: compact ? 12 : 28)
+                wordHeader(q, compact: compact)
+                Spacer(minLength: compact ? 18 : 36)
+                VStack(spacing: compact ? 10 : 12) {
+                    ForEach(Array(q.options.enumerated()), id: \.offset) { offset, text in
+                        optionRow(q, offset: offset, text: text, compact: compact)
+                    }
+                }
+                .frame(maxWidth: 640)
+                .padding(.horizontal, 24)
+                footer(q).padding(.top, compact ? 14 : 22)
+                Spacer(minLength: compact ? 14 : 32)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .id(q.id)
+        .transition(animated ? AnyTransition.opacity.combined(with: .offset(y: 6)) : AnyTransition.identity)
+    }
+
+    private func wordHeader(_ q: LumaChoiceQuizQuestion, compact: Bool) -> some View {
+        let phonetic = q.word.phoneticUK.isEmpty ? q.word.phoneticUS : q.word.phoneticUK
+        return VStack(spacing: 12) {
+            Text(q.word.word)
+                .font(.system(size: compact ? 58 : 76, weight: .semibold, design: isManga ? .serif : .rounded))
+                .foregroundStyle(softInk)
+                .lineLimit(2)
+                .minimumScaleFactor(0.45)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+                .textSelection(.enabled)
+            HStack(spacing: 10) {
+                Button { speak(q.word.word) } label: {
+                    HStack(spacing: 6) {
+                        if showPhonetic && !phonetic.isEmpty {
+                            Text(phonetic.hasPrefix("[") || phonetic.hasPrefix("/") ? phonetic : "[\(phonetic)]")
+                                .lumaFont(size: 14)
+                        }
+                        Image(systemName: "speaker.wave.2")
+                    }
+                }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 30))
+                .help("重播  Space / R")
+            }
+            if preparingSpeech {
+                Text("正在准备神经语音…")
+                    .lumaFont(size: 11.5)
+                    .foregroundStyle(quietInk)
+            } else if let speechIssue, speechIssue.word == q.word.word {
+                Text(speechIssue.message)
+                    .lumaFont(size: 11.5)
+                    .foregroundStyle(quietInk)
+            }
+            if answered && !q.word.exampleSentence.isEmpty {
+                Text(q.word.exampleSentence)
+                    .lumaFont(size: 13.5)
+                    .foregroundStyle(quietInk)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: 560)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func optionRow(_ q: LumaChoiceQuizQuestion, offset: Int, text: String, compact: Bool) -> some View {
+        let split = LumaChoiceQuizBuilder.splitPOS(text)
+        let isCorrect = q.isCorrect(offset)
+        let isPicked = picked == offset
+        let isGone = eliminated.contains(offset) && !answered
+        let stateTint: Color? = answered ? (isCorrect ? appearance.accent : (isPicked ? wrongTint : nil)) : nil
+        let letter = ["A", "B", "C", "D"][min(offset, 3)]
+        let shape = RoundedRectangle(cornerRadius: isManga ? 6 : 18, style: .continuous)
+        let badgeColor: Color = stateTint.map { $0.opacity(0.7) } ?? appearance.ink.opacity(0.18)
+        let idleBorder: Color = isManga ? appearance.ink.opacity(0.85) : appearance.line
+        let borderColor: Color = stateTint.map { $0.opacity(0.75) } ?? idleBorder
+        let borderWidth: CGFloat = isManga ? appearance.mangaLineWeight : (stateTint == nil ? 0.8 : 1.4)
+        let dimmed: Bool = answered && !isCorrect && !isPicked
+        let rowOpacity: Double = dimmed ? 0.55 : (isGone ? 0.6 : 1.0)
+        let tintFill: Color = (stateTint ?? .clear).opacity(appearance.isDark ? 0.16 : 0.10)
+        let textColor: Color = isGone ? quietInk.opacity(0.5) : softInk
+        return Button { choose(offset) } label: {
+            HStack(spacing: 14) {
+                Text(letter)
+                    .lumaFont(size: 12.5, weight: .bold, monospacedDigits: true)
+                    .foregroundStyle(stateTint ?? quietInk)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().strokeBorder(badgeColor, lineWidth: 1))
+                VStack(alignment: .leading, spacing: 3) {
+                    if !split.pos.isEmpty {
+                        Text(split.pos).lumaFont(size: 11.5, weight: .medium).foregroundStyle(quietInk)
+                    }
+                    Text(split.text)
+                        .lumaFont(size: compact ? 16 : 17.5, weight: .regular)
+                        .foregroundStyle(textColor)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .strikethrough(isGone, color: quietInk)
+                }
+                Spacer(minLength: 8)
+                if let stateTint {
+                    Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(stateTint)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                } else {
+                    Text("\(offset + 1)").lumaFont(size: 11, monospacedDigits: true).foregroundStyle(quietInk.opacity(0.7))
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, compact ? 11 : 14)
+            .frame(maxWidth: .infinity, minHeight: compact ? 54 : 64, alignment: .leading)
+            .background {
+                if isManga {
+                    shape.fill(appearance.paper)
+                } else if appearance.glassEnabled {
+                    shape.fill(.ultraThinMaterial).overlay(shape.fill(appearance.surface.opacity(appearance.glassOpacity)))
+                } else {
+                    shape.fill(appearance.surface)
+                }
+            }
+            .overlay(shape.fill(tintFill))
+            .overlay(shape.strokeBorder(borderColor, lineWidth: borderWidth))
+            .contentShape(shape)
+            .opacity(rowOpacity)
+        }
+        .buttonStyle(LumaChoiceOptionPressStyle(enabled: animated))
+        .disabled(answered || isGone)
+        .animation(animated ? .easeOut(duration: autoAdvance && picked == q.correctIndex && !revealedByHelp ? 0.07 : 0.22) : nil, value: picked)
+        .animation(animated ? .easeOut(duration: 0.22) : nil, value: eliminated)
+        .accessibilityLabel(Text("选项 \(letter)：\(text)"))
+    }
+
+    private func footer(_ q: LumaChoiceQuizQuestion) -> some View {
+        HStack(spacing: 12) {
+            Button("提示") { hint(q) }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 30))
+                .disabled(answered || eliminated.count >= max(0, q.options.count - 2))
+                .help("排除两个错误选项  H")
+            Spacer()
+            if answered {
+                Button { next() } label: {
+                    HStack(spacing: 6) { Text(index + 1 >= questions.count ? "查看结果" : "下一个"); Image(systemName: "return") }
+                }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: picked != q.correctIndex || !autoAdvance, horizontalPadding: 16, height: 30))
+            } else {
+                Button("看答案") { reveal(q) }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 30))
+                    .help("直接显示答案（记为不会）  E")
+            }
+        }
+        .frame(maxWidth: 640)
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: 结果页
+
+    private var summary: some View {
+        let total = questions.count
+        let right = correctIDs.count
+        let rate = total == 0 ? 0 : Int((Double(right) / Double(total) * 100).rounded())
+        return VStack(spacing: 22) {
+            Text("\(rate)%")
+                .font(.system(size: 64, weight: .semibold, design: isManga ? .serif : .rounded))
+                .foregroundStyle(softInk)
+            Text("答对 \(right) / \(total)  ·  错词 \(wrongWords.count)")
+                .lumaFont(size: 14).foregroundStyle(quietInk)
+            if showSummaryWords && !wrongWords.isEmpty {
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(wrongWords, id: \.id) { w in
+                            HStack(spacing: 12) {
+                                Button { speak(w.word) } label: { Image(systemName: "speaker.wave.2") }.buttonStyle(.plain).foregroundStyle(quietInk)
+                                Text(w.word).lumaFont(size: 15, weight: .semibold).foregroundStyle(softInk)
+                                Spacer(minLength: 12)
+                                Text(LumaChoiceQuizBuilder.displayMeaning(for: w)).lumaFont(size: 13).foregroundStyle(quietInk).lineLimit(1)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 9)
+                            .studyCard()
+                        }
+                    }.padding(.horizontal, 2)
+                }
+                .frame(maxWidth: 560, maxHeight: 260)
+            }
+            HStack(spacing: 12) {
+                if !wrongWords.isEmpty {
+                    Button { startReviewRound() } label: { Label("复习错词", systemImage: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 16, height: 34))
+                }
+                if hasNextGroup {
+                    Button { startRound() } label: { Label("下一组", systemImage: "arrow.right") }
+                        .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: wrongWords.isEmpty, horizontalPadding: 16, height: 34))
+                }
+                if !wrongWords.isEmpty {
+                    Menu {
+                        Button(showSummaryWords ? "收起错词明细" : "查看错词明细") { showSummaryWords.toggle() }
+                    } label: { Image(systemName: "ellipsis") }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .accessibilityLabel("结果操作")
+                }
+            }
+        }
+        .padding(32)
+    }
+
+    private var helpOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { showHelp = false }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("操作说明").lumaFont(size: 15, weight: .semibold)
+                    Spacer()
+                    Button("完成") { showHelp = false }
+                }
+                Text("键盘").lumaFont(size: 13, weight: .semibold)
+                ForEach(Self.shortcutRows, id: \.self) { row in
+                    let parts = row.components(separatedBy: "|")
+                    HStack {
+                        Text(verbatim: parts[0]).lumaFont(size: 12.5, weight: .semibold, monospacedDigits: true).frame(width: 130, alignment: .leading)
+                        Text(verbatim: parts.count > 1 ? parts[1] : "").lumaFont(size: 12.5).foregroundStyle(quietInk)
+                    }
+                }
+                Divider().padding(.vertical, 3)
+                Text("手柄").lumaFont(size: 13, weight: .semibold)
+                ForEach(Self.gamepadRows.indices, id: \.self) { index in
+                    let (button, action) = Self.gamepadRows[index]
+                    HStack {
+                        Text(verbatim: button).lumaFont(size: 12.5, weight: .semibold)
+                            .frame(width: 130, alignment: .leading)
+                        Text(verbatim: action).lumaFont(size: 12.5).foregroundStyle(quietInk)
+                    }
+                }
+            }
+            .foregroundStyle(softInk)
+            .padding(22)
+            .frame(width: 380)
+            .studyGlassCapsule(cornerRadius: 18)
+        }
+    }
+
+    // MARK: 逻辑
+
+    private var hasNextGroup: Bool {
+        deckID != LumaChoiceLibrary.reviewDeckID || reviewCursor < wordsForDeck(deckID).count
+    }
+
+    private func resumeOrStartRound() {
+        advanceTask?.cancel()
+        if deckID != LumaChoiceLibrary.reviewDeckID, let draft = LumaChoiceQuizProgress.draft(for: deckID) {
+            if draft.isValid(for: wordsForDeck(deckID)) {
+                questions = draft.questions
+                index = draft.index
+                picked = draft.picked
+                eliminated = draft.eliminated
+                revealedByHelp = draft.revealedByHelp
+                correctIDs = draft.correctIDs
+                wrongWords = draft.wrongWords
+                roundStartCursor = draft.roundStartCursor
+                roundEndCursor = draft.roundEndCursor
+                finished = false
+                isReviewRound = false
+                showSummaryWords = false
+                return
+            }
+            LumaChoiceQuizProgress.setCursor(draft.roundStartCursor, for: deckID)
+            LumaChoiceQuizProgress.saveDraft(nil, for: deckID)
+        }
+        startRound()
+    }
+
+    private func persistRound() {
+        guard deckID != LumaChoiceLibrary.reviewDeckID, !isReviewRound, !questions.isEmpty else { return }
+        if finished { LumaChoiceQuizProgress.setCursor(roundEndCursor, for: deckID) }
+        LumaChoiceQuizProgress.saveDraft(finished ? nil : ReadingQuizDraft(
+            questions: questions, index: index, picked: picked, eliminated: eliminated,
+            revealedByHelp: revealedByHelp, correctIDs: correctIDs, wrongWords: wrongWords,
+            roundStartCursor: roundStartCursor, roundEndCursor: roundEndCursor
+        ), for: deckID)
+    }
+
+    private func startRound() {
+        advanceTask?.cancel()
+        let pool = wordsForDeck(deckID)
+        var seen = Set<String>()
+        let unique = pool.filter { seen.insert($0.id).inserted && !$0.definitionZH.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if deckID == LumaChoiceLibrary.reviewDeckID {
+            guard reviewCursor < unique.count else { return }
+            let batch = Array(unique.dropFirst(reviewCursor).prefix(max(5, roundSize)))
+            reviewCursor += batch.count
+            resetRound(with: batch, deckPool: unique, review: true)
+            return
+        }
+        var cursor = LumaChoiceQuizProgress.cursor(for: deckID)
+        if cursor >= unique.count { cursor = 0 }
+        roundStartCursor = cursor
+        let size = max(5, roundSize)
+        let slice = Array(unique[cursor..<min(unique.count, cursor + size)])
+        roundEndCursor = cursor + slice.count
+        resetRound(with: slice, deckPool: unique, review: false)
+    }
+
+    private func startReviewRound() {
+        let words = wrongWords
+        let pool = wordsForDeck(deckID)
+        resetRound(with: words, deckPool: pool.isEmpty ? words : pool, review: true)
+    }
+
+    private func resetRound(with words: [VocabularyWord], deckPool: [VocabularyWord], review: Bool) {
+        questions = LumaChoiceQuizBuilder.makeRound(words: words, deckPool: deckPool, globalPool: globalPool)
+        index = 0; picked = nil; eliminated = []; revealedByHelp = false
+        correctIDs = []; wrongWords = []; finished = false; isReviewRound = review
+        showSummaryWords = false
+        persistRound()
+    }
+
+    private func choose(_ offset: Int) {
+        guard let q = current, !answered, q.options.indices.contains(offset), !eliminated.contains(offset) else { return }
+        let isCorrect = q.isCorrect(offset) && !revealedByHelp
+        let advanceQuickly = isCorrect && autoAdvance
+        withAnimation(animated ? .easeOut(duration: advanceQuickly ? 0.07 : 0.22) : nil) { picked = offset }
+        if isCorrect {
+            correctIDs.append(q.word.id)
+            if isReviewRound { onReviewCorrect(q.word) }
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            if advanceQuickly {
+                advanceTask?.cancel()
+                advanceTask = Task { @MainActor in
+                    do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
+                    guard !Task.isCancelled, NSApp.isActive, autoAdvance, current?.id == q.id else { return }
+                    next(quickly: true)
+                }
+            }
+        } else {
+            onMiss(q.word)
+            if !wrongWords.contains(where: { $0.id == q.word.id }) { wrongWords.append(q.word) }
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        }
+        persistRound()
+    }
+
+    private func hint(_ q: LumaChoiceQuizQuestion) {
+        guard !answered else { return }
+        let wrong = q.options.indices.filter { $0 != q.correctIndex && !eliminated.contains($0) }.shuffled()
+        let keep = max(0, q.options.count - 2)
+        let removeCount = max(0, keep - eliminated.count)
+        withAnimation(animated ? .easeOut(duration: 0.22) : nil) {
+            for i in wrong.prefix(removeCount) { eliminated.insert(i) }
+        }
+        persistRound()
+    }
+
+    private func reveal(_ q: LumaChoiceQuizQuestion) {
+        guard !answered else { return }
+        revealedByHelp = true
+        onMiss(q.word)
+        if !wrongWords.contains(where: { $0.id == q.word.id }) { wrongWords.append(q.word) }
+        withAnimation(animated ? .easeOut(duration: 0.22) : nil) { picked = q.correctIndex }
+        persistRound()
+    }
+
+    private func next(quickly: Bool = false) {
+        advanceTask?.cancel()
+        guard answered || finished else { return }
+        if index + 1 >= questions.count {
+            withAnimation(animated ? .easeInOut(duration: quickly ? 0.1 : 0.28) : nil) { finished = true }
+            persistRound()
+            stopSpeech()
+            return
+        }
+        withAnimation(animated ? .easeInOut(duration: quickly ? 0.1 : 0.24) : nil) {
+            index += 1; picked = nil; eliminated = []; revealedByHelp = false
+        }
+        persistRound()
+    }
+
+    private func advanceFromInput() {
+        if finished {
+            if hasNextGroup { startRound() }
+        } else if answered {
+            next()
+        }
+    }
+
+    private func handleGamepad(_ action: ReadingQuizGamepadAction) {
+        if case .help = action {
+            showHelp.toggle()
+            return
+        }
+        guard !showHelp else { return }
+        switch action {
+        case .answer(let index):
+            if !finished { choose(index) }
+        case .replay:
+            if let q = current, !finished { speak(q.word.word) }
+        case .advance:
+            advanceFromInput()
+        case .help:
+            break
+        }
+    }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard event.window?.isKeyWindow ?? true, event.window?.attachedSheet == nil else { return false }
+        if let responder = event.window?.firstResponder as? NSTextView, responder.isEditable { return false }
+        let mods = event.modifierFlags.intersection([.command, .option, .control])
+        let chars = (event.charactersIgnoringModifiers ?? "").lowercased()
+        if mods == .command && chars == "r" { if let q = current { speak(q.word.word) }; return true }
+        guard mods.isEmpty else { return false }
+        if showHelp { showHelp = false; return true }
+        switch event.keyCode {
+        case 53: stopSpeech(); onExit(); return true                       // Esc
+        case 49: if let q = current, !finished { speak(q.word.word) }; return true // Space
+        case 36, 76, 124:                                                    // Return / Enter / →
+            advanceFromInput()
+            return true
+        default: break
+        }
+        if chars == "?" || chars == "/" { showHelp.toggle(); return true }
+        if finished {
+            if chars == "w", !wrongWords.isEmpty { startReviewRound(); return true }
+            return false
+        }
+        guard let q = current else { return false }
+        let map: [String: Int] = ["1": 0, "2": 1, "3": 2, "4": 3, "a": 0, "b": 1, "c": 2, "d": 3]
+        if let i = map[chars], i < q.options.count { choose(i); return true }
+        switch chars {
+        case "r": speak(q.word.word); return true
+        case "h": hint(q); return true
+        case "e": reveal(q); return true
+        case "p": autoplay.toggle(); return true
+        default: return false
+        }
+    }
+}
+
+/// 选项按下反馈：只做极轻的缩放（静态设计 / 减少动态效果时完全关闭）。
+struct LumaChoiceOptionPressStyle: ButtonStyle {
+    var enabled: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(enabled && configuration.isPressed ? 0.985 : 1)
+            .animation(enabled ? .easeOut(duration: 0.14) : nil, value: configuration.isPressed)
+    }
+}
+
+// MARK: - 1.11.1 背词独立词库（与听力词库完全分开）
+//
+// 存储：~/Library/Application Support/LumaReader/ChoiceQuiz/choice_vocab_store.json（原子写入 + .bak 备份）。
+// 听力的 luma_study_store.json、听写会话、错词日志都不会被读写。
+
+struct LumaChoiceDeck: Codable, Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var folderPath: [String]
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+struct LumaChoiceLibrarySnapshot: Codable, Equatable, Sendable {
+    var schema: Int = 1
+    var decks: [LumaChoiceDeck] = []
+    var words: [VocabularyWord] = []
+    /// 显式创建的文件夹（含空文件夹）。词库所在路径的上级文件夹会自动视为存在。
+    var folders: [[String]] = []
+    var readingMisses: [String: Int]?
+    var readingDueDates: [String: Date]?
+    var builtInReadingFolders: [String: [String]]?
+}
+
+@MainActor
+final class LumaChoiceLibrary: ObservableObject {
+    static let shared = LumaChoiceLibrary()
+    static let reviewDeckID = "reading_wrong_review"
+
+    @Published private(set) var snapshot = LumaChoiceLibrarySnapshot()
+    @Published var lastError: String?
+    private var wordsByDeck: [String: [VocabularyWord]] = [:]
+    private let fileURL: URL?
+
+    init(directory: URL? = nil) {
+        let dir: URL? = directory ?? (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+            .map { $0.appendingPathComponent("LumaReader/ChoiceQuiz", isDirectory: true) }
+        if let dir { try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
+        fileURL = dir?.appendingPathComponent("choice_vocab_store.json")
+        load()
+    }
+
+    // MARK: 读写
+
+    private var backupURL: URL? { fileURL?.appendingPathExtension("bak") }
+
+    private func load() {
+        guard let fileURL else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let data = try? Data(contentsOf: fileURL) {
+            if let decoded = try? decoder.decode(LumaChoiceLibrarySnapshot.self, from: data) {
+                apply(decoded); return
+            }
+            // 损坏的原文件保留一份，绝不覆盖用户数据。
+            let damaged = fileURL.deletingLastPathComponent().appendingPathComponent("choice_vocab_store.damaged-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.copyItem(at: fileURL, to: damaged)
+            if let backupURL, let bak = try? Data(contentsOf: backupURL),
+               let decoded = try? decoder.decode(LumaChoiceLibrarySnapshot.self, from: bak) {
+                apply(decoded)
+                lastError = "背词词库文件损坏，已从备份恢复；损坏文件已另存。"
+                return
+            }
+            lastError = "背词词库文件无法读取，原文件已另存为 damaged 副本。"
+        }
+    }
+
+    @discardableResult
+    private func commit(_ next: LumaChoiceLibrarySnapshot) -> Bool {
+        let previous = snapshot
+        apply(next)
+        guard let fileURL else { return true }
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(next)
+            if let backupURL, FileManager.default.fileExists(atPath: fileURL.path) {
+                try? FileManager.default.removeItem(at: backupURL)
+                try? FileManager.default.copyItem(at: fileURL, to: backupURL)
+            }
+            try data.write(to: fileURL, options: .atomic)
+            return true
+        } catch {
+            apply(previous)
+            lastError = "保存失败，词库保持原样：\(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func apply(_ next: LumaChoiceLibrarySnapshot) {
+        snapshot = next
+        var map: [String: [VocabularyWord]] = [:]
+        for w in next.words { map[w.deckID, default: []].append(w) }
+        wordsByDeck = map
+    }
+
+    // MARK: 查询
+
+    var allWords: [VocabularyWord] { snapshot.words }
+    func words(in deckID: String) -> [VocabularyWord] { wordsByDeck[deckID] ?? [] }
+    func deck(_ id: String) -> LumaChoiceDeck? { snapshot.decks.first { $0.id == id } }
+
+    var readingDecks: [LumaChoiceQuizDeck] {
+        ReadingVocabularySource.allCases.map {
+            LumaChoiceQuizDeck(id: ReadingVocabularyCatalog.deckID($0), title: $0.title)
+        } + snapshot.decks.map {
+            LumaChoiceQuizDeck(id: $0.id, title: displayTitle(for: $0))
+        }
+    }
+
+    var allReadingWords: [VocabularyWord] {
+        ReadingVocabularySource.allCases.flatMap { readingWords(in: ReadingVocabularyCatalog.deckID($0)) } + allWords
+    }
+
+    func readingWords(in deckID: String) -> [VocabularyWord] {
+        ReadingVocabularyCatalog.wordsByDeck[deckID] ?? words(in: deckID)
+    }
+
+    func readingWord(id: String) -> VocabularyWord? {
+        ReadingVocabularyCatalog.wordsByID[id] ?? allWords.first { $0.id == id }
+    }
+
+    var readingWrongWords: [VocabularyWord] {
+        guard let misses = snapshot.readingMisses, !misses.isEmpty else { return [] }
+        return misses.keys.compactMap { readingWord(id: $0) }.sorted {
+            let left = misses[$0.id, default: 0]
+            let right = misses[$1.id, default: 0]
+            return left == right ? $0.word.localizedStandardCompare($1.word) == .orderedAscending : left > right
+        }
+    }
+
+    func recordReadingMiss(_ id: String) {
+        var next = snapshot
+        var misses = next.readingMisses ?? [:]
+        misses[id, default: 0] += 1
+        next.readingMisses = misses
+        next.readingDueDates?.removeValue(forKey: id)
+        commit(next)
+    }
+
+    func isReadingReviewDue(_ id: String, at now: Date) -> Bool {
+        (snapshot.readingDueDates?[id] ?? .distantPast) <= now
+    }
+
+    func deferReadingReview(_ id: String) {
+        guard snapshot.readingMisses?[id] != nil else { return }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        var next = snapshot
+        var dates = next.readingDueDates ?? [:]
+        dates[id] = tomorrow
+        next.readingDueDates = dates
+        commit(next)
+    }
+
+    func removeReadingMiss(_ id: String) {
+        var next = snapshot
+        next.readingMisses?.removeValue(forKey: id)
+        next.readingDueDates?.removeValue(forKey: id)
+        commit(next)
+    }
+
+    var allFolders: [[String]] {
+        var set = Set<[String]>()
+        func addWithAncestors(_ path: [String]) {
+            guard !path.isEmpty else { return }
+            for i in 1...path.count { set.insert(Array(path.prefix(i))) }
+        }
+        snapshot.folders.forEach(addWithAncestors)
+        snapshot.decks.forEach { addWithAncestors($0.folderPath) }
+        (snapshot.builtInReadingFolders ?? [:]).values.forEach(addWithAncestors)
+        return set.sorted { $0.joined(separator: "/").localizedStandardCompare($1.joined(separator: "/")) == .orderedAscending }
+    }
+
+    func subfolders(of path: [String]) -> [[String]] {
+        allFolders.filter { $0.count == path.count + 1 && Array($0.prefix(path.count)) == path }
+    }
+
+    func decks(in path: [String]) -> [LumaChoiceDeck] {
+        snapshot.decks.filter { $0.folderPath == path }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    /// 文件夹内（含所有子文件夹）的词数。
+    func wordCount(under path: [String]) -> Int {
+        let custom = snapshot.decks.filter { $0.folderPath.starts(with: path) }.reduce(0) { $0 + words(in: $1.id).count }
+        return builtInReadingDecks.filter { $0.folderPath.starts(with: path) }.reduce(custom) { $0 + readingWords(in: $1.id).count }
+    }
+
+    var builtInReadingDecks: [LumaChoiceDeck] {
+        let stamp = Date(timeIntervalSince1970: 0)
+        return ReadingVocabularySource.allCases.map { source in
+            let id = ReadingVocabularyCatalog.deckID(source)
+            return LumaChoiceDeck(id: id, title: source.title, folderPath: snapshot.builtInReadingFolders?[id] ?? [],
+                                 createdAt: stamp, updatedAt: stamp)
+        }
+    }
+
+    func displayTitle(for deck: LumaChoiceDeck) -> String {
+        deck.folderPath.isEmpty ? deck.title : deck.folderPath.joined(separator: " / ") + " / " + deck.title
+    }
+
+    // MARK: 文件夹
+
+    private func cleanName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/", with: "／")
+    }
+
+    func createFolder(named raw: String, in parent: [String]) -> String? {
+        let name = cleanName(raw)
+        guard !name.isEmpty else { return "文件夹名称不能为空" }
+        let path = parent + [name]
+        guard !allFolders.contains(path) else { return "这里已经有同名文件夹" }
+        var next = snapshot
+        next.folders.append(path)
+        return commit(next) ? nil : lastError
+    }
+
+    private static func replacingPrefix(_ path: [String], old: [String], new: [String]) -> [String] {
+        path.starts(with: old) ? new + Array(path.dropFirst(old.count)) : path
+    }
+
+    private func relocate(folder old: [String], to new: [String]) -> Bool {
+        var next = snapshot
+        next.folders = next.folders.map { Self.replacingPrefix($0, old: old, new: new) }
+        if !next.folders.contains(new) { next.folders.append(new) }
+        for i in next.decks.indices where next.decks[i].folderPath.starts(with: old) {
+            next.decks[i].folderPath = Self.replacingPrefix(next.decks[i].folderPath, old: old, new: new)
+        }
+        next.builtInReadingFolders = next.builtInReadingFolders?.mapValues { Self.replacingPrefix($0, old: old, new: new) }
+        next.folders = Array(Set(next.folders))
+        return commit(next)
+    }
+
+    func renameFolder(_ path: [String], to raw: String) -> String? {
+        let name = cleanName(raw)
+        guard !name.isEmpty, !path.isEmpty else { return "文件夹名称不能为空" }
+        let target = Array(path.dropLast()) + [name]
+        guard target != path else { return nil }
+        guard !allFolders.contains(target) else { return "已经有同名文件夹" }
+        return relocate(folder: path, to: target) ? nil : lastError
+    }
+
+    func moveFolder(_ path: [String], into parent: [String]) -> String? {
+        guard let name = path.last else { return nil }
+        guard !parent.starts(with: path) else { return "不能把文件夹移到它自己里面" }
+        let target = parent + [name]
+        guard target != path else { return nil }
+        guard !allFolders.contains(target) else { return "目标位置已有同名文件夹" }
+        return relocate(folder: path, to: target) ? nil : lastError
+    }
+
+    /// 删除文件夹：里面的词库和子文件夹移到上一级，词条一个都不删。
+    func deleteFolder(_ path: [String]) -> String? {
+        guard !path.isEmpty else { return nil }
+        let parent = Array(path.dropLast())
+        var next = snapshot
+        next.folders = next.folders.compactMap { f in
+            if f == path { return nil }
+            return f.starts(with: path) ? parent + Array(f.dropFirst(path.count)) : f
+        }
+        for i in next.decks.indices where next.decks[i].folderPath.starts(with: path) {
+            next.decks[i].folderPath = parent + Array(next.decks[i].folderPath.dropFirst(path.count))
+        }
+        next.builtInReadingFolders = next.builtInReadingFolders?.mapValues { Self.replacingPrefix($0, old: path, new: parent) }
+        next.folders = Array(Set(next.folders))
+        return commit(next) ? nil : lastError
+    }
+
+    // MARK: 词库
+
+    private func uniqueTitle(_ raw: String, in path: [String], excluding: String? = nil) -> String {
+        let base = cleanName(raw).isEmpty ? "未命名词库" : cleanName(raw)
+        let taken = Set(snapshot.decks.filter { $0.folderPath == path && $0.id != excluding }.map(\.title))
+        guard taken.contains(base) else { return base }
+        var n = 2
+        while taken.contains("\(base) (\(n))") { n += 1 }
+        return "\(base) (\(n))"
+    }
+
+    private static func rebased(_ w: VocabularyWord, deckID: String, title: String, keepID: Bool = false) -> VocabularyWord {
+        VocabularyWord(id: keepID ? w.id : deckID + "_" + UUID().uuidString,
+                       word: w.word, phoneticUK: w.phoneticUK, phoneticUS: w.phoneticUS,
+                       partOfSpeech: w.partOfSpeech, definitionZH: w.definitionZH,
+                       exampleSentence: w.exampleSentence, deckID: deckID, deckTitle: title)
+    }
+
+    @discardableResult
+    func createDeck(title raw: String, in path: [String], words: [VocabularyWord]) -> String? {
+        let id = "cq_" + UUID().uuidString
+        let title = uniqueTitle(raw, in: path)
+        var next = snapshot
+        next.decks.append(LumaChoiceDeck(id: id, title: title, folderPath: path, createdAt: Date(), updatedAt: Date()))
+        next.words += words.map { Self.rebased($0, deckID: id, title: title) }
+        return commit(next) ? id : nil
+    }
+
+    /// 追加导入：全部保留（包括同词不同义、完全重复），是否加入已由导入预览里的用户勾选决定。
+    func appendWords(_ words: [VocabularyWord], to deckID: String) -> String? {
+        guard let deck = deck(deckID) else { return "词库不存在" }
+        var next = snapshot
+        next.words += words.map { Self.rebased($0, deckID: deckID, title: deck.title) }
+        if let i = next.decks.firstIndex(where: { $0.id == deckID }) { next.decks[i].updatedAt = Date() }
+        return commit(next) ? nil : lastError
+    }
+
+    func replaceWords(in deckID: String, with words: [VocabularyWord]) -> String? {
+        guard let deck = deck(deckID) else { return "词库不存在" }
+        var next = snapshot
+        next.words.removeAll { $0.deckID == deckID }
+        next.words += words.map { Self.rebased($0, deckID: deckID, title: deck.title, keepID: true) }
+        if let i = next.decks.firstIndex(where: { $0.id == deckID }) { next.decks[i].updatedAt = Date() }
+        return commit(next) ? nil : lastError
+    }
+
+    func renameDeck(_ id: String, to raw: String) -> String? {
+        guard let deck = deck(id) else { return nil }
+        guard !cleanName(raw).isEmpty else { return "词库名称不能为空" }
+        let title = uniqueTitle(raw, in: deck.folderPath, excluding: id)
+        var next = snapshot
+        if let i = next.decks.firstIndex(where: { $0.id == id }) { next.decks[i].title = title; next.decks[i].updatedAt = Date() }
+        next.words = next.words.map { $0.deckID == id ? Self.rebased($0, deckID: id, title: title, keepID: true) : $0 }
+        return commit(next) ? nil : lastError
+    }
+
+    func moveDeck(_ id: String, to path: [String]) -> String? {
+        if let builtIn = builtInReadingDecks.first(where: { $0.id == id }) {
+            guard builtIn.folderPath != path else { return nil }
+            var next = snapshot
+            var folders = next.builtInReadingFolders ?? [:]
+            folders[id] = path
+            next.builtInReadingFolders = folders
+            return commit(next) ? nil : lastError
+        }
+        guard let deck = deck(id), deck.folderPath != path else { return nil }
+        let title = uniqueTitle(deck.title, in: path, excluding: id)
+        var next = snapshot
+        if let i = next.decks.firstIndex(where: { $0.id == id }) {
+            next.decks[i].folderPath = path; next.decks[i].title = title; next.decks[i].updatedAt = Date()
+        }
+        return commit(next) ? nil : lastError
+    }
+
+    func deleteDeck(_ id: String) -> String? {
+        var next = snapshot
+        next.decks.removeAll { $0.id == id }
+        for word in words(in: id) {
+            next.readingMisses?.removeValue(forKey: word.id)
+            next.readingDueDates?.removeValue(forKey: word.id)
+        }
+        next.words.removeAll { $0.deckID == id }
+        let ok = commit(next)
+        if ok {
+            LumaChoiceQuizProgress.setCursor(0, for: id)
+            LumaChoiceQuizProgress.saveDraft(nil, for: id)
+        }
+        return ok ? nil : lastError
+    }
+}
+
+// MARK: 背词词库主页（文件夹 + 词库 + 导入 / 编辑 / 分类）
+
+struct LumaChoiceLibraryView: View {
+    @Environment(\.studyAppearance) private var envAppearance
+    @ObservedObject var library: LumaChoiceLibrary
+    let onStart: @MainActor (String) -> Void
+
+    @Binding var path: [String]
+    @Binding var search: String
+    @Binding var cardID: String?
+    @State private var importShown = false
+    @State private var importTargetDeck: String? = nil
+    @State private var importDraft: VocabularyImportDraft? = nil
+    @State private var editingDeck: LumaChoiceDeck? = nil
+    @State private var nameRequest: NameRequest? = nil
+    @State private var nameInput = ""
+    @State private var deckToDelete: LumaChoiceDeck? = nil
+    @State private var folderToDelete: [String]? = nil
+    @State private var dropTarget: String? = nil
+    @State private var toast: String? = nil
+
+    enum NameRequest: Equatable {
+        case newFolder([String]), renameFolder([String]), newDeck([String]), renameDeck(String)
+        var title: String {
+            switch self {
+            case .newFolder: return "新建文件夹"
+            case .renameFolder: return "重命名文件夹"
+            case .newDeck: return "新建空词库"
+            case .renameDeck: return "重命名词库"
+            }
+        }
+    }
+
+    private var appearance: StudyAppearance { StudyAppearance.liveOverride ?? envAppearance }
+    private var isManga: Bool { appearance.visualThemeSystem == "manga" }
+    private var deckToDeleteCount: Int { deckToDelete.map { library.words(in: $0.id).count } ?? 0 }
+    private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 16)]
+
+    private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var visibleFolders: [[String]] {
+        guard !query.isEmpty else { return library.subfolders(of: path) }
+        return library.allFolders.filter { $0.starts(with: path) && $0.last?.localizedStandardContains(query) == true }
+    }
+    private var visibleDecks: [LumaChoiceDeck] {
+        let builtIn = library.builtInReadingDecks
+        guard !query.isEmpty else { return builtIn.filter { $0.folderPath == path } + library.decks(in: path) }
+        return (builtIn + library.snapshot.decks).filter { d in
+            d.folderPath.starts(with: path) &&
+            (d.title.localizedStandardContains(query) ||
+             library.readingWords(in: d.id).contains { $0.word.localizedStandardContains(query) || $0.definitionZH.localizedStandardContains(query) })
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            breadcrumb
+            if let error = library.lastError {
+                HStack {
+                    Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Spacer()
+                    Button("关闭") { library.lastError = nil }.buttonStyle(.borderless)
+                }.lumaFont(size: 12)
+            }
+            ScrollView {
+                if visibleFolders.isEmpty && visibleDecks.isEmpty {
+                    emptyState.frame(maxWidth: .infinity).padding(.top, 60)
+                } else {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                        ForEach(visibleFolders, id: \.self) { folder in folderCard(folder) }
+                        ForEach(visibleDecks) { deck in deckCard(deck).id(deck.id) }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.bottom, 32)
+                }
+            }
+            .scrollPosition(id: $cardID)
+            .scrollContentBackground(.hidden)
+        }
+        .padding(.horizontal, 42)
+        .padding(.top, 26)
+        .background(appearance.background.ignoresSafeArea())
+        .overlay(alignment: .bottom) {
+            if let toast {
+                Text(toast).lumaFont(size: 12.5).padding(.horizontal, 16).padding(.vertical, 9)
+                    .studyGlassCapsule(cornerRadius: 18).padding(.bottom, 22)
+                    .transition(.opacity)
+                    .task { try? await Task.sleep(for: .seconds(2.6)); self.toast = nil }
+            }
+        }
+        .fileImporter(isPresented: $importShown, allowedContentTypes: [.plainText, .utf8PlainText, .tabSeparatedText, .commaSeparatedText, .json]) { result in
+            do {
+                let url = try result.get()
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                importDraft = try VocabularyImportDraft(data: Data(contentsOf: url), filename: url.lastPathComponent)
+            } catch {
+                library.lastError = "导入失败，背词词库未更改：\(error.localizedDescription)"
+            }
+        }
+        .sheet(item: $importDraft) { draft in
+            VocabularyImportReview(draft: draft, existing: importTargetDeck.map { library.words(in: $0) } ?? [], onConfirm: { words in
+                saveImport(words, title: draft.deckTitle)
+            })
+            .environment(\.studyAppearance, appearance)
+        }
+        .sheet(item: $editingDeck) { deck in
+            LumaChoiceDeckEditorSheet(deck: deck, originalWords: library.words(in: deck.id)) { words in
+                library.replaceWords(in: deck.id, with: words)
+            }
+            .environment(\.studyAppearance, appearance)
+        }
+        .alert(nameRequest?.title ?? "", isPresented: Binding(get: { nameRequest != nil }, set: { if !$0 { nameRequest = nil } })) {
+            TextField("名称", text: $nameInput)
+            Button("取消", role: .cancel) { nameRequest = nil }
+            Button("确定") { submitName() }
+        }
+        .confirmationDialog("删除词库「\(deckToDelete?.title ?? "")」？", isPresented: Binding(get: { deckToDelete != nil }, set: { if !$0 { deckToDelete = nil } }), titleVisibility: .visible) {
+            Button("删除词库及其 \(deckToDeleteCount) 个词", role: .destructive) {
+                if let d = deckToDelete { report(library.deleteDeck(d.id), ok: "已删除「\(d.title)」") }
+                deckToDelete = nil
+            }
+            Button("取消", role: .cancel) { deckToDelete = nil }
+        } message: { Text("将删除这个阅读词库及其词条。") }
+        .confirmationDialog("删除文件夹「\(folderToDelete?.last ?? "")」？", isPresented: Binding(get: { folderToDelete != nil }, set: { if !$0 { folderToDelete = nil } }), titleVisibility: .visible) {
+            Button("删除文件夹（内容移到上一级）", role: .destructive) {
+                if let f = folderToDelete { report(library.deleteFolder(f), ok: "已删除文件夹，内容已移到上一级") }
+                folderToDelete = nil
+            }
+            Button("取消", role: .cancel) { folderToDelete = nil }
+        } message: { Text("文件夹里的词库和单词不会被删除。") }
+    }
+
+    // MARK: 顶部
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("分类").lumaFont(size: 30, weight: .bold, design: .serif).foregroundStyle(appearance.ink)
+                Text("\(library.readingDecks.count) 个词库 · \(library.allReadingWords.count) 个词")
+                    .lumaFont(size: 12, monospacedDigits: true).foregroundStyle(appearance.ink.opacity(0.55))
+            }
+            Spacer()
+            StudySearchField("搜索词库或单词", text: $search, width: 200)
+            Menu {
+                Button { requestName(.newFolder(path)) } label: { Label("新建文件夹", systemImage: "folder.badge.plus") }
+                Button { requestName(.newDeck(path)) } label: { Label("新建空词库", systemImage: "rectangle.stack.badge.plus") }
+            } label: { Image(systemName: "plus") }
+            .menuStyle(.button).menuIndicator(.hidden)
+            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32)).fixedSize()
+            .help("新建文件夹 / 词库")
+            Button { importTargetDeck = nil; importShown = true } label: { Label("导入", systemImage: "square.and.arrow.down") }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 32))
+                .help("导入 txt / csv / tsv / json 到当前文件夹")
+        }
+    }
+
+    private var breadcrumb: some View {
+        HStack(spacing: 4) {
+            crumb(title: "全部", target: [])
+            ForEach(Array(path.enumerated()), id: \.offset) { i, name in
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(appearance.ink.opacity(0.35))
+                crumb(title: name, target: Array(path.prefix(i + 1)))
+            }
+            Spacer()
+            if !path.isEmpty, library.wordCount(under: path) > 0 {
+                Text("\(library.wordCount(under: path)) 词").lumaFont(size: 12, monospacedDigits: true).foregroundStyle(appearance.ink.opacity(0.5))
+            }
+        }
+    }
+
+    private func crumb(title: String, target: [String]) -> some View {
+        let key = "crumb:" + target.joined(separator: "\u{1F}")
+        return Button { withAnimation(StudyMotion.page) { path = target } } label: {
+            Text(title).lumaFont(size: 13, weight: target == path ? .semibold : .regular)
+        }
+        .buttonStyle(StudyGlassCapsuleButtonStyle(selected: target == path || dropTarget == key, horizontalPadding: 10, height: 26))
+        .dropDestination(for: String.self) { items, _ in handleDrop(items, into: target) } isTargeted: { dropTarget = $0 ? key : (dropTarget == key ? nil : dropTarget) }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "rectangle.stack").font(.system(size: 36, weight: .light)).foregroundStyle(appearance.ink.opacity(0.35))
+            Text(query.isEmpty ? (path.isEmpty ? "还没有背词词库" : "这个文件夹是空的") : "没有找到匹配的词库")
+                .lumaFont(size: 15).foregroundStyle(appearance.ink.opacity(0.6))
+            if query.isEmpty {
+                HStack(spacing: 10) {
+                    Button { importTargetDeck = nil; importShown = true } label: { Label("导入词库", systemImage: "square.and.arrow.down") }
+                        .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 32))
+                    Button { requestName(.newDeck(path)) } label: { Label("新建空词库", systemImage: "plus") }
+                        .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 32))
+                }
+            }
+        }
+    }
+
+    // MARK: 卡片
+
+    private func cardBackground(highlight: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: isManga ? 6 : 16, style: .continuous)
+        let stroke: Color = highlight ? appearance.accent : (isManga ? appearance.ink.opacity(0.85) : appearance.line)
+        let width: CGFloat = highlight ? 2 : (isManga ? appearance.mangaLineWeight : 1)
+        return shape.fill(isManga ? AnyShapeStyle(appearance.paper) : AnyShapeStyle(appearance.secondaryGradient))
+            .overlay(shape.strokeBorder(stroke, lineWidth: width))
+    }
+
+    private func folderCard(_ folder: [String]) -> some View {
+        let key = "folder:" + folder.joined(separator: "\u{1F}")
+        let deckCount = (library.builtInReadingDecks + library.snapshot.decks).filter { $0.folderPath.starts(with: folder) }.count
+        return Button { withAnimation(StudyMotion.page) { path = folder; search = "" } } label: {
+            HStack(spacing: 14) {
+                Image(systemName: dropTarget == key ? "folder.fill.badge.plus" : "folder.fill")
+                    .font(.system(size: 30, weight: .regular))
+                    .foregroundStyle(appearance.accent.opacity(0.85))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(folder.last ?? "").lumaFont(size: 15, weight: .semibold).foregroundStyle(appearance.ink).lineLimit(1)
+                    Text("\(deckCount) 个词库 · \(library.wordCount(under: folder)) 词")
+                        .lumaFont(size: 11.5, monospacedDigits: true).foregroundStyle(appearance.ink.opacity(0.5))
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(appearance.ink.opacity(0.3))
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
+            .background(cardBackground(highlight: dropTarget == key))
+            .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(LumaChoiceOptionPressStyle(enabled: true))
+        .contextMenu {
+            Button("打开", systemImage: "folder") { path = folder }
+            Button("在此新建文件夹", systemImage: "folder.badge.plus") { requestName(.newFolder(folder)) }
+            Button("导入到此文件夹", systemImage: "square.and.arrow.down") { path = folder; importTargetDeck = nil; importShown = true }
+            Button("重命名…", systemImage: "pencil") { requestName(.renameFolder(folder)) }
+            moveMenu(excluding: folder) { target in report(library.moveFolder(folder, into: target), ok: "已移动文件夹") }
+            Divider()
+            Button("删除文件夹…", systemImage: "trash", role: .destructive) { folderToDelete = folder }
+        }
+        .draggable("cq-folder:" + folder.joined(separator: "\u{1F}"))
+        .dropDestination(for: String.self) { items, _ in handleDrop(items, into: folder) } isTargeted: { dropTarget = $0 ? key : (dropTarget == key ? nil : dropTarget) }
+    }
+
+    private func deckCard(_ deck: LumaChoiceDeck) -> some View {
+        let words = library.readingWords(in: deck.id)
+        let cursor = min(LumaChoiceQuizProgress.cursor(for: deck.id), words.count)
+        let draft = LumaChoiceQuizProgress.draft(for: deck.id)
+        let completed = draft.map { $0.roundStartCursor + $0.answeredCount } ?? cursor
+        let progress = words.isEmpty ? 0 : Double(min(words.count, completed)) / Double(words.count)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(deck.title).lumaFont(size: 15.5, weight: .semibold).foregroundStyle(appearance.ink).lineLimit(2)
+                    if !query.isEmpty && !deck.folderPath.isEmpty {
+                        Text(deck.folderPath.joined(separator: " / ")).lumaFont(size: 11).foregroundStyle(appearance.ink.opacity(0.45)).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 6)
+                Menu { deckMenu(deck) } label: { Image(systemName: "ellipsis") }
+                    .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
+                    .foregroundStyle(appearance.ink.opacity(0.5))
+            }
+            Text(words.prefix(4).map(\.word).joined(separator: " · "))
+                .lumaFont(size: 12).foregroundStyle(appearance.ink.opacity(0.5)).lineLimit(1)
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("\(words.count) 词").lumaFont(size: 11.5, monospacedDigits: true)
+                    Spacer()
+                    Text("已背 \(Int((progress * 100).rounded()))%").lumaFont(size: 11.5, monospacedDigits: true)
+                }
+                .foregroundStyle(appearance.ink.opacity(0.55))
+                GeometryReader { g in
+                    Capsule().fill(appearance.ink.opacity(0.08))
+                        .overlay(alignment: .leading) { Capsule().fill(appearance.accent.opacity(0.75)).frame(width: g.size.width * progress) }
+                }.frame(height: 4)
+            }
+            HStack(spacing: 8) {
+                if library.deck(deck.id) != nil {
+                    Button { editingDeck = deck } label: { Label("编辑", systemImage: "square.and.pencil").frame(maxWidth: .infinity) }
+                        .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 8, height: 28))
+                }
+                Button { onStart(deck.id) } label: { Label(draft == nil ? "开始背词" : "继续背词", systemImage: "play.fill").frame(maxWidth: .infinity) }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 8, height: 28))
+                    .disabled(words.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 196, alignment: .leading)
+        .background(cardBackground(highlight: false))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture(count: 2) { if !words.isEmpty { onStart(deck.id) } }
+        .contextMenu { deckMenu(deck) }
+        .draggable("cq-deck:" + deck.id)
+    }
+
+    @ViewBuilder
+    private func deckMenu(_ deck: LumaChoiceDeck) -> some View {
+        Button("开始背词", systemImage: "play.fill") { onStart(deck.id) }
+        if library.deck(deck.id) != nil {
+            Button("编辑词条…", systemImage: "square.and.pencil") { editingDeck = deck }
+            Button("追加导入到此词库…", systemImage: "square.and.arrow.down") { importTargetDeck = deck.id; importShown = true }
+            Button("重命名…", systemImage: "pencil") { requestName(.renameDeck(deck.id)) }
+        }
+        moveMenu(excluding: nil) { target in report(library.moveDeck(deck.id, to: target), ok: "已移动「\(deck.title)」") }
+        Button("从头重新背", systemImage: "arrow.counterclockwise") { LumaChoiceQuizProgress.setCursor(0, for: deck.id); LumaChoiceQuizProgress.saveDraft(nil, for: deck.id); toast = "进度已重置" }
+        if library.deck(deck.id) != nil {
+            Divider()
+            Button("删除词库…", systemImage: "trash", role: .destructive) { deckToDelete = deck }
+        }
+    }
+
+    /// 「移动到…」子菜单：列出全部文件夹（排除自身及其子文件夹）。
+    private func moveMenu(excluding folder: [String]?, perform: @escaping ([String]) -> Void) -> some View {
+        let targets = library.allFolders.filter { f in
+            guard let folder else { return true }
+            return !f.starts(with: folder) && f != Array(folder.dropLast())
+        }
+        return Menu {
+            Button { perform([]) } label: { Label("全部（最外层）", systemImage: "tray") }
+            Divider()
+            ForEach(targets, id: \.self) { f in
+                Button { perform(f) } label: {
+                    Text(String(repeating: "    ", count: f.count - 1) + (f.last ?? ""))
+                }
+            }
+        } label: { Label("移动到…", systemImage: "folder") }
+    }
+
+    // MARK: 动作
+
+    private func requestName(_ request: NameRequest) {
+        switch request {
+        case .renameFolder(let f): nameInput = f.last ?? ""
+        case .renameDeck(let id): nameInput = library.deck(id)?.title ?? ""
+        default: nameInput = ""
+        }
+        nameRequest = request
+    }
+
+    private func submitName() {
+        guard let request = nameRequest else { return }
+        nameRequest = nil
+        switch request {
+        case .newFolder(let parent): report(library.createFolder(named: nameInput, in: parent), ok: "已新建文件夹")
+        case .renameFolder(let f):
+            let error = library.renameFolder(f, to: nameInput)
+            if error == nil, path.starts(with: f) {
+                path = Array(f.dropLast()) + [nameInput.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/", with: "／")] + Array(path.dropFirst(f.count))
+            }
+            report(error, ok: "已重命名")
+        case .newDeck(let parent):
+            if let id = library.createDeck(title: nameInput, in: parent, words: []), let deck = library.deck(id) {
+                editingDeck = deck
+            }
+        case .renameDeck(let id): report(library.renameDeck(id, to: nameInput), ok: "已重命名")
+        }
+    }
+
+    private func saveImport(_ words: [VocabularyWord], title: String) -> String? {
+        guard !words.isEmpty else { return "没有可导入的词条，背词词库保持不变。" }
+        if let target = importTargetDeck {
+            let error = library.appendWords(words, to: target)
+            if error == nil { toast = "已追加 \(words.count) 个词" }
+            return error
+        }
+        guard library.createDeck(title: title, in: path, words: words) != nil else { return library.lastError ?? "保存失败" }
+        toast = "已导入 \(words.count) 个词"
+        return nil
+    }
+
+    private func handleDrop(_ items: [String], into target: [String]) -> Bool {
+        guard let item = items.first else { return false }
+        if item.hasPrefix("cq-deck:") {
+            report(library.moveDeck(String(item.dropFirst("cq-deck:".count)), to: target), ok: "已移动词库")
+            return true
+        }
+        if item.hasPrefix("cq-folder:") {
+            let folder = String(item.dropFirst("cq-folder:".count)).components(separatedBy: "\u{1F}")
+            guard folder != target else { return false }
+            report(library.moveFolder(folder, into: target), ok: "已移动文件夹")
+            return true
+        }
+        return false
+    }
+
+    private func report(_ error: String?, ok: String) {
+        if let error { library.lastError = error } else { withAnimation(StudyMotion.hover) { toast = ok } }
+    }
+}
+
+// MARK: 背词词条编辑（允许同一单词保留多个不同释义）
+
+struct LumaChoiceDeckEditorSheet: View {
+    @Environment(\.studyAppearance) private var appearance
+    @Environment(\.dismiss) private var dismiss
+    let deck: LumaChoiceDeck
+    let originalWords: [VocabularyWord]
+    let onSave: ([VocabularyWord]) -> String?
+
+    @State private var rows: [LumaVocabularyEditRow] = []
+    @State private var phonetics: [String: String] = [:]
+    @State private var search = ""
+    @State private var errorMessage = ""
+    @State private var loaded = false
+
+    private var visibleRowIDs: [String] {
+        let q = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return rows.map(\.id) }
+        return rows.filter { $0.word.localizedStandardContains(q) || $0.meaning.localizedStandardContains(q) }.map(\.id)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("编辑背词词库").lumaFont(size: 24, weight: .medium).foregroundStyle(appearance.ink)
+                    Text(deck.title + " · \(rows.count) 个词").lumaFont(size: 12).foregroundStyle(appearance.ink.opacity(0.55))
+                }
+                Spacer()
+                StudySearchField("搜索词条", text: $search, width: 200)
+                Button { addRow() } label: { Label("新增", systemImage: "plus") }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 14, height: 34))
+            }
+            HStack(spacing: 10) {
+                Text("英文").frame(minWidth: 180, alignment: .leading)
+                Text("音标").frame(width: 120, alignment: .leading)
+                Text("中文释义（可写词性，如 n. 门廊）").frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .lumaFont(size: 11.5).foregroundStyle(appearance.ink.opacity(0.5)).padding(.horizontal, 20)
+            List {
+                ForEach(visibleRowIDs, id: \.self) { id in editRow(id) }
+            }
+            .scrollContentBackground(.hidden)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(appearance.surface)
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(appearance.line, lineWidth: 1)))
+            HStack(spacing: 12) {
+                if !errorMessage.isEmpty {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill").lumaFont(size: 12.5).foregroundStyle(appearance.accent)
+                }
+                Spacer()
+                Button("取消") { dismiss() }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 16, height: 36))
+                    .keyboardShortcut(.cancelAction)
+                Button("保存") { save() }
+                    .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 22, height: 36))
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 760, minHeight: 540)
+        .background(appearance.background)
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            rows = originalWords.map { LumaVocabularyEditRow(id: $0.id, word: $0.word, meaning: $0.definitionZH) }
+            for w in originalWords { phonetics[w.id] = w.phoneticUK.isEmpty ? w.phoneticUS : w.phoneticUK }
+        }
+    }
+
+    private func binding(_ id: String, _ keyPath: WritableKeyPath<LumaVocabularyEditRow, String>) -> Binding<String> {
+        Binding(get: { rows.first { $0.id == id }?[keyPath: keyPath] ?? "" },
+                set: { v in if let i = rows.firstIndex(where: { $0.id == id }) { rows[i][keyPath: keyPath] = v } })
+    }
+
+    private func phoneticBinding(_ id: String) -> Binding<String> {
+        Binding(get: { phonetics[id] ?? "" }, set: { phonetics[id] = $0 })
+    }
+
+    private func editRow(_ id: String) -> some View {
+        HStack(spacing: 10) {
+            TextField("英文单词或短语", text: binding(id, \.word)).autocorrectionDisabled().textFieldStyle(.roundedBorder).frame(minWidth: 180)
+            TextField("音标", text: phoneticBinding(id)).autocorrectionDisabled().textFieldStyle(.roundedBorder).frame(width: 120)
+            TextField("中文释义", text: binding(id, \.meaning)).textFieldStyle(.roundedBorder).frame(minWidth: 240)
+            Button(role: .destructive) { rows.removeAll { $0.id == id } } label: { Image(systemName: "trash").font(.system(size: 12)) }
+                .buttonStyle(.borderless).help("删除此条")
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func addRow() {
+        search = ""
+        rows.insert(LumaVocabularyEditRow(id: deck.id + "_edit_" + UUID().uuidString, word: "", meaning: ""), at: 0)
+    }
+
+    private func save() {
+        var result: [VocabularyWord] = []
+        for row in rows {
+            let word = row.word.trimmingCharacters(in: .whitespacesAndNewlines)
+            let meaning = row.meaning.trimmingCharacters(in: .whitespacesAndNewlines)
+            if word.isEmpty && meaning.isEmpty { continue }
+            guard VocabularyImport.isValidEnglishTerm(word) else { errorMessage = "「\(word.isEmpty ? meaning : word)」不是有效的英文词条"; return }
+            guard !meaning.isEmpty else { errorMessage = "「\(word)」缺少中文释义"; return }
+            let phonetic = (phonetics[row.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let original = originalWords.first { $0.id == row.id }
+            result.append(VocabularyWord(id: row.id, word: word, phoneticUK: phonetic,
+                                         phoneticUS: original?.phoneticUS ?? "", partOfSpeech: original?.partOfSpeech ?? "",
+                                         definitionZH: meaning, exampleSentence: original?.exampleSentence ?? "",
+                                         deckID: deck.id, deckTitle: deck.title))
+        }
+        if let issue = onSave(result) { errorMessage = issue } else { dismiss() }
     }
 }

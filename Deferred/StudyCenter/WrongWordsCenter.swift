@@ -215,13 +215,14 @@ public struct WrongWordsCenterView: View {
     private let onGoToDictation: () -> Void
     private let onExportRecords: () -> Void
     private let onStartTodayQueue: () -> Void
+    private let onStartDueQueue: (() -> Void)?
     private let onStartAllWrongWords: () -> Void
     private let onStartMicroDrill: ([String]) -> Void
     private let renderMode: Bool
 
     @State private var query = ""
     @State private var filter: WrongWordsFilter = .all
-    @State private var sort: WrongWordsSort = .errors
+    @State private var sort: WrongWordsSort = .due
     @State private var deckFilter = "全部词库"
     @State private var selectedEntryID: String?
     @State private var showDecks = false
@@ -243,6 +244,7 @@ public struct WrongWordsCenterView: View {
                 onGoToDictation: @escaping () -> Void,
                 onExportRecords: @escaping () -> Void = {},
                 onStartTodayQueue: @escaping () -> Void = {},
+                onStartDueQueue: (() -> Void)? = nil,
                 onStartAllWrongWords: @escaping () -> Void = {},
                 onStartMicroDrill: @escaping ([String]) -> Void = { _ in },
                 renderMode: Bool = false) {
@@ -257,6 +259,7 @@ public struct WrongWordsCenterView: View {
         self.onGoToDictation = onGoToDictation
         self.onExportRecords = onExportRecords
         self.onStartTodayQueue = onStartTodayQueue
+        self.onStartDueQueue = onStartDueQueue
         self.onStartAllWrongWords = onStartAllWrongWords
         self.onStartMicroDrill = onStartMicroDrill
         self.renderMode = renderMode
@@ -344,22 +347,15 @@ public struct WrongWordsCenterView: View {
 
     private var headerActions: some View {
         HStack(spacing: 8) {
-            Button {
-                if let deck = preferredDeck() { onStartDue(deck) }
-            } label: {
-                Label(model.dueWords > 0 ? "到期复习 \(model.dueWords)" : "暂无到期错词", systemImage: "play.fill")
+            if model.dueWords > 0 {
+                Button {
+                    if let onStartDueQueue { onStartDueQueue() }
+                    else if let deck = preferredDeck() { onStartDue(deck) }
+                } label: {
+                    Label("开始复习 \(model.dueWords)", systemImage: "play.fill")
+                }
+                .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 13, height: 32))
             }
-            .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: model.dueWords > 0, horizontalPadding: 13, height: 32))
-            .disabled(model.dueWords == 0)
-
-            Button {
-                onStartAllWrongWords()
-            } label: {
-                Label("全部错词听写 \(model.totalWords)", systemImage: "text.badge.xmark")
-            }
-            .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: false, horizontalPadding: 12, height: 32))
-            .disabled(model.totalWords == 0)
-            .help("把错词本里的全部 \(model.totalWords) 个错词放进同一个循环听写")
 
             Menu {
                 if let entry = model.allEntries.first(where:{ $0.wordID == selectedEntryID }) {
@@ -607,7 +603,7 @@ public struct WrongWordsCenterView: View {
                         }
                     }
                     Divider()
-                    Button("重置筛选") { filter = .all; sort = .errors; query = ""; deckFilter = "全部词库" }
+                    Button("重置筛选") { filter = .all; sort = .due; query = ""; deckFilter = "全部词库" }
                 } label: {
                     Label(filter.rawValue, systemImage: "line.3.horizontal.decrease.circle")
                         .lumaFont(size: 11.5, weight: .medium)
@@ -1039,7 +1035,12 @@ public struct WrongWordsCenterView: View {
         case .recent:
             entries.sort { ($0.lastAttemptAt ?? .distantPast) > ($1.lastAttemptAt ?? .distantPast) }
         case .due:
-            entries.sort { ($0.dueAt ?? .distantFuture) < ($1.dueAt ?? .distantFuture) }
+            entries.sort {
+                if $0.isDue != $1.isDue { return $0.isDue }
+                let left = $0.dueAt ?? ($0.isDue ? .distantPast : .distantFuture)
+                let right = $1.dueAt ?? ($1.isDue ? .distantPast : .distantFuture)
+                return left == right ? $0.word < $1.word : left < right
+            }
         case .alphabetical:
             entries.sort { $0.word.localizedStandardCompare($1.word) == .orderedAscending }
         }

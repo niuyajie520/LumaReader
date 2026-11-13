@@ -5,7 +5,7 @@
   EPUB · PDF · 14 art-directed themes · annotations · dictation · writing · AI · cloud sync</p>
 
   <p>
-    <a href="https://github.com/niuyajie520/LumaReader/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.10.3%20(86)-2ea44f"></a>
+    <a href="https://github.com/niuyajie520/LumaReader/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.22.0%20(117)-2ea44f"></a>
     <img alt="macOS 26 or later" src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white">
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
     <img alt="SwiftUI, AppKit and WebKit" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20%2B%20WebKit-1B6AC9">
@@ -67,9 +67,9 @@ Command line:
 
 ```bash
 curl -L -o LumaReader-Source.zip \
-  https://github.com/niuyajie520/LumaReader/releases/download/v1.10.3/LumaReader-1.10.3-B86-20261111-Source.zip
+  https://github.com/niuyajie520/LumaReader/releases/download/v1.22.0/LumaReader-1.22.0-B117-20261113-Source.zip
 unzip LumaReader-Source.zip
-cd LumaReader-1.10.3-B86-20261111-Source
+cd LumaReader-1.22.0-B117-20261113-Source
 bash Install.command
 ```
 
