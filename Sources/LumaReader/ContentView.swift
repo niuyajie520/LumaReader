@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var studyVisible = false
     @State private var studyPreviousVisibility:NavigationSplitViewVisibility = .all
     @State private var studyPreviousAI = false
+    @State private var isIELTSReadingPracticing = false
     @State private var studyMode = "学习"
     @State private var debugHooksApplied = false
     @Bindable var store: LibraryStore
@@ -204,6 +205,26 @@ struct ContentView: View {
                 if wasPractice { store.aiPanelVisible = studyPreviousAI }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.IELTSReadingPracticeStateChanged"))) { note in
+            let active = note.userInfo?["practicing"] as? Bool ?? false
+            if isIELTSReadingPracticing != active {
+                isIELTSReadingPracticing = active
+                if active {
+                    studyPreviousVisibility = columnVisibility
+                    studyPreviousAI = store.aiPanelVisible
+                    columnVisibility = .detailOnly
+                    store.aiPanelVisible = false
+                } else if store.selectedBook == nil {
+                    columnVisibility = .all
+                    store.aiPanelVisible = studyPreviousAI
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.ToggleWindowFullScreen"))) { _ in
+            if let window = controller.readingWindow ?? NSApp.keyWindow ?? NSApp.mainWindow {
+                window.toggleFullScreen(nil)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
             openStudy(mode:notice.userInfo?["mode"] as? String ?? "学习",resume:notice.userInfo?["resume"] as? Bool ?? false,directResume:notice.userInfo?["direct"] as? Bool ?? false)
         }
@@ -322,7 +343,7 @@ struct ContentView: View {
 
     /// 保持 macOS 原生红黄绿在标准 22pt 位置，彻底消除点击顶部按钮时的闪烁与跳动。
     private var trafficLightTarget:CGFloat { store.selectedBook != nil ? 30 : 22 }
-    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(studyMode))}
+    private var studyPractice:Bool {studyVisible && (studyMode.contains("模拟机考") || ["学习_听力_今日计划","学习_听力_错词复习","学习_背词_练习","学习_易混词_练习"].contains(studyMode) || (studyMode == "学习_雅思阅读" && isIELTSReadingPracticing))}
     /// 侧栏列。主题布局决定它在窗口左侧还是右侧；练习模式（detailOnly）宽度为 0，听写输入框位置不受影响。
     private var sidebarColumn: some View {
         let sidebarHidden = columnVisibility == .detailOnly || studyPractice

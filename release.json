@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "LumaReader",
-  "version": "1.22.0",
-  "build": "117",
+  "version": "1.22.1",
+  "build": "118",
   "source_id": "20261113",
   "installer": "Install.command",
   "required": [

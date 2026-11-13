@@ -1,3 +1,17 @@
+# LumaReader 1.22.1 B118
+
+由 DeepSeek 更改 在 22:28:00 (UTC-08:00)，本次更新的安装包为 v1.22.1（build 118），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：code
+- 更新内容：
+  - 用 2261 行新实现替换雅思阅读练习视图，内置原创文章、十个题组、图示与全屏机考布局
+  - 主窗口接入练习状态通知：进入机考时收起侧栏与 AI 面板，返回题组后恢复
+  - 新文件 4 处不存在的 studyGlassSurface 改为项目既有的 studyGlassCapsule，修复编译错误
+- 涉及文件：`Deferred/StudyCenter/IELTSReadingPractice.swift`、`Sources/LumaReader/ContentView.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户要求检查两个 gemini 生成文件的语法错误并加入安装
+- 验证：release 编译通过；实机从侧栏雅思阅读进入题库目录、选题组、开始机考，确认计时/分屏/拖放槽/题号导航、练习时侧栏收起、返回后恢复
+- 未验证：未逐题作答并交卷验证判分与错题跳转；未在全部 15 个主题下截图
+
 # LumaReader 1.22.0 B117
 
 雅思阅读新增题型样例入口，内置原创文章、十个题组和图示，供单独试做。
