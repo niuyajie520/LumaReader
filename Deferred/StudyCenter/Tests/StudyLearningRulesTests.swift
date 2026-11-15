@@ -70,16 +70,16 @@ struct StudyLearningRulesTests {
             var session=DictationSessionStateMachine(dateString:"2026-11-07",initialWords:words)
             session.submitAnswer("wrong");session.submitAnswer("word0")
             let offset=session.pendingQueue.firstIndex{$0.id=="0"}!
-            #expect((2...5).contains(offset))
+            #expect(offset == 10)
         }
     }
     @Test func reportOrdersErrorsAndEscapesCSV() {
         var session=DictationSessionStateMachine(dateString:"2026-11-07",initialWords:[word("a","hello"),word("b","a,b\"c")])
         session.submitAnswer("hello")
         session.submitAnswer("wrong");session.submitAnswer("wrong");session.submitAnswer("a,b\"c")
-        session.submitAnswer("a,b\"c")
+        // 仍须先拼对本题才能离开即时订正；本轮已累计三次拼错。
         let report=DictationSessionReport(session:session)
-        #expect(report.rows.map(\.errors)==[2,0])
+        #expect(report.rows.map(\.errors)==[3,0])
         #expect(report.firstTryCorrect==1)
         #expect(report.csv.contains("\"a,b\"\"c\""))
     }
@@ -152,39 +152,39 @@ struct StudyLearningRulesTests {
         #expect(try JSONDecoder().decode(StudyStoreSnapshot.self,from:JSONSerialization.data(withJSONObject:state)).writingRevisions==nil)
     }
 
-    @Test func fourStageIntraSessionRetryLadder3_13_53_200AndShortEbbinghaus() {
+    @Test func fourStageAdaptiveRetryLadderAndShortEbbinghaus() {
         let words = (0..<260).map { word("w\($0)", "word\($0)") }
         // The 4-round ladder now belongs to the separate wrong-word review session.
         var session = DictationSessionStateMachine(mode: .wrongWordReview, dateString: "2026-11-08", initialWords: words)
 
-        // Misspell w0 -> immediate correction -> Cycle 1 at +3
+        // Misspell w0 -> immediate correction -> Cycle 1 at +10
         _ = session.submitAnswer("wrong")
         let out1 = session.submitAnswer("word0")
-        #expect(out1 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 3))
+        #expect(out1 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 10))
         #expect(session.wrongRetryCycleByWordID["w0"] == 1)
         #expect(!session.completedWordIDs.contains("w0"))
 
-        // Advance 3 words -> w0 is at front -> spell right -> Cycle 2 at +13
-        for _ in 0..<3 { _ = session.submitAnswer(session.currentWord!.word) }
+        // Advance 10 words -> w0 is at front -> spell right -> Cycle 2 at +20
+        for _ in 0..<10 { _ = session.submitAnswer(session.currentWord!.word) }
         #expect(session.currentWord?.id == "w0")
         let out2 = session.submitAnswer("word0")
-        #expect(out2 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 13))
+        #expect(out2 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 20))
         #expect(session.wrongRetryCycleByWordID["w0"] == 2)
         #expect(!session.completedWordIDs.contains("w0"))
 
-        // Advance 13 words -> w0 is at front -> spell right -> Cycle 3 at +53
-        for _ in 0..<13 { _ = session.submitAnswer(session.currentWord!.word) }
+        // Advance 20 words -> w0 is at front -> spell right -> Cycle 3 at +35
+        for _ in 0..<20 { _ = session.submitAnswer(session.currentWord!.word) }
         #expect(session.currentWord?.id == "w0")
         let out3 = session.submitAnswer("word0")
-        #expect(out3 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 53))
+        #expect(out3 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 35))
         #expect(session.wrongRetryCycleByWordID["w0"] == 3)
         #expect(!session.completedWordIDs.contains("w0"))
 
-        // Advance 53 words -> w0 is at front -> spell right -> Cycle 4 at +200
-        for _ in 0..<53 { _ = session.submitAnswer(session.currentWord!.word) }
+        // Advance 35 words -> w0 is at front -> spell right -> Cycle 4 at +50
+        for _ in 0..<35 { _ = session.submitAnswer(session.currentWord!.word) }
         #expect(session.currentWord?.id == "w0")
         let out4 = session.submitAnswer("word0")
-        #expect(out4 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 190))
+        #expect(out4 == .requeuedForRetry(errorCountForWordToday: 1, insertedAtOffset: 50))
         #expect(session.wrongRetryCycleByWordID["w0"] == 4)
         #expect(!session.completedWordIDs.contains("w0"))
 

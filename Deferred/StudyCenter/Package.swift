@@ -15,6 +15,8 @@ let package = Package(
             sources: [
                 "BuiltInIELTSDictionary.swift",
                 "DictationEngine.swift",
+                "DictationUnitWrongWindow.swift",
+                "RecentDictationDecksWindow.swift",
                 "DictationThemeErrorAccent.swift",
                 "DictationPracticeLayout.swift",
                 "DictationShortcutPolicy.swift",

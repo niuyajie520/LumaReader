@@ -85,31 +85,69 @@ struct DictationAnswerFont: AnimatableModifier {
     }
 }
 
-/// Three siblings: quiet context, answer, actions. Equal clearance above/below the
-/// answer keeps its center fixed when context or hints change. Short windows scroll
-/// the entire canvas instead of compressing or overlaying the text field.
+/// Four siblings: quiet context, answer, feedback/status. Equal clearance above/below
+/// the answer keeps its center fixed while the window can afford it. When it cannot,
+/// the groups pack tightly so the feedback row stays right under the answer instead
+/// of being pushed below the fold. Short windows still scroll the entire canvas
+/// instead of compressing or overlaying the text field.
 struct DictationPracticeLayout: Layout {
     var minimumHeight: CGFloat
     private let gap: CGFloat = 16
 
+    private struct Metrics {
+        let topHeight: CGFloat
+        let inputHeight: CGFloat
+        let statusHeight: CGFloat
+        /// Height the canvas needs to centre the answer with equal clearance.
+        let centredHeight: CGFloat
+        /// Height the canvas needs when the groups simply follow each other.
+        let packedHeight: CGFloat
+    }
+
+    private func metrics(width: CGFloat, subviews: Subviews) -> Metrics {
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+        let topHeight = sizes[0].height + gap + sizes[1].height
+        let statusHeight = sizes[3].height
+        let inputHeight = sizes[2].height
+        return Metrics(
+            topHeight: topHeight,
+            inputHeight: inputHeight,
+            statusHeight: statusHeight,
+            centredHeight: inputHeight + 2 * (max(topHeight, statusHeight) + gap),
+            packedHeight: topHeight + gap + inputHeight + gap + statusHeight
+        )
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = max(1, proposal.width ?? 640)
         guard subviews.count == 4 else { return CGSize(width: width, height: minimumHeight) }
-        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
-        let topHeight = sizes[0].height + gap + sizes[1].height
-        let bottomHeight = sizes[3].height
-        let required = sizes[2].height + 2 * (max(topHeight, bottomHeight) + gap)
-        return CGSize(width: width, height: max(minimumHeight, required))
+        let m = metrics(width: width, subviews: subviews)
+        let preferred = minimumHeight >= m.centredHeight ? m.centredHeight : m.packedHeight
+        return CGSize(width: width, height: max(minimumHeight, preferred))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard subviews.count == 4 else { return }
         let child = ProposedViewSize(width: bounds.width, height: nil)
-        subviews[0].place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top, proposal: child)
-        subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.minY + subviews[0].sizeThatFits(child).height + gap),
-                          anchor: .top, proposal: child)
-        subviews[2].place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: child)
-        subviews[3].place(at: CGPoint(x: bounds.midX, y: bounds.maxY), anchor: .bottom, proposal: child)
+        let m = metrics(width: bounds.width, subviews: subviews)
+        // Same decision sizeThatFits made: centre only when the viewport can afford
+        // the equal clearance; otherwise keep the status row adjacent to the answer.
+        if bounds.height >= m.centredHeight {
+            subviews[0].place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top, proposal: child)
+            subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.minY + subviews[0].sizeThatFits(child).height + gap),
+                              anchor: .top, proposal: child)
+            subviews[2].place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: child)
+            subviews[3].place(at: CGPoint(x: bounds.midX, y: bounds.maxY), anchor: .bottom, proposal: child)
+        } else {
+            var y = bounds.minY
+            subviews[0].place(at: CGPoint(x: bounds.midX, y: y), anchor: .top, proposal: child)
+            y += subviews[0].sizeThatFits(child).height + gap
+            subviews[1].place(at: CGPoint(x: bounds.midX, y: y), anchor: .top, proposal: child)
+            y += subviews[1].sizeThatFits(child).height + gap
+            subviews[2].place(at: CGPoint(x: bounds.midX, y: y), anchor: .top, proposal: child)
+            y += subviews[2].sizeThatFits(child).height + gap
+            subviews[3].place(at: CGPoint(x: bounds.midX, y: y), anchor: .top, proposal: child)
+        }
     }
 }
 

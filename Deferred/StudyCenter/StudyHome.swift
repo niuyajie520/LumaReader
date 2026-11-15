@@ -754,6 +754,16 @@ struct LumaVocabularyDeckEditorSheet: View {
 
 // MARK: - Main Study Center Host View
 
+/// Snapshot of the word that was just answered incorrectly, kept only for the
+/// quick-skip strategy where the session moves on before the feedback is read.
+private struct DictationMissedWord: Equatable {
+    let wordID: String
+    let word: String
+    let definitionZH: String
+    let typedAttempt: String
+    let errorCount: Int
+}
+
 @MainActor
 public struct LumaStudyCenterHostView: View {
     @Environment(\.studyAppearance) private var appearance
@@ -851,7 +861,10 @@ public struct LumaStudyCenterHostView: View {
             }
             lastSubmittedReactionSeconds = latency
             guard let result = dictationMachine.submitAnswer(input ?? dictationInput, durationSeconds: latency, newWordStrategy: newWordStrategy) else { return nil }
-            showMeaning = dictationMachine.attemptLogs.last?.isCorrect == false
+            // Only hold the Chinese meaning for the word being corrected. A quick
+            // skip advances to the next word immediately, so showing the meaning
+            // there would reveal the answer of the word that just replaced it.
+            showMeaning = dictationMachine.requiresCorrection
             return result
         }
         var persistence: StudyPersistenceManager?
@@ -894,14 +907,41 @@ public struct LumaStudyCenterHostView: View {
                             mode: session.mode,
                             dateString: LumaStudyCenterHostView.todayDateString(),
                             initialWords: session.pendingQueue,
-                            existingStubbornWordsForToday: saved.stubbornWords
+                            existingStubbornWordsForToday: saved.stubbornWords,
+                            originDeck: session.originDeck
+                        )
+                    }
+                    // 从磁盘恢复的会话如果不属于当前选中的单元，直接丢掉按当前单元重建：
+                    // 新词学习必须干净，不能混进别的单元的单词。
+                    let restoredDecks = dictationMachine.wordDeckIDs
+                    let belongs: Bool = {
+                        if let origin = dictationMachine.originDeck, !origin.isEmpty {
+                            return origin == selectedDeck
+                        }
+                        if restoredDecks.count == 1, let only = restoredDecks.first {
+                            return only == selectedDeck
+                        }
+                        return true
+                    }()
+                    if !belongs {
+                        saved.dictationSession = nil
+                        dictationMachine = DictationSessionStateMachine(
+                            mode: .newTask,
+                            dateString: LumaStudyCenterHostView.todayDateString(),
+                            initialWords: [],
+                            existingStubbornWordsForToday: saved.stubbornWords,
+                            previousLogs: saved.dictationLogs,
+                            originDeck: selectedDeck
                         )
                     }
                 }
                 activeDictationDeckKey = selectedDeck
                 if let state = saved.workspace {
                     let currentKey = Self.sessionKey(mode: dictationMachine.mode, date: dictationMachine.dateString, deck: selectedDeck)
-                    if let currentWordID = dictationMachine.currentWord?.id {
+                    // 本轮已经提交过的词一律空框：循环复习把同一个词放回来时，
+                    // 不能再把上一次的错拼恢复出来。
+                    let submittedIDs = Set(dictationMachine.attemptLogs.map(\.wordID))
+                    if let currentWordID = dictationMachine.currentWord?.id, !submittedIDs.contains(currentWordID) {
                         if state.inputWordID == currentWordID {
                             dictationInput = state.dictationInput
                             showMeaning = state.showMeaning
@@ -955,6 +995,41 @@ public struct LumaStudyCenterHostView: View {
 
         static func sessionKey(mode: DictationSessionMode, date: String, deck: String) -> String {
             mode.rawValue + "|" + date + "|" + deck
+        }
+
+        /// 单个单词的记录键：同一模式下每个词的输入/释义互不覆盖
+        static func wordKey(mode: DictationSessionMode, date: String, wordID: String) -> String {
+            mode.rawValue + "|" + date + "|" + wordID
+        }
+
+        /// 切到新词时把该词上次的记录恢复出来（没有记录就保持空白）。
+        /// 本轮已经提交过的词一律给空输入框：艾宾浩斯循环把同一个词放回来时，
+        /// 上一次的错拼不能再出现在框里（否则看起来像没提交、像卡住）。
+        func restoreWordDraftForCurrentWord() {
+            guard let id = dictationMachine.currentWord?.id else { return }
+            let submittedThisSession = dictationMachine.attemptLogs.contains { $0.wordID == id }
+            guard !submittedThisSession else {
+                dictationInput = ""
+                showMeaning = false
+                revealedWordID = nil
+                return
+            }
+            let key = Self.wordKey(mode: dictationMachine.mode, date: dictationMachine.dateString, wordID: id)
+            let workspace = storeSnapshot.workspace
+            dictationInput = workspace?.wordInputs?[key] ?? ""
+            showMeaning = workspace?.wordShowMeaning?[key] ?? false
+            revealedWordID = workspace?.wordRevealedWordIDs?[key]
+        }
+
+        /// 开始新一轮听写时清掉单词草稿：草稿只服务于「输入到一半就切走／切到别的词」，
+        /// 上一轮遗留的内容会把已经提交过的答案带回输入框（看起来像卡住、像没提交）。
+        func discardStaleWordDrafts() {
+            guard var workspace = storeSnapshot.workspace else { return }
+            guard let inputs = workspace.wordInputs, !inputs.isEmpty else { return }
+            workspace.wordInputs = [:]
+            workspace.wordShowMeaning = [:]
+            workspace.wordRevealedWordIDs = [:]
+            storeSnapshot.workspace = workspace
         }
 
         func tickExamClock(seconds: Int = 1) {
@@ -1067,6 +1142,20 @@ public struct LumaStudyCenterHostView: View {
             workspace.deckInputWordIDs = deckInputWordIDs
             workspace.deckShowMeaning = deckShowMeaning
             workspace.deckRevealedWordIDs = deckRevealedWordIDs
+
+            var wordInputs = workspace.wordInputs ?? [:]
+            var wordShowMeaning = workspace.wordShowMeaning ?? [:]
+            var wordRevealedWordIDs = workspace.wordRevealedWordIDs ?? [:]
+            if let wordID = dictationMachine.currentWord?.id {
+                let wordKey = Self.wordKey(mode: dictationMachine.mode, date: dictationMachine.dateString, wordID: wordID)
+                wordInputs[wordKey] = dictationInput
+                wordShowMeaning[wordKey] = showMeaning
+                if let revealedWordID { wordRevealedWordIDs[wordKey] = revealedWordID }
+                else { wordRevealedWordIDs.removeValue(forKey: wordKey) }
+            }
+            workspace.wordInputs = wordInputs
+            workspace.wordShowMeaning = wordShowMeaning
+            workspace.wordRevealedWordIDs = wordRevealedWordIDs
 
             let isCurrentSubmitted = storeSnapshot.writingSubmissions.contains { $0.draftSessionID == currentDraft.id }
             let hasDraftProgress = !currentDraft.part1EssayText.isEmpty || !currentDraft.part2EssayText.isEmpty || currentDraft.elapsedSeconds > 0
@@ -1249,7 +1338,8 @@ public struct LumaStudyCenterHostView: View {
             initialWords: LumaStudyCenterHostView.builtInVocabularyWords
         )
         @Published var dictationInput: String = ""
-        @Published var dictationFeedback: String = "支持听写反应时长追踪：语音播完后犹豫超过 5.0 秒自动标记为「慢反应词」加入提速巩固；第 6 次答错进入顽固单词。"
+        /// 提交后的即时反馈，渲染在输入框下方的状态区；空字符串表示没有新反馈。
+        @Published var dictationFeedback: String = ""
         @Published var selectedAccent: TTSVoiceAccent = .british
         @Published var speechRateMultiplier: Float = 1.0
         @Published var showMeaning = false
@@ -1430,10 +1520,15 @@ public struct LumaStudyCenterHostView: View {
     private enum DictationSettingsTab: String, CaseIterable {
         case practice = "练习"
         case voice = "发音"
-        case more = "更多"
     }
 
     @State private var dictationMoreShown = false
+    @State private var dictationWrongWindow: NSWindow?
+    /// 「本轮」的起点：只有真正从头开始一轮听写才会刷新（并写入工作区，退出应用不丢）。
+    @State private var dictationRoundStartedAt: Date?
+    @State private var dictationWrongWindowRoundStart: Date?
+    @State private var dictationWrongWindowScope: String?
+    @State private var dictationRecentWindow: NSWindow?
     @State private var dictationSettingsTab: DictationSettingsTab = .practice
     @AppStorage("luma.listening.speechRate") private var globalListeningSpeechRate: Double = 1.0
     @AppStorage("luma.listening.defaultShowMeaning") private var globalDefaultShowMeaning: Bool = false
@@ -1442,6 +1537,12 @@ public struct LumaStudyCenterHostView: View {
     @State private var dictationAnswerFontSize: CGFloat = 140
     @State private var dictationAnswerWraps = false
     @State private var dictationScrollOffsetY: CGFloat = 0
+    /// 快速过词答错后，当前词已经切到下一个；这里保留刚才那一题的正确答案与释义，
+    /// 直到下一次提交，确保「为什么错」始终可见。
+    @State private var dictationMissedWord: DictationMissedWord?
+    /// 提交后把反馈区滚动到可见位置（短窗口里状态行位于画布底部）。
+    @State private var dictationStatusScrollTick = 0
+    @State private var dictationStatusScrollsIntoView = false
     @State private var dictationSuccessTick = 0
     @Environment(\.lumaDynamicMotion) private var lumaDynamicMotion
     @ScaledMetric(relativeTo: .largeTitle) private var dictationFontCeiling: CGFloat = 140
@@ -1909,6 +2010,10 @@ public struct LumaStudyCenterHostView: View {
         } message: { Text("这篇作文及其重写版本将被删除。") }
         .onAppear {
             if mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习" { listeningDailyTimer.start() }
+            if mode.hasPrefix("学习_听力"), vm.storeSnapshot.workspace?.dictationRoundStartedAt == nil {
+                // 升级后第一次进来：把当前时刻记为本轮起点，避免错题面板回溯出全部历史。
+                beginDictationRound()
+            }
             if mode.contains("模拟机考") { vm.beginWritingEdit() }
             syncActiveWritingQuestionForAI()
             vm.remember(mode)
@@ -2026,6 +2131,15 @@ public struct LumaStudyCenterHostView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.MemoryPressure"))) { _ in audio.releaseUnusedMemory() }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.AppDidResignActive"))) { _ in
             listeningDailyTimer.pause(); ttsEngine.stop(); audio.stop(); kokoro.stop(); kokoro.suspendPreload()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LumaReader.DictationTimerIdle"))) { note in
+            let enabled = (note.userInfo?["enabled"] as? Bool) ?? false
+            if enabled {
+                vm.dictationFeedback = "⏸ 已停止计时（30 秒无操作）· 动一下键盘或鼠标自动继续"
+                requestDictationStatusScroll(true)
+            } else if vm.dictationFeedback.hasPrefix("⏸ 已停止计时") {
+                vm.dictationFeedback = ""
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in listeningDailyTimer.pause(); vm.save() }
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.WritingToolbarAction"))) { note in
@@ -2519,7 +2633,7 @@ public struct LumaStudyCenterHostView: View {
                 .flatMap { wrongWordsForDeck($0, dueOnly: dueOnly) }
         }
         guard visibleListeningDeckIDs.contains(deck) else { return [] }
-        let wrongIDs = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect && $0.deckID == deck }.map(\.wordID))
+        let wrongIDs = vm.storeSnapshot.effectiveWrongWordIDs
         return allWords.filter {
             $0.deckID == deck &&
             wrongIDs.contains($0.id) &&
@@ -2944,7 +3058,8 @@ public struct LumaStudyCenterHostView: View {
     /// 顶部右侧三合一功能胶囊（参考书库主页右上角「+  ⋯  ⚙」三键胶囊排版）：
     /// 依次为：「01:44:08 计时暂停键」 │ 「1.5× 倍速键」 │ 「⋯ (ellipsis.circle) 更多功能菜单键」
     private var dictationTopRightCapsules: some View {
-        let paused = !listeningDailyTimer.running
+        // 手动暂停与「30 秒无操作自动停止计时」共用同一块琥珀色提示
+        let paused = !listeningDailyTimer.running || listeningDailyTimer.idleFrozen
         return HStack(spacing: 4) {
             // 1. 计时器按钮：纯等宽数字「01:44:08」，点击暂停变柔和琥珀色，再次点击恢复计时
             Button {
@@ -2970,7 +3085,9 @@ public struct LumaStudyCenterHostView: View {
                     )
                     .contentShape(Rectangle())
             }
-            .help(paused ? "继续听写 · ⌥⌘P" : "暂停听写 · ⌥⌘P")
+            .help(listeningDailyTimer.idleFrozen
+                  ? "计时已停止（30 秒无操作）：动一下键盘或鼠标自动继续"
+                  : (paused ? "继续听写 · ⌥⌘P" : "暂停听写 · ⌥⌘P"))
             .accessibilityLabel("练习计时")
 
             Rectangle()
@@ -3048,6 +3165,185 @@ public struct LumaStudyCenterHostView: View {
         }
     }
 
+    /// 本轮练习实际包含的词库：以会话里的词为准（续练、今日计划、合练都可能与
+    /// 「当前词库」选择器不一致），这样错题统计不会因为选择器而漏掉真正在练的词。
+    private var dictationSessionDeckIDs: [String] {
+        var ids: [String] = []
+        func add(_ id: String?) {
+            guard let id, !id.isEmpty, id != "__mixed_wrong__",
+                  !ids.contains(id), visibleListeningDeckIDs.contains(id) else { return }
+            ids.append(id)
+        }
+        add(vm.dictationMachine.currentWord?.deckID)
+        for word in vm.dictationMachine.pendingQueue { add(word.deckID) }
+        for log in vm.dictationMachine.attemptLogs { add(log.deckID) }
+        return ids
+    }
+
+    /// 「单元」指本轮练习的词库；合练时只覆盖合练包含的词库，不混入其他单元。
+    private var dictationUnitDeckIDs: [String] {
+        if vm.selectedDeck.hasPrefix("__mixed_wrong__") {
+            return String(vm.selectedDeck.dropFirst("__mixed_wrong__".count))
+                .components(separatedBy: "\u{1F}")
+                .filter { visibleListeningDeckIDs.contains($0) }
+        }
+        let session = dictationSessionDeckIDs
+        if !session.isEmpty { return session }
+        return visibleListeningDeckIDs.contains(vm.selectedDeck) ? [vm.selectedDeck] : []
+    }
+
+    /// 本轮起点：本机状态优先，其次用工作区里持久化的值（退出应用再回来仍是同一轮）。
+    private var effectiveDictationRoundStart: Date {
+        dictationRoundStartedAt
+            ?? vm.storeSnapshot.workspace?.dictationRoundStartedAt
+            ?? Date()
+    }
+
+    /// 徽章与窗口口径一致：只数本轮（本轮起点之后）产生的错题。
+    private var dictationUnitWrongCount: Int {
+        let decks = Set(dictationUnitDeckIDs)
+        let roundID = vm.dictationMachine.sessionID
+        let allowedWordIDs = vm.dictationMachine.roundWordIDs
+        let attempts = vm.storeSnapshot.effectiveWrongLogs.filter {
+            $0.sessionID == roundID && decks.contains($0.deckID) && allowedWordIDs.contains($0.wordID)
+        }.count
+        let roundWordIDs = Set(vm.storeSnapshot.dictationLogs.filter {
+            $0.sessionID == roundID && decks.contains($0.deckID)
+        }.map(\.wordID))
+        let meaningIDs = Set(vm.storeSnapshot.roundMeaningWordIDs?[roundID.uuidString] ?? [])
+        let meanings = allWords.filter {
+            decks.contains($0.deckID) && meaningIDs.contains($0.id) && roundWordIDs.contains($0.id)
+        }.count
+        return attempts + meanings
+    }
+
+    private func openDictationRecentWindow() {
+        if let window = dictationRecentWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "最近听的"
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 700, height: 420)
+        window.contentView = NSHostingView(rootView:
+            RecentDictationDecksView(
+                snapshot: Binding(get: { vm.storeSnapshot }, set: { vm.storeSnapshot = $0 }),
+                words: allWords,
+                currentDeckID: vm.selectedDeck,
+                titleFor: { deckTitle(for: $0) },
+                onPick: { deck in
+                    dictationRecentWindow?.close()
+                    dictationRecentWindow = nil
+                    selectDeckAndStartDictation(deck: deck, mode: .newTask, resume: true)
+                }
+            )
+            .environment(\.studyAppearance, appearance)
+            .preferredColorScheme(appearance.isDark ? .dark : .light)
+        )
+        window.center()
+        dictationRecentWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// 真正从头开始一整轮听写时才调用：重置「本轮」起点并关掉上一轮的错题窗口。
+    /// 临时退出应用、或点「继续听写」续练都**不**重置——那些属于同一轮。
+    /// 当前选择对应的单元集合（单单元 → 它自己；无法判断时返回 nil 表示不校验）。
+    private func expectedDeckIDs(for deck: String) -> Set<String>? {
+        guard !deck.hasPrefix("__mixed_wrong__"), !deck.contains("/"), !deck.contains(" · ") else { return nil }
+        return allWords.contains { $0.deckID == deck } ? [deck] : nil
+    }
+
+    /// 旧会话是否属于「现在选中的这个单元」。
+    /// 新词学习必须干净：选了 A 单元就不能续上 B 单元的会话，否则会出现别的单元的单词。
+    private func sessionBelongs(_ session: DictationSessionStateMachine, to deck: String) -> Bool {
+        if let origin = session.originDeck, !origin.isEmpty {
+            return origin == deck
+        }
+        // 老数据没有记来源：按会话里的词反推，只要全都在当前单元里就允许。
+        guard let expected = expectedDeckIDs(for: deck) else { return true }
+        let decks = session.wordDeckIDs
+        return decks.isEmpty || decks.isSubset(of: expected)
+    }
+
+    /// 为指定单元建一轮干净的新词会话（只含该单元的词）。
+    private func makeFreshSession(for deck: String, mode: DictationSessionMode) -> DictationSessionStateMachine {
+        let words = vm.fastWordsByDeck[deck] ?? []
+        return DictationSessionStateMachine(
+            mode: mode,
+            dateString: Self.todayDateString(),
+            initialWords: words,
+            existingStubbornWordsForToday: vm.storeSnapshot.stubbornWords,
+            previousLogs: vm.storeSnapshot.dictationLogs,
+            originDeck: deck
+        )
+    }
+
+    private func beginDictationRound() {
+        let now = Date()
+        dictationRoundStartedAt = now
+        vm.storeSnapshot.workspace?.dictationRoundStartedAt = now
+        vm.scheduleSave(after: 0.3)
+        closeDictationUnitWrongWindow()
+    }
+
+    private func closeDictationUnitWrongWindow() {
+        dictationWrongWindow?.close()
+        dictationWrongWindow = nil
+        dictationWrongWindowRoundStart = nil
+        dictationWrongWindowScope = nil
+    }
+
+    private func openDictationUnitWrongWindow() {
+        // 换了一轮听写就重建窗口：内容按本轮起点过滤，旧窗口里是上一轮的错题。
+        if let window = dictationWrongWindow, window.isVisible,
+           dictationWrongWindowScope == "\(vm.dictationMachine.sessionID.uuidString)|\(dictationUnitDeckIDs.joined(separator: ","))" {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        dictationWrongWindow?.close()
+        dictationWrongWindow = nil
+        let decks = dictationUnitDeckIDs
+        // 标题跟听写页顶部保持一致（用户认的是「我现在听的这个单元」），
+        // 列表内容则按本轮实际在听的词所属词本统计。
+        let title = deckTitle(for: vm.selectedDeck)
+        let content = DictationUnitWrongWindowView(
+            snapshot: Binding(get: { vm.storeSnapshot }, set: { vm.storeSnapshot = $0 }),
+            words: allWords.filter { decks.contains($0.deckID) },
+            deckIDs: decks,
+            deckTitle: title,
+            roundStartedAt: effectiveDictationRoundStart,
+            roundID: vm.dictationMachine.sessionID,
+            roundWordIDs: vm.dictationMachine.roundWordIDs,
+            onChange: { _ in vm.save() }
+        )
+        .environment(\.studyAppearance, appearance)
+        .preferredColorScheme(appearance.isDark ? .dark : .light)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 940, height: 570),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false
+        )
+        window.title = "编辑本轮错题 · \(title)"
+        window.contentView = NSHostingView(rootView: content)
+        window.minSize = NSSize(width: 720, height: 440)
+        window.center()
+        window.isReleasedWhenClosed = false
+        dictationWrongWindow = window
+        dictationWrongWindowRoundStart = effectiveDictationRoundStart
+        dictationWrongWindowScope = "\(vm.dictationMachine.sessionID.uuidString)|\(decks.joined(separator: ","))"
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     private var dictationMorePanel: some View {
         VStack(spacing: 0) {
             HStack {
@@ -3075,7 +3371,6 @@ public struct LumaStudyCenterHostView: View {
                 switch dictationSettingsTab {
                 case .practice: dictationPracticeSettings
                 case .voice: dictationVoiceSettings
-                case .more: dictationAdditionalSettings
                 }
             }
             .formStyle(.grouped)
@@ -3097,6 +3392,46 @@ public struct LumaStudyCenterHostView: View {
     @ViewBuilder
     private var dictationPracticeSettings: some View {
         let rowBg = dictCardColor.opacity(0.84)
+        Section {
+            Button {
+                dictationMoreShown = false
+                DispatchQueue.main.async { openDictationUnitWrongWindow() }
+            } label: {
+                HStack(spacing: 10) {
+                    Label("编辑本轮错题", systemImage: "square.and.pencil")
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer(minLength: 8)
+                    Text("\(dictationUnitWrongCount)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .help("打开独立窗口，查看本轮全部错题并批量编辑、导出")
+            .accessibilityIdentifier("study.dictation.editUnitWrong")
+
+            Button {
+                dictationMoreShown = false
+                DispatchQueue.main.async { openDictationRecentWindow() }
+            } label: {
+                HStack(spacing: 10) {
+                    Label("最近听的词本 / 单元", systemImage: "clock.arrow.circlepath")
+                        .font(.system(size: 14, weight: .medium))
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .help("打开独立窗口，按最近练习时间列出词本 / 单元，点一行就切过去继续听")
+            .accessibilityIdentifier("study.dictation.recentDictions")
+        }
+        .listRowBackground(rowBg)
         Section("本轮练习") {
             if vm.dictationMachine.mode == .newTask {
                 Picker("新词练习模式", selection: $newWordStrategy) {
@@ -3106,16 +3441,6 @@ public struct LumaStudyCenterHostView: View {
                 .pickerStyle(.menu)
                 .help("快速过词：错一次就跳过。循环复习：订正后按 5、55、155、255 词间隔复现。")
             }
-            Picker("当前词库", selection: dictationDeckBinding) {
-                if vm.selectedDeck.hasPrefix("__mixed_wrong__") {
-                    Text("多词本错词合练").tag(vm.selectedDeck)
-                }
-                ForEach(visibleListeningDeckIDs, id: \.self) { id in
-                    Text(deckTitle(for: id)).tag(id)
-                }
-            }
-            .pickerStyle(.menu)
-
             Toggle("显示中文释义", isOn: Binding(
                 get: { vm.showMeaning },
                 set: { vm.showMeaning = $0; vm.save() }
@@ -3223,67 +3548,6 @@ public struct LumaStudyCenterHostView: View {
         .listRowBackground(rowBg)
     }
 
-    @ViewBuilder
-    private var dictationAdditionalSettings: some View {
-        let rowBg = dictCardColor.opacity(0.84)
-        Section("复习入口") {
-            Button("错词复习", systemImage: "arrow.counterclockwise") {
-                dictationMoreShown = false
-                openWrongWordReviewPage()
-            }
-            Button("慢反应词提速 (1.25×)", systemImage: "bolt.badge.clock") {
-                dictationMoreShown = false
-                vm.speechRateMultiplier = 1.25
-                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .slowReactionReview, resume: false)
-            }
-            Button("顽固单词", systemImage: "exclamationmark.triangle") {
-                dictationMoreShown = false
-                vm.save()
-                mode = "学习_听力_顽固单词"
-            }
-        }
-        .listRowBackground(rowBg)
-
-        Section("学习数据") {
-            Button("学习记录", systemImage: "chart.bar.doc.horizontal") {
-                dictationMoreShown = false
-                vm.save()
-                mode = "学习_听力_学习记录"
-            }
-            Button("同步学习数据到云盘", systemImage: "icloud.and.arrow.up") {
-                dictationMoreShown = false
-                let count = vm.syncWithConnectedCloudDrives()
-                topSyncToast = count > 0 ? "已同步至 \(count) 个云盘" : "已保存本地快照"
-            }
-        }
-        .listRowBackground(rowBg)
-
-        Section("词库操作") {
-            Button("多词本错词合练…", systemImage: "square.stack") {
-                dictationMoreShown = false
-                showMixedWrongSelector()
-            }
-            Button("重新开始本轮", systemImage: "arrow.clockwise") {
-                dictationMoreShown = false
-                selectDeckAndStartDictation(deck: vm.selectedDeck, mode: vm.dictationMachine.mode, resume: false)
-            }
-            if isImportedDeck(vm.selectedDeck) {
-                Menu("管理当前词库") {
-                    deckActions(vm.selectedDeck)
-                }
-            }
-        }
-        .listRowBackground(rowBg)
-
-        Section {
-            Button("听写快捷键…", systemImage: "keyboard") {
-                dictationMoreShown = false
-                DispatchQueue.main.async { showListeningShortcuts = true }
-            }
-        }
-        .listRowBackground(rowBg)
-    }
-
     /// 进度压缩为一行紧凑文字（取代原通栏进度条）；数据与原卡片完全相同：已完成 / 总数、剩余、今日、百分比。
     private func dictationProgressCard(total: Int, todayCount: Int) -> some View {
         let done = vm.dictationMachine.completedWordIDs.count
@@ -3332,12 +3596,9 @@ public struct LumaStudyCenterHostView: View {
         .accessibilityValue(line)
     }
 
-    private var dictationLogsNewestFirst: some Sequence<DictationAttemptLog> {
-        let batches: [ReversedCollection<[DictationAttemptLog]>] = [
-            vm.dictationMachine.attemptLogs.reversed(),
-            vm.storeSnapshot.dictationLogs.reversed()
-        ]
-        return batches.joined()
+    private var dictationLogsNewestFirst: [DictationAttemptLog] {
+        // Only the visible round belongs on this page. Global history lives in the records view.
+        vm.dictationMachine.attemptLogs.reversed()
     }
 
     /// 收集最近实际出错的最多 5 个英文词汇（未揭晓当前词答案前绝不提前透露当前词）
@@ -3352,7 +3613,8 @@ public struct LumaStudyCenterHostView: View {
         var seen = Set<String>()
         var result: [String] = []
         let allLogs = dictationLogsNewestFirst
-        for log in allLogs where !log.isCorrect {
+        let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
+        for log in allLogs where !log.isCorrect && !suppressed.contains(log.id) {
             if let unrevealed = currentUnrevealedID, log.wordID == unrevealed {
                 continue
             }
@@ -3475,27 +3737,23 @@ public struct LumaStudyCenterHostView: View {
     private func dictationStaticStatusLine(currentWord: VocabularyWord) -> String {
         if vm.dictationMachine.requiresCorrection && vm.revealedWordID == currentWord.id {
             let sessionErr = vm.dictationMachine.sessionErrorCounts[currentWord.id, default: 1]
-            let historyErr = vm.storeSnapshot.dictationLogs.lazy.filter {
-                $0.wordID == currentWord.id && !$0.isCorrect && $0.sessionID != vm.dictationMachine.sessionID
-            }.count
-            let totalErr = max(1, sessionErr + historyErr)
+            let totalErr = max(1, sessionErr)
             let react = vm.dictationMachine.attemptLogs.last(where: { $0.wordID == currentWord.id })?.durationSeconds
                 ?? vm.lastSubmittedReactionSeconds
                 ?? 2.0
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", currentWord.word, totalErr, react)
         }
-        let allLogs = dictationLogsNewestFirst
+        let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
+        let allLogs = dictationLogsNewestFirst.filter { $0.isCorrect || !suppressed.contains($0.id) }
         if let wrongLog = allLogs.first(where: { !$0.isCorrect && $0.wordID != currentWord.id }) {
-            let totalErr = max(
-                1,
-                wrongLog.sessionErrorCountForWord,
-                vm.storeSnapshot.dictationLogs.lazy.filter { $0.wordID == wrongLog.wordID && !$0.isCorrect }.count
-            )
+            let totalErr = max(1, wrongLog.sessionErrorCountForWord)
             let react = wrongLog.durationSeconds > 0 ? wrongLog.durationSeconds : (vm.lastSubmittedReactionSeconds ?? 2.0)
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", wrongLog.word, totalErr, react)
         }
         if let lastCompleted = allLogs.first(where: { $0.wordID != currentWord.id }) {
-            let totalErr = vm.storeSnapshot.dictationLogs.lazy.filter { $0.wordID == lastCompleted.wordID && !$0.isCorrect }.count
+            let totalErr = vm.dictationMachine.attemptLogs.lazy.filter {
+                !$0.isCorrect && $0.wordID == lastCompleted.wordID
+            }.count
             let react = lastCompleted.durationSeconds > 0 ? lastCompleted.durationSeconds : (vm.lastSubmittedReactionSeconds ?? 2.0)
             return String(format: "%@ · 第 %d 次出错 · 最近反应时间 %.1fs", lastCompleted.word, totalErr, react)
         }
@@ -3602,7 +3860,8 @@ public struct LumaStudyCenterHostView: View {
                 .padding(.vertical, 32 * scale)
                 .frame(maxWidth: .infinity, minHeight: minimumHeight)
                 .accessibilityIdentifier("study.dictation.answer")
-                .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+                // 同上：语音引擎忙时不锁输入框，避免停顿后无法继续作答。
+                .disabled(!listeningDailyTimer.running)
                 .onAppear {
                     if listeningDailyTimer.running && !kokoro.isSwitching { answerFocused = true }
                 }
@@ -3641,7 +3900,7 @@ public struct LumaStudyCenterHostView: View {
         if let word = vm.dictationMachine.currentWord {
             VStack(spacing: 6) {
                 if vm.showMeaning {
-                    Text(word.definitionZH.isEmpty ? (BuiltInIELTSDictionaryEngine.lookupChineseDefinition(for: word.word) ?? "暂无释义") : word.definitionZH)
+                    Text(dictationChineseMeaning(for: word))
                         .lumaFont(size: 18, weight: .medium)
                         .foregroundStyle(dictAccentPink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -3818,9 +4077,66 @@ public struct LumaStudyCenterHostView: View {
         .modifier(DictationHeaderEntrance(enabled: dictRichMotion))
     }
 
+    private static let dictationStatusAnchor = "dictation.status.anchor"
+    private static let dictationCanvasTopAnchor = "dictation.canvas.top"
+
+    private func dictationChineseMeaning(for word: VocabularyWord) -> String {
+        word.definitionZH.isEmpty
+            ? (BuiltInIELTSDictionaryEngine.lookupChineseDefinition(for: word.word) ?? "暂无释义")
+            : word.definitionZH
+    }
+
+    // MARK: - 错词类型标记（误输 / 意思不清）
+
+    /// 拼写错误按尝试 UUID 撤销；释义不清独立按词保存，可与真实拼写错误并存。
+    private func dictationWrongMark(for wordID: String?) -> WrongWordMark? {
+        guard let wordID else { return nil }
+        return (vm.storeSnapshot.roundMeaningWordIDs?[vm.dictationMachine.sessionID.uuidString] ?? []).contains(wordID) ? .meaning : nil
+    }
+
+    private func setDictationWrongMark(_ mark: WrongWordMark?, for wordID: String) {
+        let roundKey = vm.dictationMachine.sessionID.uuidString
+        var marks = vm.storeSnapshot.roundMeaningWordIDs ?? [:]
+        var ids = Set(marks[roundKey] ?? [])
+        if mark == .meaning { ids.insert(wordID) } else { ids.remove(wordID) }
+        marks[roundKey] = ids.sorted()
+        vm.storeSnapshot.roundMeaningWordIDs = marks
+        vm.save()
+    }
+
+    /// 当前听写词的标记（用于底栏按钮高亮）。
+    private var dictationCurrentMark: WrongWordMark? {
+        dictationWrongMark(for: vm.dictationMachine.currentWord?.id)
+    }
+
+    private func toggleDictationMark(_ mark: WrongWordMark) {
+        guard let word = vm.dictationMachine.currentWord else { return }
+        let isOn = dictationWrongMark(for: word.id) == mark
+        setDictationWrongMark(isOn ? nil : mark, for: word.id)
+        // 会拼但不知道意思时才标「意思不清」，所以标上的同时直接把中文显示出来。
+        if mark == .meaning, !isOn {
+            vm.showMeaning = true
+            vm.save()
+        }
+        requestDictationStatusScroll(true)
+    }
+
+    /// 输入框下方的反馈区：刚才错在哪、正确答案怎么拼、中文是什么、结果如何。
+    /// 提示与状态始终放在这里，答错后由 submitCurrentDictation 滚动到可见位置。
     private var dictationPracticeStatus: some View {
         VStack(spacing: 10) {
+            if let missed = dictationMissedWord {
+                dictationMissedWordCard(missed)
+            }
             dictationAnswerHints
+            if !vm.dictationFeedback.isEmpty {
+                Text(vm.dictationFeedback)
+                    .lumaFont(size: 12.5, weight: .medium)
+                    .foregroundStyle(dictTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity)
+            }
             if let word = vm.dictationMachine.currentWord {
                 Text(dictationStaticStatusLine(currentWord: word))
                     .lumaFont(size: 12.5).monospacedDigit()
@@ -3830,6 +4146,61 @@ public struct LumaStudyCenterHostView: View {
                     .frame(maxWidth: .infinity, minHeight: 20)
             }
         }
+        .id(Self.dictationStatusAnchor)
+    }
+
+    /// 快速过词模式答错后，当前词立刻换成下一个；这里把刚才那一题完整展示出来，
+    /// 正确拼写用红字标出错字母，并给出中文释义与实际输入。
+    private func dictationMissedWordCard(_ missed: DictationMissedWord) -> some View {
+        let font = Font.system(size: 22, weight: .bold, design: .rounded)
+        return VStack(spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("刚才这个词拼错了")
+                    .lumaFont(size: 12.5, weight: .medium)
+            }
+            .foregroundStyle(dictTextSecondary)
+            Text(
+                WordErrorLetterAnalyzer.highlightedAttributedWord(
+                    missed.word,
+                    typedAttempts: [missed.typedAttempt],
+                    baseFont: font,
+                    normalColor: dictTextPrimary,
+                    errorColor: .red
+                )
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            Text(missed.definitionZH)
+                .lumaFont(size: 16, weight: .medium)
+                .foregroundStyle(dictAccentPink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("你输入的是「\(missed.typedAttempt.isEmpty ? "空" : missed.typedAttempt)」· 已记入错词（本次第 \(max(1, missed.errorCount)) 次）")
+                .lumaFont(size: 12, weight: .medium)
+                .foregroundStyle(dictTextSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(dictCardColor.opacity(0.75))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.red.opacity(0.28), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("刚才拼错的词：\(missed.word)，中文 \(missed.definitionZH)，你输入的是 \(missed.typedAttempt)")
+    }
+
+    /// 把反馈区滚进视野（短窗口），或在回到正常答题时滚回顶部。
+    private func requestDictationStatusScroll(_ intoView: Bool) {
+        dictationStatusScrollsIntoView = intoView
+        dictationStatusScrollTick &+= 1
     }
 
     private func dictationPracticeActions(availableWidth: CGFloat) -> some View {
@@ -3890,6 +4261,21 @@ public struct LumaStudyCenterHostView: View {
                 ) {
                     showFirstLetterHint.toggle()
                 }
+
+                dictationActionDivider
+
+                // 会拼但不知道中文意思：归类为「意思不清」错词，导出时与拼写错误区分。
+                dictationIconAction(
+                    symbol: "questionmark.circle",
+                    label: dictationCurrentMark == .meaning ? "已标意思不清" : "意思不清",
+                    help: dictationCurrentMark == .meaning
+                        ? "取消「意思不清」标记（不改变拼写判定与练习数据）"
+                        : "标记：这个词我会拼，但意思不清楚（不改变拼写判定与练习数据）",
+                    selected: dictationCurrentMark == .meaning,
+                    disabled: vm.dictationMachine.currentWord == nil
+                ) {
+                    toggleDictationMark(.meaning)
+                }
             }
 
             Button {
@@ -3905,7 +4291,9 @@ public struct LumaStudyCenterHostView: View {
             }
             .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, emphasis: .prominent,
                                              onAccent: dictOnAccent, motionEnabled: !reduceMotion))
-            .disabled(!listeningDailyTimer.running || kokoro.isSwitching)
+            // 记录答案不依赖语音引擎：模型切换（或切换卡住）时也必须能提交，
+            // 否则整轮听写既听不到也存不下。
+            .disabled(!listeningDailyTimer.running)
             .help("提交答案 · 回车")
             .accessibilityLabel("提交")
         }
@@ -3968,32 +4356,44 @@ public struct LumaStudyCenterHostView: View {
                     from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString()
                 )
                 VStack(spacing: 0) {
-                    ScrollView(.vertical) {
-                        if vm.dictationMachine.currentWord != nil {
-                            DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32 - actionBarHeight)) {
-                                dictationPracticeHeader(total: total, todayCount: todayCount)
-                                dictationProgressRail(total: total, todayCount: todayCount)
-                                dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
-                                dictationPracticeStatus
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.vertical) {
+                            if vm.dictationMachine.currentWord != nil {
+                                DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32 - actionBarHeight)) {
+                                    dictationPracticeHeader(total: total, todayCount: todayCount)
+                                        .id(Self.dictationCanvasTopAnchor)
+                                    dictationProgressRail(total: total, todayCount: todayCount)
+                                    dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
+                                    dictationPracticeStatus
+                                }
+                                .frame(width: contentWidth)
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
+                            } else {
+                                VStack(spacing: 20) {
+                                    dictationPracticeHeader(total: total, todayCount: todayCount)
+                                    dictationSummaryView
+                                }
+                                .padding(24)
                             }
-                            .frame(width: contentWidth)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 16)
-                        } else {
-                            VStack(spacing: 20) {
-                                dictationPracticeHeader(total: total, todayCount: todayCount)
-                                dictationSummaryView
-                            }
-                            .padding(24)
                         }
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    // 返回胶囊随画布滚动；对齐目标按静止位置计算，红黄绿不跟随滚动漂移。
-                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                        geometry.contentOffset.y + geometry.contentInsets.top
-                    } action: { _, offset in
-                        if abs(dictationScrollOffsetY - offset) > 0.5 { dictationScrollOffsetY = offset }
+                        .scrollBounceBehavior(.basedOnSize)
+                        // 返回胶囊随画布滚动；对齐目标按静止位置计算，红黄绿不跟随滚动漂移。
+                        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.contentOffset.y + geometry.contentInsets.top
+                        } action: { _, offset in
+                            if abs(dictationScrollOffsetY - offset) > 0.5 { dictationScrollOffsetY = offset }
+                        }
+                        .onChange(of: dictationStatusScrollTick) { _, _ in
+                            let anchor = dictationStatusScrollsIntoView ? Self.dictationStatusAnchor : Self.dictationCanvasTopAnchor
+                            let unit: UnitPoint = dictationStatusScrollsIntoView ? .bottom : .top
+                            if dictRichMotion {
+                                withAnimation(.easeInOut(duration: 0.24)) { scrollProxy.scrollTo(anchor, anchor: unit) }
+                            } else {
+                                scrollProxy.scrollTo(anchor, anchor: unit)
+                            }
+                        }
                     }
                     if vm.dictationMachine.currentWord != nil {
                         dictationPracticeActions(availableWidth: contentWidth)
@@ -4029,11 +4429,15 @@ public struct LumaStudyCenterHostView: View {
                         return true
                     }
                     // 1.12.2: 切到后台计时会自动暂停；回来后单按空格即可继续计时（不用再点按钮）。
+                    // 1.23.2: 听写页任何练习模式（今日计划／错词复习／慢反应／顽固单词／合练）都支持；
+                    // 输入框里已经有半截答案时空格仍然是在打字，不会误触发继续。
+                    let pausedEditor = event.window?.firstResponder as? NSTextView
                     if event.keyCode == 49, flags.intersection([.command, .option, .control, .shift]).isEmpty,
                        !listeningDailyTimer.running, !event.isARepeat,
-                       mode == "学习_听力_今日计划" || mode == "学习_听力_错词复习",
+                       mode.hasPrefix("学习_听力"),
                        event.window?.isKeyWindow == true, event.window?.isMainWindow == true,
                        event.window?.attachedSheet == nil, !dictationMoreShown, !showListeningShortcuts,
+                       pausedEditor == nil || (pausedEditor?.string.isEmpty ?? true),
                        vm.dictationMachine.currentWord != nil, !kokoro.isSwitching {
                         listeningDailyTimer.start()
                         return true
@@ -4090,8 +4494,9 @@ public struct LumaStudyCenterHostView: View {
         for record in slowRecords { slowByID[record.wordID] = record }
         let stubbornIDs = Set(vm.storeSnapshot.stubbornWords.map(\.wordID))
         let stubbornToday = Set(vm.storeSnapshot.stubbornWords.filter { $0.dateString == today }.map(\.wordID))
-        let logs = vm.storeSnapshot.dictationLogs
-        let errorLogs = logs.filter { !$0.isCorrect }
+        let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
+        let logs = vm.storeSnapshot.dictationLogs.filter { $0.isCorrect || !suppressed.contains($0.id) }
+        let errorLogs = vm.storeSnapshot.effectiveWrongLogs
         let errorsByID = Dictionary(grouping:errorLogs, by: \.wordID)
         var latestLogByWord: [String: DictationAttemptLog] = [:]
         for log in logs { latestLogByWord[log.wordID] = log }
@@ -4125,7 +4530,8 @@ public struct LumaStudyCenterHostView: View {
                     isSlowReaction: slowByID[word.id] != nil,
                     isStubborn: stubbornIDs.contains(word.id),
                     lastAttemptAt: latest?.timestamp,
-                    mastery: mastery(for: word.id)
+                    mastery: mastery(for: word.id),
+                    mark: dictationWrongMark(for: word.id)
                 )
             }.sorted {
                 if $0.isDue != $1.isDue { return $0.isDue }
@@ -4247,7 +4653,8 @@ public struct LumaStudyCenterHostView: View {
                 startWrongWordDrill(model.allEntries.filter(\.isDue).map(\.wordID), sessionDeckKey: "__listening_due_queue__")
             },
             onStartAllWrongWords: { startAllWrongWordsDictation() },
-            onStartMicroDrill: { ids in startWrongWordDrill(ids) }
+            onStartMicroDrill: { ids in startWrongWordDrill(ids) },
+            onSetMark: { wordID, mark in setDictationWrongMark(mark, for: wordID) },
         )
     }
 
@@ -4262,7 +4669,8 @@ public struct LumaStudyCenterHostView: View {
         }
         let stubbornIDs = Set(vm.storeSnapshot.stubbornWords.map(\.wordID))
         let slowIDs = Set((vm.storeSnapshot.slowReactionWords ?? []).map(\.wordID))
-        for word in vm.fastAllWords where stubbornIDs.contains(word.id) || slowIDs.contains(word.id) {
+        let effectiveIDs = vm.storeSnapshot.effectiveWrongWordIDs
+        for word in vm.fastAllWords where effectiveIDs.contains(word.id) && (stubbornIDs.contains(word.id) || slowIDs.contains(word.id)) {
             append(word)
         }
         guard !words.isEmpty else { return }
@@ -4313,7 +4721,8 @@ public struct LumaStudyCenterHostView: View {
 
     private func exportWrongWordsRecordsTXT() {
         let logs = vm.storeSnapshot.dictationLogs
-        guard !logs.isEmpty else { return }
+        let meanings = Set(vm.storeSnapshot.meaningUnclearWordIDs ?? [])
+        guard !logs.isEmpty || !meanings.isEmpty else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
         panel.nameFieldStringValue = "LumaReader-PracticeRecords-\(Self.todayDateString()).txt"
@@ -4321,9 +4730,18 @@ public struct LumaStudyCenterHostView: View {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         var text = "Luma Reader 练习记录\n导出时间：\(timeFormatter.string(from: Date()))\n\n"
+        text += "类型说明：误输 = 被撤销的单次错误尝试；意思不清 = 会拼但不懂释义；拼写错误 = 有效拼写错误。\n\n"
+        let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
         for log in logs.reversed() {
             let result = log.isCorrect ? "正确" : "错误"
-            text += "\(log.dateString)\t\(log.word)\t输入：\(log.userTyped)\t\(result)\t反应：\(String(format: "%.1f", log.durationSeconds))s\t\(deckTitle(for: log.deckID))\n"
+            let markTitle = !log.isCorrect && suppressed.contains(log.id) ? "误输（已撤销）"
+                : (log.isCorrect ? "—" : "拼写错误")
+            let meaning = meanings.contains(log.wordID) ? " · 意思不清" : ""
+            text += "\(log.dateString)\t\(log.word)\t输入：\(log.userTyped)\t\(result)\t类型：\(markTitle)\(meaning)\t反应：\(String(format: "%.1f", log.durationSeconds))s\t\(deckTitle(for: log.deckID))\n"
+        }
+        let loggedIDs = Set(logs.map(\.wordID))
+        for word in allWords where meanings.contains(word.id) && !loggedIDs.contains(word.id) {
+            text += "—\t\(word.word)\t输入：—\t—\t类型：意思不清\t释义：\(dictationChineseMeaning(for: word))\t\(deckTitle(for: word.deckID))\n"
         }
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -4618,7 +5036,7 @@ public struct LumaStudyCenterHostView: View {
                         ForEach(vm.storeSnapshot.stubbornWords.sorted { $0.errorCount > $1.errorCount }) { rec in
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    let wrongSamples = vm.storeSnapshot.dictationLogs.filter { $0.wordID == rec.wordID && !$0.isCorrect }.map(\.userTyped)
+                                    let wrongSamples = vm.storeSnapshot.effectiveWrongLogs.filter { $0.wordID == rec.wordID }.map(\.userTyped)
                                     Text(
                                         WordErrorLetterAnalyzer.highlightedAttributedWord(
                                             rec.word,
@@ -4658,44 +5076,62 @@ public struct LumaStudyCenterHostView: View {
         .background(appearance.background)
     }
 
+    private struct ListeningRecordUnit: Identifiable {
+        let id: String
+        let title: String
+        let lastPracticed: Date
+        let roundCount: Int
+        let wordCount: Int
+        let errorCount: Int
+        let averageSeconds: Double
+    }
+
+    private var listeningRecordUnits: [ListeningRecordUnit] {
+        let grouped = Dictionary(grouping: vm.storeSnapshot.dictationLogs, by: \.deckID)
+        return grouped.map { deck, logs in
+            let rounds = Set(logs.map(\.sessionID)).count
+            return ListeningRecordUnit(
+                id: deck,
+                title: deckTitle(for: deck),
+                lastPracticed: logs.map(\.timestamp).max() ?? .distantPast,
+                roundCount: rounds,
+                wordCount: Set(logs.map(\.wordID)).count,
+                errorCount: logs.filter { !$0.isCorrect }.count,
+                averageSeconds: logs.reduce(0) { $0 + $1.durationSeconds } / Double(max(1, logs.count))
+            )
+        }.sorted { $0.lastPracticed > $1.lastPracticed }
+    }
+
     private var listeningRecordsDedicatedView: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("听力学习记录（含听写反应时长）")
+            Text("听力学习记录 · 按词本 / 单元")
                 .lumaFont(size: 30, weight: .bold, design: .serif)
                 .foregroundStyle(appearance.ink)
-            if vm.storeSnapshot.dictationLogs.isEmpty {
-                Text("今日尚无听写记录，前往「听力 -> 今日计划」开始练习后将自动记录。")
+            if listeningRecordUnits.isEmpty {
+                Text("暂无听写记录。开始练习后，将按词本 / 单元展示，不逐词堆叠。")
                     .lumaFont(size: 14)
                     .foregroundStyle(appearance.ink.opacity(0.65))
             } else {
                 ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(vm.storeSnapshot.dictationLogs.reversed()) { log in
-                            HStack(spacing: 12) {
-                                Text(log.word)
-                                    .lumaFont(size: 15, weight: .semibold, design: .serif)
-                                    .foregroundStyle(appearance.ink)
-                                Text("输入: \(log.userTyped)")
-                                    .lumaFont(size: 12.5, design: .monospaced)
-                                    .foregroundStyle(appearance.ink.opacity(0.75))
-                                Text(String(format: "反应耗时 %.1fs", log.durationSeconds))
-                                    .lumaFont(size: 11.5, weight: .medium, monospacedDigits: true)
-                                    .foregroundStyle(log.isSlowReaction ? appearance.accent : appearance.ink.opacity(0.55))
-                                if log.isSlowReaction {
-                                    Text("慢反应词 (>5s)")
-                                        .font(.caption2.bold())
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 2)
-                                        .studyGlassCapsule(cornerRadius: 9, selected: true)
-                                        .foregroundStyle(appearance.accent)
+                    LazyVStack(spacing: 10) {
+                        ForEach(listeningRecordUnits) { unit in
+                            VStack(alignment: .leading, spacing: 7) {
+                                HStack {
+                                    Text(unit.title)
+                                        .lumaFont(size: 17, weight: .semibold, design: .serif)
+                                        .foregroundStyle(appearance.ink)
+                                    Spacer()
+                                    Text(unit.lastPracticed.formatted(date: .abbreviated, time: .shortened))
+                                        .lumaFont(size: 11)
+                                        .foregroundStyle(appearance.ink.opacity(0.6))
                                 }
-                                Spacer()
-                                Text(log.isCorrect ? "✓ 正确" : "✕ 错误 (第\(log.sessionErrorCountForWord)次)")
-                                    .lumaFont(size: 12, weight: .bold)
-                                    .foregroundStyle(log.isCorrect ? appearance.accent : appearance.ink.opacity(0.75))
+                                Text("\(unit.roundCount) 轮 · \(unit.wordCount) 个词 · \(unit.errorCount) 次错误尝试 · 平均反应 \(String(format: "%.1f", unit.averageSeconds)) 秒")
+                                    .lumaFont(size: 12)
+                                    .foregroundStyle(appearance.ink.opacity(0.7))
                             }
-                            .padding(12)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(appearance.surface))
+                            .padding(15)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(appearance.surface))
                         }
                     }
                 }
@@ -6369,17 +6805,21 @@ public struct LumaStudyCenterHostView: View {
             return
         }
         let folderTitle = path.isEmpty ? "全部听力分类" : path.joined(separator: " · ")
+        vm.discardStaleWordDrafts()
+        beginDictationRound()
         vm.dictationMachine = DictationSessionStateMachine(
             mode: .newTask,
             dateString: Self.todayDateString(),
             initialWords: words,
             existingStubbornWordsForToday: vm.storeSnapshot.stubbornWords,
-            previousLogs: vm.storeSnapshot.dictationLogs
+            previousLogs: vm.storeSnapshot.dictationLogs,
+            originDeck: "folder::" + path.joined(separator: "/")
         )
         vm.showMeaning = globalDefaultShowMeaning
         vm.revealedWordID = nil
         showFirstLetterHint = globalDefaultShowHint
         vm.dictationInput = ""
+        dictationMissedWord = nil
         vm.dictationFeedback = "正在听写文件夹《\(folderTitle)》（共 \(words.count) 词）"
         vm.scheduleSave(after: 0.4)
         mode = "学习_听力_今日计划"
@@ -7690,7 +8130,7 @@ public struct LumaStudyCenterHostView: View {
         }
         let wrongCountByWordID: [String: Int] = {
             var counts: [String: Int] = [:]
-            for log in vm.storeSnapshot.dictationLogs where !log.isCorrect {
+            for log in vm.storeSnapshot.effectiveWrongLogs {
                 counts[log.wordID, default: 0] += 1
             }
             return counts
@@ -8275,17 +8715,18 @@ public struct LumaStudyCenterHostView: View {
         var order: [String] = []
         var wordText: [String: String] = [:]
         var errorsInLogs: [String: Int] = [:]
+        let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
         for log in machine.attemptLogs {
             if wordText[log.wordID] == nil {
                 order.append(log.wordID)
                 wordText[log.wordID] = log.word
             }
-            if !log.isCorrect { errorsInLogs[log.wordID, default: 0] += 1 }
+            if !log.isCorrect && !suppressed.contains(log.id) { errorsInLogs[log.wordID, default: 0] += 1 }
         }
         let rows: [DictationSummaryRow] = order.map { id in
-            let errors: Int = max(machine.sessionErrorCounts[id] ?? 0, errorsInLogs[id] ?? 0)
+            let errors: Int = errorsInLogs[id] ?? 0
             let status: String
-            if machine.stubbornWordsMap[id] != nil {
+            if machine.stubbornWordsMap[id] != nil && errors > 0 {
                 status = "顽固单词"
             } else if machine.completedWordIDs.contains(id) {
                 status = errors == 0 ? "一次拼对" : "已订正"
@@ -8453,7 +8894,7 @@ public struct LumaStudyCenterHostView: View {
 
     private var dueReviewCount: Int {
         guard let deckWords = vm.fastWordsByDeck[vm.selectedDeck], !deckWords.isEmpty else { return 0 }
-        let wrong = Set(vm.storeSnapshot.dictationLogs.filter { !$0.isCorrect && $0.deckID == vm.selectedDeck }.map(\.wordID))
+        let wrong = vm.storeSnapshot.effectiveWrongWordIDs
         guard !wrong.isEmpty else { return 0 }
         let quarantined = Set(vm.storeSnapshot.stubbornWords.filter { $0.dateString == Self.todayDateString() }.map(\.wordID))
         let now = Date()
@@ -8560,7 +9001,7 @@ public struct LumaStudyCenterHostView: View {
         }
         vm.scheduleSave(after: 0.4)
         let activeDeck = vm.dictationMachine.currentWord?.deckID ?? vm.dictationMachine.attemptLogs.last?.deckID ?? vm.selectedDeck
-        if resume && !vm.selectedDeck.hasPrefix("__mixed_wrong__") && activeDeck == deck && vm.dictationMachine.mode == mode && vm.dictationMachine.dateString == Self.todayDateString() && !vm.dictationMachine.isSessionFinished {
+        if resume && !vm.selectedDeck.hasPrefix("__mixed_wrong__") && activeDeck == deck && vm.dictationMachine.mode == mode && vm.dictationMachine.dateString == Self.todayDateString() && !vm.dictationMachine.isSessionFinished && sessionBelongs(vm.dictationMachine, to: deck) {
             vm.selectedDeck = deck
             vm.scheduleSave(after: 0.4)
             scheduleDictationPlayback()
@@ -8584,10 +9025,13 @@ public struct LumaStudyCenterHostView: View {
         }
         let key = HostStateModel.sessionKey(mode: mode, date: Self.todayDateString(), deck: vm.selectedDeck)
         vm.activeDictationDeckKey = vm.selectedDeck
-        if resume, let saved = vm.storeSnapshot.dictationSessions?[key], !saved.isSessionFinished {
+        if resume, let saved = vm.storeSnapshot.dictationSessions?[key], !saved.isSessionFinished,
+           sessionBelongs(saved, to: vm.selectedDeck) {
             vm.dictationMachine = saved
             let state = vm.storeSnapshot.workspace
-            if let currentWordID = saved.currentWord?.id {
+            // 本轮提交过的词不恢复草稿（循环复习再出现时必须是空框）。
+            let submittedIDs = Set(saved.attemptLogs.map(\.wordID))
+            if let currentWordID = saved.currentWord?.id, !submittedIDs.contains(currentWordID) {
                 if state?.deckInputWordIDs?[key] == currentWordID {
                     vm.dictationInput = state?.deckInputs?[key] ?? ""
                     vm.showMeaning = state?.deckShowMeaning?[key] ?? false
@@ -8610,6 +9054,10 @@ public struct LumaStudyCenterHostView: View {
             scheduleDictationPlayback()
             return
         }
+        // 新开一轮：上一轮遗留的单词草稿会把已经提交过的答案带回输入框，先清掉；
+        // 「本轮错题」窗口也要关掉，它里面是上一轮的内容。
+        vm.discardStaleWordDrafts()
+        beginDictationRound()
         let snapshot = vm.storeSnapshot
         let deck = vm.selectedDeck
         let reviewIDs: Set<String>?
@@ -8619,7 +9067,7 @@ public struct LumaStudyCenterHostView: View {
         case .stubbornWordReview:
             reviewIDs = Set(snapshot.stubbornWords.map(\.wordID))
         case .wrongWordReview:
-            reviewIDs = Set(snapshot.dictationLogs.lazy.filter { !$0.isCorrect && $0.deckID == deck }.map(\.wordID))
+            reviewIDs = snapshot.effectiveWrongWordIDs
         case .slowReactionReview:
             reviewIDs = Set((snapshot.slowReactionWords ?? []).map(\.wordID))
         }
@@ -8641,21 +9089,21 @@ public struct LumaStudyCenterHostView: View {
                 return a.id < b.id
             }
         }
-        if mode == .slowReactionReview, words.isEmpty, let reviewIDs {
-            let visibleDecks = Set(vm.fastVisibleBaseDecks)
-            words = allWords.filter { reviewIDs.contains($0.id) && visibleDecks.contains($0.deckID) }
-        }
+        // An empty unit review stays empty: never fill it from another deck's slow words.
         vm.dictationMachine = DictationSessionStateMachine(
             mode: mode,
             dateString: Self.todayDateString(),
             initialWords: words,
             existingStubbornWordsForToday: vm.storeSnapshot.stubbornWords,
-            previousLogs: vm.storeSnapshot.dictationLogs
+            previousLogs: vm.storeSnapshot.dictationLogs,
+            originDeck: deck
         )
         vm.showMeaning = false
         vm.revealedWordID = nil
         showFirstLetterHint = false
         vm.dictationInput = ""
+        dictationMissedWord = nil
+        vm.dictationFeedback = ""
         vm.scheduleSave(after: 0.4)
         scheduleDictationPlayback()
     }
@@ -8682,7 +9130,10 @@ public struct LumaStudyCenterHostView: View {
         guard let previousDictationWord, !vm.dictationMachine.requiresCorrection else { return }
         ttsEngine.stop(); audio.stop(); kokoro.stop()
         vm.dictationMachine.revisitCompletedWord(previousDictationWord)
-        vm.dictationInput = ""; vm.showMeaning = false; vm.revealedWordID = nil; showFirstLetterHint = false
+        showFirstLetterHint = false
+        // 回到之前那个词：把它自己的记录取回来，别的词不会覆盖它
+        vm.restoreWordDraftForCurrentWord()
+        dictationMissedWord = nil
         vm.save(); replayCurrentWord(); answerFocused = true
     }
 
@@ -8768,7 +9219,9 @@ public struct LumaStudyCenterHostView: View {
     }
 
     private func submitCurrentDictation(editorText: String? = nil) {
-        guard listeningDailyTimer.running, !kokoro.isSwitching else { return }
+        guard listeningDailyTimer.running else { return }
+        // 提交会清空输入框，先记下用户实际敲了什么，反馈卡片要原样引用。
+        let typedAttempt = (editorText ?? vm.dictationInput).trimmingCharacters(in: .whitespacesAndNewlines)
         guard let word = vm.dictationMachine.currentWord, let outcome = vm.submitDictationInput(editorText, newWordStrategy: newWordStrategy) else { return }
         let reactionSecs = vm.lastSubmittedReactionSeconds ?? 2.0
 
@@ -8819,33 +9272,67 @@ public struct LumaStudyCenterHostView: View {
         vm.revealedWordID = vm.dictationMachine.requiresCorrection ? word.id : nil
         if vm.dictationMachine.requiresCorrection { vm.showMeaning = true }
         vm.dictationInput = ""
+        // 提交过的词不再保留草稿：艾宾浩斯循环让同一个词再出现时，输入框必须是空的，
+        // 否则会把上一次的错拼原样带回来（像是没提交、像是卡住了）。
+        if var drafts = vm.storeSnapshot.workspace?.wordInputs, !drafts.isEmpty {
+            let submittedKey = HostStateModel.wordKey(mode: vm.dictationMachine.mode,
+                                                      date: vm.dictationMachine.dateString,
+                                                      wordID: word.id)
+            if drafts[submittedKey] != nil {
+                drafts[submittedKey] = nil
+                vm.storeSnapshot.workspace?.wordInputs = drafts
+            }
+        }
+        // 已经是新的一个词了：把它自己的历史记录恢复回来（这个词以前打过什么不会被别的词盖掉）
+        if vm.dictationMachine.currentWord?.id != word.id {
+            vm.restoreWordDraftForCurrentWord()
+        }
         vm.save()
         answerFocused = true
         switch outcome {
         case .skippedIncorrect:
             dictationErrorFlash = false
+            // 快速过词把这一词从队列里移除了，屏幕上已经换成下一个词；把刚才那一题
+            // 连同正确拼写、错字母、中文释义一起固定到反馈区，否则用户永远看不到错在哪。
+            dictationMissedWord = DictationMissedWord(
+                wordID: word.id,
+                word: word.word,
+                definitionZH: dictationChineseMeaning(for: word),
+                typedAttempt: typedAttempt,
+                errorCount: vm.dictationMachine.attemptLogs.last?.sessionErrorCountForWord ?? 1
+            )
             vm.dictationFeedback = "已记入错词，继续下一词"
+            requestDictationStatusScroll(true)
             speakCurrentWord()
         case .needsCorrection(let count):
+            // 这个词仍然留在屏幕上，订正提示已经带红字标错与中文，不再重复一张卡片。
+            dictationMissedWord = nil
             vm.dictationFeedback = "拼写有误（今日第 \(count) 次），请订正"
             triggerDictationErrorAnimation()
+            requestDictationStatusScroll(true)
             speakCurrentWord()
         case .correct(let exited):
             dictationErrorFlash = false
+            dictationMissedWord = nil
             if reactionSecs > SlowReactionWordRecord.slowThresholdSeconds {
                 vm.dictationFeedback = String(format: "✓ 拼写正确，但从语音播完到敲下回车耗时 %.1f 秒（> 5.0 秒阈值），已自动标记为「慢反应词」加入提速巩固！", reactionSecs)
             } else {
                 vm.dictationFeedback = String(format: "✓ %@（反应耗时 %.1f 秒，达标 ≤5.0s）", exited ? "本轮复习完成。" : "拼写正确。", reactionSecs)
             }
+            requestDictationStatusScroll(false)
             speakCurrentWord()
         case .requeuedForRetry(_, let offset):
             dictationErrorFlash = false
+            dictationMissedWord = nil
             let cycle = vm.dictationMachine.wrongRetryCycleByWordID[word.id, default: 1]
             vm.dictationFeedback = "✓ 艾宾浩斯错词循环（第 \(cycle)/4 轮）：将在第 \(offset) 个单词后再次复现检测"
+            requestDictationStatusScroll(false)
             speakCurrentWord()
         case .promotedToStubbornWords:
+            dictationMissedWord = nil
             vm.dictationFeedback = "已进入顽固单词，拼对后继续"
             triggerDictationErrorAnimation()
+            requestDictationStatusScroll(true)
             speakCurrentWord()
         }
     }
@@ -9980,10 +10467,13 @@ extension LumaStudyCenterHostView {
         ttsEngine.stop(); audio.stop(); kokoro.stop()
         vm.selectedDeck = deckKey
         vm.activeDictationDeckKey = deckKey
-        if resume, let saved = vm.storeSnapshot.dictationSessions?[key], !saved.isSessionFinished {
+        if resume, let saved = vm.storeSnapshot.dictationSessions?[key], !saved.isSessionFinished,
+           sessionBelongs(saved, to: deckKey) {
             vm.dictationMachine = saved
             let workspace = vm.storeSnapshot.workspace
+            let submittedIDs = Set(saved.attemptLogs.map(\.wordID))
             let matches = workspace?.deckInputWordIDs?[key] == saved.currentWord?.id
+                && !(saved.currentWord.map { submittedIDs.contains($0.id) } ?? false)
             vm.dictationInput = matches ? (workspace?.deckInputs?[key] ?? "") : ""
             vm.showMeaning = matches ? (workspace?.deckShowMeaning?[key] ?? false) : false
             vm.revealedWordID = matches ? workspace?.deckRevealedWordIDs?[key] : nil

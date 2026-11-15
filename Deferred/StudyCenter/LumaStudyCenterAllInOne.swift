@@ -1262,6 +1262,8 @@ public struct WritingSubmissionRecord: Codable, Equatable, Identifiable, Sendabl
 
 public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var schemaVersion: StudySchemaVersion
+    /// Unix milliseconds; a cloud snapshot from an earlier epoch cannot restore erased dictation data.
+    public var dictationResetEpoch: Int64?
     public var sidebarState: SidebarExpansionState
     public var selectedVoiceIdentifier: String?
     public var preferredAccent: String // "en-GB" or "en-US"
@@ -1288,9 +1290,51 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
     public var customTask2Categories: [String]?
     public var customTask1Questions: [Task1QuestionItem]?
     public var deletedTask1QuestionIDs: [String]?
+    /// 已撤销的错误尝试 UUID；仅从错词投影排除，不删除原始听写日志或复习进度。
+    public var suppressedWrongLogIDs: [UUID]?
+    /// 意思不清按词标记，与该词的拼写错误相互独立。
+    public var meaningUnclearWordIDs: [String]?
+    /// 按 sessionID.uuidString 分组的本轮意思不清标记，不会跨新轮显示。
+    public var roundMeaningWordIDs: [String: [String]]?
+    /// 仅用于解码旧快照；迁移后保持 nil，避免旧词级误输标记再次覆盖新尝试。
+    public var wrongWordMarks: [String: String]?
+
+    public var effectiveWrongLogs: [DictationAttemptLog] {
+        let suppressed = Set(suppressedWrongLogIDs ?? [])
+        return dictationLogs.filter { !$0.isCorrect && !suppressed.contains($0.id) }
+    }
+
+    public var effectiveWrongWordIDs: Set<String> {
+        Set(effectiveWrongLogs.map(\.wordID)).union(meaningUnclearWordIDs ?? [])
+    }
+
+    public func effectiveWrongWordIDs(inDeck deckID: String) -> Set<String> {
+        let spellingIDs = Set(effectiveWrongLogs.lazy.filter { $0.deckID == deckID }.map(\.wordID))
+        let knownDeckWords = Set(dictationLogs.lazy.filter { $0.deckID == deckID }.map(\.wordID))
+            .union((importedWords ?? []).lazy.filter { $0.deckID == deckID }.map(\.id))
+        return spellingIDs.union(Set(meaningUnclearWordIDs ?? []).intersection(knownDeckWords))
+    }
+
+    public mutating func suppressWrongLogs(_ ids: Set<UUID>) {
+        let knownWrongIDs = Set(dictationLogs.lazy.filter { !$0.isCorrect }.map(\.id))
+        let merged = Set(suppressedWrongLogIDs ?? []).union(ids.intersection(knownWrongIDs))
+        suppressedWrongLogIDs = merged.isEmpty ? nil : merged.sorted { $0.uuidString < $1.uuidString }
+    }
+
+    public mutating func restoreWrongLogs(_ ids: Set<UUID>) {
+        let remaining = Set(suppressedWrongLogIDs ?? []).subtracting(ids)
+        suppressedWrongLogIDs = remaining.isEmpty ? nil : remaining.sorted { $0.uuidString < $1.uuidString }
+    }
+
+    public mutating func setMeaningUnclear(_ marked: Bool, for wordID: String) {
+        var ids = Set(meaningUnclearWordIDs ?? [])
+        if marked { ids.insert(wordID) } else { ids.remove(wordID) }
+        meaningUnclearWordIDs = ids.isEmpty ? nil : ids.sorted()
+    }
 
     public init(
         schemaVersion: StudySchemaVersion = .current,
+        dictationResetEpoch: Int64? = nil,
         sidebarState: SidebarExpansionState = SidebarExpansionState(),
         selectedVoiceIdentifier: String? = nil,
         preferredAccent: String = "en-GB",
@@ -1316,9 +1360,14 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
         deletedTask2TopicIDs: [String]? = nil,
         customTask2Categories: [String]? = nil,
         customTask1Questions: [Task1QuestionItem]? = nil,
-        deletedTask1QuestionIDs: [String]? = nil
+        deletedTask1QuestionIDs: [String]? = nil,
+        wrongWordMarks: [String: String]? = nil,
+        suppressedWrongLogIDs: [UUID]? = nil,
+        meaningUnclearWordIDs: [String]? = nil,
+        roundMeaningWordIDs: [String: [String]]? = nil
     ) {
         self.schemaVersion = schemaVersion
+        self.dictationResetEpoch = dictationResetEpoch
         self.sidebarState = sidebarState
         self.selectedVoiceIdentifier = selectedVoiceIdentifier
         self.preferredAccent = preferredAccent
@@ -1345,12 +1394,23 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
         self.customTask2Categories = customTask2Categories
         self.customTask1Questions = customTask1Questions
         self.deletedTask1QuestionIDs = deletedTask1QuestionIDs
+        // 老版本的 "typo" 是词级标记：仅将当前已有的错误尝试转为 UUID 排除，未来错误不能被遮蔽。
+        let legacyTypoWords = Set((wrongWordMarks ?? [:]).filter { $0.value == "typo" }.map(\.key))
+        let legacyWrongIDs = dictationLogs.lazy.filter { !$0.isCorrect && legacyTypoWords.contains($0.wordID) }.map(\.id)
+        let suppression = Set(suppressedWrongLogIDs ?? []).union(legacyWrongIDs)
+        self.suppressedWrongLogIDs = suppression.isEmpty ? nil : suppression.sorted { $0.uuidString < $1.uuidString }
+        let legacyMeanings = (wrongWordMarks ?? [:]).filter { $0.value == "meaning" }.map(\.key)
+        let meanings = Set(meaningUnclearWordIDs ?? []).union(legacyMeanings)
+        self.meaningUnclearWordIDs = meanings.isEmpty ? nil : meanings.sorted()
+        self.roundMeaningWordIDs = roundMeaningWordIDs
+        self.wrongWordMarks = nil
     }
-    private enum CodingKeys: String, CodingKey { case schemaVersion, sidebarState, selectedVoiceIdentifier, preferredAccent, preferredSpeechRate, speechRepeatCount, speechInterval, dictationLogs, stubbornWords, activeWritingDrafts, legacyDraftBackups, writingSubmissions, importedWords, installedVocabularyPackIDs, reviewSchedule, writingRevisions, speechService, workspace, dictationSession, dictationSessions, slowReactionWords, dailyReadingSeconds, customTask2Topics, deletedTask2TopicIDs, customTask2Categories, customTask1Questions, deletedTask1QuestionIDs }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, dictationResetEpoch, sidebarState, selectedVoiceIdentifier, preferredAccent, preferredSpeechRate, speechRepeatCount, speechInterval, dictationLogs, stubbornWords, activeWritingDrafts, legacyDraftBackups, writingSubmissions, importedWords, installedVocabularyPackIDs, reviewSchedule, writingRevisions, speechService, workspace, dictationSession, dictationSessions, slowReactionWords, dailyReadingSeconds, customTask2Topics, deletedTask2TopicIDs, customTask2Categories, customTask1Questions, deletedTask1QuestionIDs, wrongWordMarks, suppressedWrongLogIDs, meaningUnclearWordIDs, roundMeaningWordIDs }
     public init(from decoder:Decoder) throws {
         let c = try decoder.container(keyedBy:CodingKeys.self)
         self.init(
             schemaVersion: try c.decodeIfPresent(StudySchemaVersion.self, forKey:.schemaVersion) ?? .v1_initial,
+            dictationResetEpoch: try c.decodeIfPresent(Int64.self, forKey:.dictationResetEpoch),
             sidebarState: try c.decodeIfPresent(SidebarExpansionState.self, forKey:.sidebarState) ?? SidebarExpansionState(),
             selectedVoiceIdentifier: try c.decodeIfPresent(String.self, forKey:.selectedVoiceIdentifier),
             preferredAccent: try c.decodeIfPresent(String.self, forKey:.preferredAccent) ?? "en-GB",
@@ -1376,7 +1436,11 @@ public struct StudyStoreSnapshot: Codable, Equatable, Sendable {
             deletedTask2TopicIDs: try c.decodeIfPresent([String].self, forKey:.deletedTask2TopicIDs),
             customTask2Categories: try c.decodeIfPresent([String].self, forKey:.customTask2Categories),
             customTask1Questions: try c.decodeIfPresent([Task1QuestionItem].self, forKey:.customTask1Questions),
-            deletedTask1QuestionIDs: try c.decodeIfPresent([String].self, forKey:.deletedTask1QuestionIDs)
+            deletedTask1QuestionIDs: try c.decodeIfPresent([String].self, forKey:.deletedTask1QuestionIDs),
+            wrongWordMarks: try c.decodeIfPresent([String:String].self, forKey:.wrongWordMarks),
+            suppressedWrongLogIDs: try c.decodeIfPresent([UUID].self, forKey:.suppressedWrongLogIDs),
+            meaningUnclearWordIDs: try c.decodeIfPresent([String].self, forKey:.meaningUnclearWordIDs),
+            roundMeaningWordIDs: try c.decodeIfPresent([String:[String]].self, forKey:.roundMeaningWordIDs)
         )
     }
 
@@ -3627,6 +3691,15 @@ public final class KokoroNeuralBridge: NSObject, ObservableObject {
         statusText = "正在卸载旧模型并加载 \(modelTitle)…"
         modelSwitchTask = Task { @MainActor in
             defer { isSwitching = false }
+            // 守护：切换要是卡在启动引擎上，不能让「正在切换」永久挂住，
+            // 否则听写输入框和提交会被一直禁用。
+            let watchdog = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(45))
+                guard !Task.isCancelled, isSwitching else { return }
+                isSwitching = false
+                statusText = "语音引擎启动超时：已恢复输入，可先用系统语音或稍后重试"
+            }
+            defer { watchdog.cancel() }
             await ensureDaemonRunning(preserveSelectedModel: true)
             guard !Task.isCancelled else { return }
             isReady = false

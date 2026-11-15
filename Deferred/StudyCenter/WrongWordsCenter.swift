@@ -14,6 +14,26 @@ public enum WrongWordMastery: String, Equatable, Sendable {
     }
 }
 
+/// 错词的类型标记：「误输」= 手滑打错、不该算错词；「意思不清」= 会拼但不懂中文意思。
+public enum WrongWordMark: String, Equatable, Sendable {
+    case typo
+    case meaning
+
+    public var title: String {
+        switch self {
+        case .typo: return "误输"
+        case .meaning: return "意思不清"
+        }
+    }
+
+    public var shortTitle: String {
+        switch self {
+        case .typo: return "误输"
+        case .meaning: return "释义不清"
+        }
+    }
+}
+
 public struct WrongWordEntry: Identifiable, Equatable, Sendable {
     public var id: String { wordID }
     public let wordID: String
@@ -29,11 +49,12 @@ public struct WrongWordEntry: Identifiable, Equatable, Sendable {
     public let isSlowReaction: Bool
     public let isStubborn: Bool
     public let mastery: WrongWordMastery
+    public let mark: WrongWordMark?
 
     public init(wordID: String, word: String, meaning: String, deckID: String, deckTitle: String,
                 errorCount: Int, dueAt: Date?, lastReactionSeconds: Double?, isDue: Bool,
                 isSlowReaction: Bool, isStubborn: Bool, lastAttemptAt: Date? = nil,
-                mastery: WrongWordMastery = .fresh) {
+                mastery: WrongWordMastery = .fresh, mark: WrongWordMark? = nil) {
         self.wordID = wordID
         self.word = word
         self.meaning = meaning
@@ -47,6 +68,7 @@ public struct WrongWordEntry: Identifiable, Equatable, Sendable {
         self.isSlowReaction = isSlowReaction
         self.isStubborn = isStubborn
         self.mastery = mastery
+        self.mark = mark
     }
 }
 
@@ -218,6 +240,7 @@ public struct WrongWordsCenterView: View {
     private let onStartDueQueue: (() -> Void)?
     private let onStartAllWrongWords: () -> Void
     private let onStartMicroDrill: ([String]) -> Void
+    private let onSetMark: (String, WrongWordMark?) -> Void
     private let renderMode: Bool
 
     @State private var query = ""
@@ -247,6 +270,7 @@ public struct WrongWordsCenterView: View {
                 onStartDueQueue: (() -> Void)? = nil,
                 onStartAllWrongWords: @escaping () -> Void = {},
                 onStartMicroDrill: @escaping ([String]) -> Void = { _ in },
+                onSetMark: @escaping (String, WrongWordMark?) -> Void = { _, _ in },
                 renderMode: Bool = false) {
         self.model = model
         self.onStartDue = onStartDue
@@ -262,6 +286,7 @@ public struct WrongWordsCenterView: View {
         self.onStartDueQueue = onStartDueQueue
         self.onStartAllWrongWords = onStartAllWrongWords
         self.onStartMicroDrill = onStartMicroDrill
+        self.onSetMark = onSetMark
         self.renderMode = renderMode
     }
 
@@ -364,6 +389,9 @@ public struct WrongWordsCenterView: View {
                         Button("复习本词库") { onStartAll(entry.deckID) }
                         if entry.isSlowReaction {
                             Button("移出慢反应词",role:.destructive) { onRemoveSlow(entry.wordID) }
+                        }
+                        Button(entry.mark == .meaning ? "取消「意思不清」标记" : "标记为意思不清") {
+                            onSetMark(entry.wordID, entry.mark == .meaning ? nil : .meaning)
                         }
                     }
                 }
@@ -766,12 +794,22 @@ public struct WrongWordsCenterView: View {
 
     private func masteryBadge(_ entry: WrongWordEntry) -> some View {
         let color: Color = entry.isStubborn ? semanticTint(.purple) : (entry.mastery == .mastered ? semanticTint(.green) : (entry.mastery == .reviewing ? accent : semanticTint(.orange)))
-        return Text(entry.isStubborn ? "顽固" : (entry.isSlowReaction ? "慢反应" : entry.mastery.title))
-            .lumaFont(size: 9, weight: .semibold)
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.12)))
+        return HStack(spacing: 3) {
+            if let mark = entry.mark {
+                Text(mark.title)
+                    .lumaFont(size: 9, weight: .semibold)
+                    .foregroundStyle(semanticTint(.blue))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(semanticTint(.blue).opacity(0.12)))
+            }
+            Text(entry.isStubborn ? "顽固" : (entry.isSlowReaction ? "慢反应" : entry.mastery.title))
+                .lumaFont(size: 9, weight: .semibold)
+                .foregroundStyle(color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(color.opacity(0.12)))
+        }
     }
 
     private func recordsTable(wide: Bool) -> some View {

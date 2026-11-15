@@ -1,3 +1,158 @@
+# LumaReader 1.24.0 B129
+
+由 DeepSeek 更改。首次运行 B128 时先备份旧听写数据，再执行获授权的听写记录清零。
+- 执行者：DeepSeek（DSH coding agent）
+- 类型：feature + data migration
+- 更新内容：新词与错词复习模式分队列；听写限于所选词本/单元、本轮 ID；错词短距订正与后续复习分开，高轮偶发错误不归零；本轮错题按 sessionID 和 deckID 双重过滤；学习记录按单元汇总、最近练习次数按独立轮次计算。
+- 数据安全：启用有版本闸门的首次启动迁移，原始快照备份和校验成功后才清理旧听写历史；保留词本、阅读、写作；云合并不得恢复被清空的旧听写内容。
+- 修复：语音引擎切换期间输入框与「提交」被禁用的耦合（切换卡住=整页不能用）；现在提交与记录不依赖引擎状态，切换 45 秒超时自动恢复并提示。
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test` 全量 77 项 / 21 套件跑完，本版新增的 `DictationRollingQueueTests`、`DictationResetMigrationTests`、`WrongWordDataSafetyTests`、`DictationUnitWrongWindowRenderTests` 全部通过，剩余 18 条失败已用 `git worktree` 在 HEAD（1.23.6 之前）复跑确认同样失败（旧 workspace 落点断言、写作草稿落盘、雅思评分样例、原生文本探针），不是本版引入；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS；安装后实机打开听写页与「编辑本轮错题」窗口核对。
+- 未验证：云端真实多设备合并（本机只验证了 epoch 过滤的单元测试）、15 种主题配色逐一对照、小窗口下的排版。
+
+# LumaReader 1.23.6 B127
+
+由 DeepSeek 更改 在 22:52 (UTC-07:00)，本次更新的安装包为 v1.23.6（build 127），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：fix
+- 更新内容：
+  - 修掉「编辑本轮错题」窗口标题显示「1 条」但列表区域一片空白的问题：原来用 SwiftUI `List`（由 NSTableView 支撑），在这个独立窗口里行不绘制。改成 `ScrollView + LazyVStack` 手写行，并给每行加了自己的勾选框（`checkmark.square.fill` / `square`），点整行即可选中，全选/取消全选语义不变
+  - 离屏渲染回归测试现在能真正验证行渲染（改前 List 版本的行在离屏位图里也是空白，改后能画出 side entrance / branch off from 两行及输入、时间）
+- 涉及文件：`Deferred/StudyCenter/DictationUnitWrongWindow.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户在 1.23.5 上反馈「没有实现都没有实现」，实机核对确认三点面板两个入口都在、最近听的窗口正常，但「编辑本轮错题」窗口虽然有 1 条记录却不显示任何行
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test --filter "WrongWordDataSafetyTests|DictationUnitWrongWindowRenderTests"` 6/6 通过且离屏位图可见两行内容；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS；安装后实机打开该窗口已可见记录行（截图 `out-1236/screenshots/1236-wrong-window.png`）
+- 未验证：未在全部 15 个主题下逐一核对配色
+
+# LumaReader 1.23.5 B126
+
+由 DeepSeek 更改 在 22:40 (UTC-07:00)，本次更新的安装包为 v1.23.5（build 126），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：fix + feature
+- 更新内容：
+  - 「本轮」不再因为你临时退出应用或点「继续听写」而重置：本轮起点改为持久化在 `StudyWorkspaceState.dictationRoundStartedAt`（随工作区一起存盘），退出应用再回来仍是同一轮，错题面板里的内容不会丢
+  - 只有真正从头开始一轮听写才会重置：`selectDeckAndStartDictation(resume: false)`（含三点里的「重新开始本轮」）、`startDictation` 新建会话、`startDictationForFolder` 三处调用 `beginDictationRound()`
+  - 升级后第一次进入听写页时，若工作区里还没有本轮起点，就地把当前时刻记为本轮起点（避免面板回溯出全部历史错题）
+  - 三点设置面板里新增入口「最近听的词本 / 单元」（`study.dictation.recentDictions`）：打开独立窗口，按最近练习时间倒序列出听过写过的词本 / 单元，每行显示名称、已完成/总数、练习次数、错词数、最近一次时间，点一行直接切到那个单元继续听，支持按名称搜索
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/StudyWorkspace.swift`、`Deferred/StudyCenter/RecentDictationDecksWindow.swift`（新增）、`Deferred/StudyCenter/Package.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户指出「有时候因为会有一些事情要退出，这应该就不能改变，只有当我开始一轮新的听写重新开始，从零到最后一个…这才要清空」，并要求在三点里加一个能快速选择最近听的词本 / 单元的入口，而不是单词
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test --filter "WrongWordDataSafetyTests|DictationUnitWrongWindowRenderTests"` 6/6 通过；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS
+- 未验证：新窗口「最近听的词本 / 单元」在真机上的点按与切换未逐一核对（按用户规则，小改动不做真机截图）
+
+# LumaReader 1.23.4 B125
+
+由 DeepSeek 更改 在 22:26 (UTC-07:00)，本次更新的安装包为 v1.23.4（build 125），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · claude-opus-5）
+- 类型：fix
+- 更新内容：
+  - 1.23.3 的「本轮」判定用的是 `DictationSessionStateMachine.sessionID`，但续练会沿用同一个 session 一整天（本机实测该 session 已累积 395 条记录），所以面板仍显示 118 条——等于没生效。改为用新的 `dictationRoundStartedAt`（一个 `Date`）：每次进入或重新开始一轮听写都刷新为当前时刻，面板与按钮数字只统计这之后的错误尝试与「意思不清」词
+  - `beginDictationRound()` 在 `selectDeckAndStartDictation`、`startDictation` 新建会话、`startDictationForFolder` 三处调用，并同时关闭旧的错题窗口；所以「重新听的时候这一面的错词应该要消失」现在真的成立
+  - 输入框残留答案：补齐剩下三条恢复路径的守卫（`onAppear` 恢复、`startDictation` 续练恢复、合练续练恢复），统一规则为「本轮 `attemptLogs` 里出现过的词 → 一律空框」，不再只在提交后一处生效
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/DictationUnitWrongWindow.swift`、`Deferred/StudyCenter/Tests/DictationUnitWrongWindowRenderTests.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户实测 1.23.3「没有生效，没有实现」——错题面板仍是 118 条，输入框仍会带出上一次的内容
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test --filter "WrongWordDataSafetyTests|DictationUnitWrongWindowRenderTests"` 6/6 通过；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS
+- 未验证：按用户规则（小改动不做真机点按与截图）未逐项实机核对
+
+# LumaReader 1.23.3 B124
+
+由 DeepSeek 更改 在 22:18 (UTC-07:00)，本次更新的安装包为 v1.23.3（build 124），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · claude-opus-5）
+- 类型：fix
+- 更新内容：
+  - 「编辑本单元错题」改为「编辑本轮错题」：窗口与按钮上的数字现在**只统计当前这一轮听写**（按 `DictationSessionStateMachine.sessionID` 过滤错误尝试与「意思不清」词），不再把历史上所有错词堆进来。重新开始一轮听写时，这个列表自动清空，窗口也会关闭重建
+  - 这个面板的定位就是「刚才打太快打错了，顺手改掉」，所以范围跟着当前听写走：听单词时就是这些词，听整单元时就是这一轮的整单元
+  - 彻底修掉「下一个词输入框里还留着上一次的答案」：只要这个词在本轮已经提交过（`attemptLogs` 里有记录），再次出现时一律给空输入框，不再恢复任何草稿；提交时也会删掉该词草稿，新开一轮清空全部草稿
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/DictationUnitWrongWindow.swift`、`Deferred/StudyCenter/Tests/DictationUnitWrongWindowRenderTests.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户指出错题面板应与「我正在听写的这一轮」一致且是一次性的（重新听就该消失），并反馈输入框仍会带出上一个词的内容
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test --filter "WrongWordDataSafetyTests|DictationUnitWrongWindowRenderTests"` 6/6 通过；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS
+- 未验证：按用户规则（小改动不做真机点按与截图）未逐项实机核对
+
+# LumaReader 1.23.2 B123
+
+由 DeepSeek 更改 在 21:56 (UTC-07:00)，本次更新的安装包为 v1.23.2（build 123），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：fix
+- 更新内容：
+  - 修「编辑本单元错题」显示 0 条：单元范围原来取的是「当前词库」选择器（`workspace.selectedDeckID`），但续练/今日计划的会话里装的是别的词本的词（本次是 `ielts.p2.work`／`ielts.p2.map`／`ielts.p2.travel`），选择器却是 `c20.corpus.u3`，两边对不上就统计成 0。现在改为按**本轮会话实际包含的词**所属词本统计（当前词 + 剩余队列 + 本轮已提交记录），词本数 >1 时标题显示「本轮 N 个词本」
+  - 空格键继续计时：原来只在「今日计划」「错词复习」两个模式下生效，听写页其他模式（慢反应词、顽固单词、合练）按空格没反应；现在听写页任何模式都生效，且输入框里已经打了半截答案时空格仍然是打字，不会被抢走
+  - 点底栏「意思不清」标记时，自动打开中文释义（会拼但不知道意思才需要标它，标的同时就把中文显示出来）
+  - 修「输入框里还留着上一个词的答案」：提交后该词的草稿会被删掉，艾宾浩斯循环让同一个词再出现时输入框是空的；新开一轮听写时也会清掉上一轮遗留的草稿（`HostStateModel.discardStaleWordDrafts()`）
+  - 「编辑本单元错题」的标题跟听写页顶部保持一致（仍是「剑20语料库 · 第3章」这类单元名），列表内容按本轮实际在听的词统计
+  - `DictationShortcutPolicy.helpText` 里本来就写着「空格　计时已暂停时继续」，这一版才真正对齐实现
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`，以及技能文件 `/Users/sun/Documents/deepseek-harness/default-workspace/.dsh/skills/code-update-safeguard-v3/SKILL.md`（第 4 节验证分级、第 8 节交付措辞）
+- 原因：用户报「为什么是 0」，并要求暂停后按空格继续、点翻译/意思不清时直接给中文；同时要求小改动不再强制真机测试与截图
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）通过；`swift test --filter "WrongWordDataSafetyTests|DictationUnitWrongWindowRenderTests"` 6/6 通过；`Scripts/build-macos.sh` release 构建通过；`release_guard.py app/pack/verify` 全部 PASS
+- 未验证：按用户新规则（小改动不做真机测试、不截图），这三处没有逐一点按核对；「编辑本单元错题」条数变化依据的是 `luma_study_store.json` 里会话队列与错误日志的实际数据（`ielts.p2.map` 76 条、`ielts.p2.work` 60 条等）
+
+# LumaReader 1.23.1 B122
+
+由 DeepSeek 更改 在 21:44 (UTC-07:00)，本次更新的安装包为 v1.23.1（build 122），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：feature + ui
+- 更新内容：
+  - 听写计时新增「30 秒无操作自动停止」：连续 30 秒没有键盘或鼠标操作，今天的听写时长不再累加（琥珀色计时胶囊 + 反馈行提示「⏸ 已停止计时（30 秒无操作）· 动一下键盘或鼠标自动继续」）；一旦有键盘或鼠标操作，自动恢复累加并清掉提示。停止的只是计时，音频播放、判定、课程进度都照常
+  - 听写设置面板去掉「更多」页：现在只有「练习」「发音」两个分类（原「更多」里的错词复习、慢反应提速、顽固单词、学习记录、云同步、多词本合练、重新开始本轮、词库管理、听写快捷键，在听写页右上角 ⋯ 菜单、听力主页与设置里都有同样的入口，因此不再重复占用一页）
+  - 听写设置「练习」页去掉「当前词库」选择器：换词本请回听力主页选择，设置页不再重复
+  - 每个单词独立保存听写记录：新增 `wordInputs` / `wordShowMeaning` / `wordRevealedWordIDs`（键为「模式|日期|词ID」）。切到下一个词会自动恢复这个词自己上次输入的内容与释义状态，别的词不会再把它的记录盖掉；点「上一个」回到之前的词同样取回它自己的记录；每次提交仍按原有方式追加一条尝试记录（历史不覆盖，只追加）
+- 涉及文件：`Deferred/StudyCenter/StudyWorkspace.swift`、`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/StudyPersistence.swift`、`Deferred/StudyCenter/Tests/DictationUnitWrongWindowRenderTests.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户要求（1）超过 30 秒没操作就自动停止计时；（2）设置面板里的「当前词库」是多余的，可以自己退出去换；（3）「更多」那一页现在全都没用了，删掉只留两个分类
+- 验证：`swift build -c debug` 通过；`swift test --filter WrongWordDataSafety` 5/5 通过（新增 `perWordDraftsSurviveRoundTripWithoutOverwriting`：两个词的记录互不覆盖、编解码往返保留、旧快照没有这三个字段时仍能解码）；`DictationUnitWrongWindowRenderTests` 通过；`StudyLearningRulesTests` 里 `wrongAnswersBlockAndCorrectionSchedulesDelayedCleanRecall`、`fourStageIntraSessionRetryLadder3_13_53_200AndShortEbbinghaus` 两个用例失败，已在 `git worktree` 用未改动的 HEAD（1.22.1 B118）复跑，**同样失败**，属既有问题、与本次改动无关
+- 实机验证（1.23.1 build 122 安装于 /Applications，Info.plist 实测 1.23.1/122）：静置 40 秒后计时器停在 `00:38:19` 并转琥珀色、输入框下方出现「⏸ 已停止计时（30 秒无操作）· 动一下键盘或鼠标自动继续」（`out-1231/screenshots/1231-idle.png`）；随便点一下后计时恢复走动、提示消失（`1231-resume.png`）；听写设置面板只剩「练习」「发音」两页，且「练习」页已无「当前词库」（`1231-settings.png`）
+- 未验证：每个单词独立记录只在单元测试与代码层面验证，未在真机上做「A 词输入 → 切到 B 词 → 回到 A 词」的完整点击核对；15 个主题下的琥珀色计时胶囊配色；多屏/小屏下的设置面板高度
+
+# LumaReader 1.23.0 B121
+
+由 DeepSeek 更改 在 21:27 (UTC-07:00)，本次更新的安装包为 v1.23.0（build 121），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：feature
+- 更新内容：
+  - 听写右上角三点打开的面板，第一屏（练习页）最上方新增整行主按钮「编辑本单元错题 N」：不用翻页、不用滚动就能看到并点击，N 是当前单元的有效错题条数
+  - 点击后打开独立窗口「编辑本单元错题 · <词本名>」，一次列出本单元全部错题，不再只能处理当前这一个词；合练状态下按合练包含的多个词本汇总
+  - 窗口内每一行区分两种类型：「拼写错误」（一条失败尝试，附你实际输入的内容与发生时间）和「意思不清」（会拼但不懂释义的词）
+  - 支持逐条勾选与全选/取消全选；四个批量操作：「撤销所选错误」（只把选中的那几次错误尝试移出错题列表，原始练习日志与复习进度不动）、「标记意思不清」、「取消意思不清」、「导出」
+  - 导出 CSV 支持「导出所选」与「导出本单元」，UTF-8 BOM + CRLF，列为单词、释义、类型、实际输入、发生时间，可直接在 Numbers/Excel 里筛选
+  - 错词判定改为统一投影：错词中心、最近错词胶囊、错词复习、到期复习数、本轮报告、练习记录 TXT、分类总览错误计数、输入框下方的状态行全部按「已撤销的错误尝试不计入、意思不清计入」计算，撤销后各处数字一致
+  - 练习记录 TXT 的类型列改为「误输（已撤销）／拼写错误／—」，意思不清以「 · 意思不清」后缀标注，只有意思不清、没有任何错误日志的词也会单独成行导出
+  - 数据：StudyStoreSnapshot 新增可选 `suppressedWrongLogIDs`（按单条错误尝试的 UUID 撤销，不删除历史）与 `meaningUnclearWordIDs`（按词标记）；旧的 `wrongWordMarks` 字段仅用于读取旧快照并一次性迁移（旧「误输」按当时的错误尝试逐条迁移，不会遮蔽此后的新错误）
+  - 云同步合并：两个新字段都做并集，撤销与标记在多台机器之间不会互相丢失
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/DictationUnitWrongWindow.swift`、`Deferred/StudyCenter/LumaStudyCenterAllInOne.swift`、`Deferred/StudyCenter/StudyPersistence.swift`、`Deferred/StudyCenter/WrongWordsCenter.swift`、`Deferred/StudyCenter/DictationPracticeLayout.swift`、`Deferred/StudyCenter/Package.swift`、`Deferred/StudyCenter/Tests/WrongWordDataSafetyTests.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户要求把「不小心打错的词」和「会拼但意思不清的词」分开管理，并且要能一次看到、批量处理本单元的全部错题（而不是只能处理当前这一个词），入口必须在三点打开后第一眼就能看到
+- 验证：- 验证：`swift build`（`Deferred/StudyCenter`，debug）编译通过（48 秒级，仅既有 warning）；`swift test --filter WrongWordDataSafetyTests` 4/4 通过（日志不被删除、按 UUID 撤销、旧数据迁移不误伤新错误、云合并并集、按词本投影）；`Scripts/build-macos.sh` release 构建通过（codesign --verify --deep --strict、plutil -lint、check-app-bundle.py 均 PASS，Info.plist 实际为 1.23.0/121）；`release_guard.py app` PASS、`pack`/`verify` PASS；本机安装 1.23.0（build 121）后实机核对：听写页右上角三点打开面板，**第一屏最上方就是整行的「编辑本单元错题」主按钮**（`out-1230/screenshots/t14-popover.png`），点击后独立窗口「编辑本单元错题 · 剑20 语料库 · 第3章」弹出，标题、条数、空态文案、底部「全选／标记意思不清／取消意思不清／撤销所选错误／导出」按钮与说明行均正常渲染（`out-1230/screenshots/step2-more.png`）
+- 未验证：- 未验证：本机当前词库（剑20 语料库 · 第3章）当日没有错题，实机看到的是 0 条空态；**含内容的列表渲染、勾选、批量撤销、CSV 导出没有在实机点按核对**（未切换用户正在练的词库，避免打断练习），这几项仅有单元测试与代码路径支撑；「意思不清」标记后窗口内行是否立即刷新未实机核对；15 个主题下该窗口的配色未逐一核对；云盘跨机合并只跑了单元测试；窗口尺寸 940×570 在 1087×711 主窗口下不会遮挡主界面，但小屏（<940 宽）未试
+
+# LumaReader 1.22.3 B120
+
+> 说明（后补，不改上文历史记录）：本版为中间构建，只在本机安装过、未打包交付；其中的「误输」按词互斥标记语义已被 1.23.0 的逐条撤销方案取代。
+
+由 DeepSeek 更改 在 19:53 (UTC-07:00)，本次更新的安装包为 v1.22.3（build 120），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：code
+- 更新内容：
+  - 新增错词类型标记「意思不清」：底部操作栏第 7 个功能键（问号图标）一句话标记当前词「我会拼，但意思不清楚」，再次点击取消；只写标记，不改拼写判定、不改输入框、不改进度与练习数据
+  - 新增错词类型标记「误输」：听写设置（三个点）→ 更多 → 当前词，可「不小心打错 · 删掉这个词的错词记录」；标记后该词不再计入错词，也不出现在错词复习、今日错词队列、错词合练与「最近错词」胶囊里；同一处可取消，面板底部另有「恢复全部误输标记（N 个）」
+  - 错词中心：每个错词显示类型徽章（「误输」灰色 /「意思不清」蓝色），「操作」菜单里的已选单词区新增标记与取消标记两个入口
+  - 导出：练习记录 TXT 新增「类型」列（误输 / 意思不清 / 拼写错误），并在文件开头加一行类型说明
+  - 数据：StudyStoreSnapshot 新增可选字段 `wrongWordMarks`（wordID → "typo" / "meaning"），旧数据缺字段时按无标记解码
+- 涉及文件：`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/WrongWordsCenter.swift`、`Deferred/StudyCenter/LumaStudyCenterAllInOne.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户希望把「手滑打错」的词移出错词，并把「会拼但不懂中文」的词单独归成另一类错题，且两类都能导出
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）编译通过；`Scripts/build-macos.sh` release 构建通过（codesign --verify --deep --strict、plutil -lint、check-app-bundle.py 均 PASS）；`release_guard.py app` 版本/构建号校验 PASS；安装 1.22.3（build 120）后在 1087×711 窗口实机核对：底栏第 7 个问号按钮存在且点击后高亮，标记已写入 `luma_study_store.json` 的 `wrongWordMarks`；三个点 → 更多 → 当前词 面板正常显示当前词与两个标记按钮
+- 未验证：错词中心里的类型徽章与「操作」菜单标记入口未实机打开核对；标记为「误输」后从错词复习/今日错词队列中消失的效果仅走了代码路径，未做实机演练；未逐一切换 15 个主题检查两种徽章配色；未在快速过词策略下复检
+
+# LumaReader 1.22.2 B119
+
+由 DeepSeek 更改 在 18:46 (UTC-07:00)，本次更新的安装包为 v1.22.2（build 119），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：code
+- 更新内容：
+  - 修复听写答错后看不到中文释义与错在哪：反馈区（中文、订正提示、结果行）此前被排到比窗口更高的画布底部，初始滚动停在顶部时整块落在可视区之外
+  - `DictationPracticeLayout` 改为「装得下就上下等距居中、装不下就紧凑排布」，状态行始终紧跟输入框下方；输入框在进度条下方的绝对位置与 B118 保持一致（两种分支的输入框顶端都在 topHeight + 16）
+  - 快速过词（B113 默认策略）答错后新增「刚才这个词拼错了」卡片：保留这一题的正确拼写（错字母红字标出）、中文释义、用户实际输入与「已记入错词（本次第 N 次）」，直到下一次提交
+  - 提交反馈文本此前只有赋值、从未渲染，现在显示在输入框下方（拼写正确 / 已记入错词 / 错词循环第几轮 / 进入顽固单词）
+  - 答错不再把「下一个词」的中文释义提前显示（原来 `showMeaning` 直接取 `last.isCorrect == false`，快速过词切词后会泄题）
+  - 提交后自动把反馈区滚进视野（答对则回到画布顶部），减少动态效果时改为直接跳转、不加动画
+- 涉及文件：`Deferred/StudyCenter/DictationPracticeLayout.swift`、`Deferred/StudyCenter/StudyHome.swift`、`release.json`、`CHANGELOG.md`、`RELEASE_NOTES.md`
+- 原因：用户反馈最新版听写打错之后看不到下方中文翻译，也不知道自己错在哪里、错成什么样
+- 验证：`swift build`（`Deferred/StudyCenter`，debug）编译通过；`Scripts/build-macos.sh` release 构建通过（codesign --verify --deep --strict、plutil -lint、check-app-bundle.py 均 PASS）；`release_guard.py app` 版本/构建号校验 PASS；`release_guard.py pack` 与 `verify` PASS；安装后在 1087×711 窗口（与用户截图同尺寸）实机核对：输入框下方重新出现「词条 · 第 N 次出错 · 最近反应时间 X.Xs」状态行，答错时显示中文释义、红字标错拼写与「拼写有误（今日第 N 次），请订正」
+- 未验证：快速过词（快速跳词）分支下「刚才这个词拼错了」卡片已在代码中实现并编译通过，但实机核对时本机词库设置为循环复习、未切换到快速过词复检该卡片；未逐一切换 15 个主题与 Space / Manga 检查卡片配色；未验证连续快速提交时滚动动画的手感；队列最后一个词答错时会直接进入本轮回执页，卡片不在该页显示
+
 # LumaReader 1.22.1 B118
 
 由 DeepSeek 更改 在 22:28:00 (UTC-08:00)，本次更新的安装包为 v1.22.1（build 118），更新的内容如下：

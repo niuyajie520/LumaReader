@@ -1,6 +1,7 @@
 import Foundation
 import SQLite3
 import CryptoKit
+import Darwin
 
 public final class StudyPersistenceManager: @unchecked Sendable {
     public let fileURL: URL
@@ -51,8 +52,69 @@ public final class StudyPersistenceManager: @unchecked Sendable {
         return nil
     }
     private let policy = ExamEnglishInputPolicy()
+    /// Test-only injection on a temporary store; production requires a real bundle build number.
+    private let testBuildNumber: Int?
+    private static let resetReleaseBuild = 128
 
-    public init(storageDirectory: URL) throws {
+    private var shouldPerformFirstLaunchReset: Bool {
+        // `swift test` runs the suite inside `swiftpm-testing-helper`, where Bundle.main has no
+        // CFBundleVersion at all, so an injected build number always wins when present.
+        let build: Int?
+        if let testBuildNumber { build = testBuildNumber }
+        else { build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String).flatMap(Int.init) }
+        return (build ?? 0) >= Self.resetReleaseBuild
+    }
+
+    /// Create a unique, immutable 0600 copy of the original bytes and verify its SHA-256
+    /// before touching the store. An error here aborts the reset instead of losing history.
+    private func backupOriginalForDictationReset(_ raw: Data) throws -> URL {
+        let url = backupDirectoryURL.appendingPathComponent("before-dictation-reset-\(UUID().uuidString).json")
+        let fd = open(url.path, O_WRONLY | O_CREAT | O_EXCL, mode_t(0o600))
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var succeeded = false
+        defer {
+            _ = close(fd)
+            if !succeeded { try? FileManager.default.removeItem(at: url) }
+        }
+        try raw.withUnsafeBytes { bytes in
+            guard let base = bytes.baseAddress else { return }
+            var offset = 0
+            while offset < bytes.count {
+                let count = Darwin.write(fd, base.advanced(by: offset), bytes.count - offset)
+                guard count > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                offset += count
+            }
+        }
+        guard fsync(fd) == 0, fchmod(fd, mode_t(0o600)) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        let readBack = try Data(contentsOf: url)
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard attrs[.posixPermissions] as? Int == 0o600,
+              SHA256.hash(data: readBack) == SHA256.hash(data: raw) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        succeeded = true
+        return url
+    }
+
+    private static func clearDictation(_ snapshot: inout StudyStoreSnapshot, epoch: Int64) {
+        snapshot.dictationResetEpoch = epoch
+        snapshot.dictationLogs = []
+        snapshot.dictationSession = nil
+        snapshot.dictationSessions = nil
+        snapshot.stubbornWords = []
+        snapshot.slowReactionWords = nil
+        snapshot.reviewSchedule = nil
+        snapshot.suppressedWrongLogIDs = nil
+        snapshot.meaningUnclearWordIDs = nil
+        snapshot.roundMeaningWordIDs = nil
+        snapshot.wrongWordMarks = nil
+        snapshot.workspace?.clearDictationDrafts()
+    }
+
+    public init(storageDirectory: URL, testBuildNumber: Int? = nil) throws {
+        self.testBuildNumber = testBuildNumber
         try FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
         self.fileURL = storageDirectory.appendingPathComponent("luma_study_store.json")
         self.backupDirectoryURL = storageDirectory.appendingPathComponent("backups", isDirectory: true)
@@ -67,7 +129,11 @@ public final class StudyPersistenceManager: @unchecked Sendable {
         defer { lock.unlock() }
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            let fresh = StudyStoreSnapshot()
+            var fresh = StudyStoreSnapshot()
+            // A new installation still needs an epoch before its first cloud pull.
+            if shouldPerformFirstLaunchReset {
+                fresh.dictationResetEpoch = Int64(Date().timeIntervalSince1970 * 1_000)
+            }
             try saveUnlocked(fresh)
             return fresh
         }
@@ -83,7 +149,7 @@ public final class StudyPersistenceManager: @unchecked Sendable {
                 try rawData.write(to:backupDirectoryURL.appendingPathComponent("damaged-"+UUID().uuidString+".json"),options:.atomic)
                 snapshot = recovered
                 self.recovered = true
-                try data.write(to:fileURL,options:.atomic)
+                // Delay any rewrite until after the original bytes have been safely backed up.
             } else if let salvage = Self.salvageDecode(rawData, decoder: decoder) {
                 let salvaged = salvage.0, dropped = salvage.1
                 // 旧版记录里个别条目与新版格式不兼容：只跳过这些条目，其余记录全部保留；原文件完整备份。
@@ -96,6 +162,10 @@ public final class StudyPersistenceManager: @unchecked Sendable {
             }
         }
 
+        // Back up exact original bytes before SQLite seeding or any migration write.
+        let needsDictationReset = shouldPerformFirstLaunchReset && snapshot.dictationResetEpoch == nil
+        if needsDictationReset { _ = try backupOriginalForDictationReset(rawData) }
+
         // Writing is stored in SQLite once available; JSON remains the export/cloud mirror.
         if let archive = writingArchive, let stored = archive.load(),
            !stored.drafts.isEmpty || !stored.submissions.isEmpty {
@@ -105,6 +175,17 @@ public final class StudyPersistenceManager: @unchecked Sendable {
         } else if let archive = writingArchive {
             // First run (or an older JSON store): seed SQLite from the JSON mirror.
             try? archive.save(drafts: snapshot.activeWritingDrafts, submissions: snapshot.writingSubmissions)
+        }
+
+        // Persist the marker and reset atomically before any independent schema migration write.
+        if needsDictationReset {
+            Self.clearDictation(&snapshot, epoch: Int64(Date().timeIntervalSince1970 * 1_000))
+            try saveUnlocked(snapshot)
+            let defaults = UserDefaults.standard
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("luma.listening.seconds.") {
+                defaults.removeObject(forKey: key)
+            }
+            NotificationCenter.default.post(name: Notification.Name("LumaReader.DictationTimerReset"), object: nil)
         }
 
         let upgradeBackup = backupDirectoryURL.appendingPathComponent("before-study-editor-upgrade.json")
@@ -233,6 +314,11 @@ public final class StudyPersistenceManager: @unchecked Sendable {
             }
         }
         try data.write(to: fileURL, options: .atomic)
+        // A brand-new store has no `last-good.json` yet; seed it from the first successful write
+        // so a later corruption on the very first session is still recoverable.
+        if !FileManager.default.fileExists(atPath: lastGoodURL.path) {
+            try? FileManager.default.copyItem(at: fileURL, to: lastGoodURL)
+        }
         lastWrittenDigest = digest
         lastWrittenModification = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
     }
@@ -438,6 +524,18 @@ public enum StudyCloudSyncManager {
     /// vocabulary decks, logs, stubborn words, slow reaction words, submissions, and selecting newer timestamps for drafts/revisions.
     public static func merge(local: StudyStoreSnapshot, remote: StudyStoreSnapshot) -> StudyStoreSnapshot {
         var merged = local
+        let epoch = max(local.dictationResetEpoch ?? 0, remote.dictationResetEpoch ?? 0)
+        merged.dictationResetEpoch = epoch == 0 ? nil : epoch
+        // Compare millisecond epochs, never decoded ISO-8601 timestamps (which lose fractions).
+        // The older side contributes vocabulary/writing, but no dictation-derived data.
+        let localDictation = (local.dictationResetEpoch ?? 0) == epoch ? local : StudyStoreSnapshot()
+        let remoteDictation = (remote.dictationResetEpoch ?? 0) == epoch ? remote : StudyStoreSnapshot()
+        if epoch > (local.dictationResetEpoch ?? 0) {
+            merged.dictationSession = remoteDictation.dictationSession
+            merged.dictationSessions = remoteDictation.dictationSessions
+            if merged.workspace == nil { merged.workspace = remoteDictation.workspace }
+            else { merged.workspace?.replaceDictationDrafts(with: remoteDictation.workspace) }
+        }
         merged.installedVocabularyPackIDs = Array(Set((local.installedVocabularyPackIDs ?? []) + (remote.installedVocabularyPackIDs ?? []))).sorted()
 
         // 1. Imported Vocabulary Words (union by deckID + word.lowercased())
@@ -456,7 +554,7 @@ public enum StudyCloudSyncManager {
 
         // 2. Stubborn Words (union by wordID + dateString, keeping max errorCount)
         var stubbornMap: [String: StubbornWordRecord] = [:]
-        for rec in local.stubbornWords + remote.stubbornWords {
+        for rec in localDictation.stubbornWords + remoteDictation.stubbornWords {
             let key = "\(rec.wordID)|\(rec.dateString)"
             if let existing = stubbornMap[key] {
                 if rec.errorCount > existing.errorCount {
@@ -472,7 +570,7 @@ public enum StudyCloudSyncManager {
 
         // 2b. Slow Reaction Words (union by wordID, keeping max slowCount & maxReactionSeconds)
         var slowMap: [String: SlowReactionWordRecord] = [:]
-        for rec in (local.slowReactionWords ?? []) + (remote.slowReactionWords ?? []) {
+        for rec in (localDictation.slowReactionWords ?? []) + (remoteDictation.slowReactionWords ?? []) {
             if var existing = slowMap[rec.wordID] {
                 existing.slowCount = max(existing.slowCount, rec.slowCount)
                 existing.maxReactionSeconds = max(existing.maxReactionSeconds, rec.maxReactionSeconds)
@@ -489,9 +587,7 @@ public enum StudyCloudSyncManager {
                 slowMap[rec.wordID] = rec
             }
         }
-        if !slowMap.isEmpty {
-            merged.slowReactionWords = slowMap.values.sorted { $0.lastReactionSeconds > $1.lastReactionSeconds }
-        }
+        merged.slowReactionWords = slowMap.isEmpty ? nil : slowMap.values.sorted { $0.lastReactionSeconds > $1.lastReactionSeconds }
 
         // 2c. Daily Reading Seconds (keep max seconds per date)
         var readingMap = local.dailyReadingSeconds ?? [:]
@@ -505,17 +601,28 @@ public enum StudyCloudSyncManager {
         // 3. Dictation Attempt Logs (union by ID, sorted chronologically)
         var seenLogIDs = Set<UUID>()
         var combinedLogs: [DictationAttemptLog] = []
-        for log in local.dictationLogs + remote.dictationLogs {
+        for log in localDictation.dictationLogs + remoteDictation.dictationLogs {
             if seenLogIDs.insert(log.id).inserted {
                 combinedLogs.append(log)
             }
         }
         combinedLogs.sort { $0.timestamp < $1.timestamp }
         merged.dictationLogs = combinedLogs
+        // Preserve per-attempt exclusions across the same log union; no historical attempt or schedule is deleted.
+        let suppressed = Set(localDictation.suppressedWrongLogIDs ?? []).union(remoteDictation.suppressedWrongLogIDs ?? [])
+        merged.suppressedWrongLogIDs = suppressed.isEmpty ? nil : suppressed.sorted { $0.uuidString < $1.uuidString }
+        let meanings = Set(localDictation.meaningUnclearWordIDs ?? []).union(remoteDictation.meaningUnclearWordIDs ?? [])
+        merged.meaningUnclearWordIDs = meanings.isEmpty ? nil : meanings.sorted()
+        var roundMeanings = localDictation.roundMeaningWordIDs ?? [:]
+        for (round, ids) in remoteDictation.roundMeaningWordIDs ?? [:] {
+            roundMeanings[round] = Array(Set(roundMeanings[round] ?? []).union(ids)).sorted()
+        }
+        merged.roundMeaningWordIDs = roundMeanings.isEmpty ? nil : roundMeanings
+        merged.wrongWordMarks = nil
 
         // 4. Review Schedule (keep higher stage or later dueAt per wordID)
-        var schedule = local.reviewSchedule ?? [:]
-        for (wordID, remoteProg) in (remote.reviewSchedule ?? [:]) {
+        var schedule = localDictation.reviewSchedule ?? [:]
+        for (wordID, remoteProg) in (remoteDictation.reviewSchedule ?? [:]) {
             if let localProg = schedule[wordID] {
                 if remoteProg.stage > localProg.stage || (remoteProg.stage == localProg.stage && remoteProg.dueAt > localProg.dueAt) {
                     schedule[wordID] = remoteProg
@@ -524,9 +631,7 @@ public enum StudyCloudSyncManager {
                 schedule[wordID] = remoteProg
             }
         }
-        if !schedule.isEmpty {
-            merged.reviewSchedule = schedule
-        }
+        merged.reviewSchedule = schedule.isEmpty ? nil : schedule
 
         // 5. Active Writing Drafts (keep newer lastSavedAt per draft key)
         var drafts = local.activeWritingDrafts
@@ -570,8 +675,8 @@ public enum StudyCloudSyncManager {
         }
 
         // 8. Dictation Sessions per Deck (keep session with more progress)
-        var sessions = local.dictationSessions ?? [:]
-        for (key, remoteSess) in (remote.dictationSessions ?? [:]) {
+        var sessions = localDictation.dictationSessions ?? [:]
+        for (key, remoteSess) in (remoteDictation.dictationSessions ?? [:]) {
             if let localSess = sessions[key] {
                 if remoteSess.completedWordIDs.count > localSess.completedWordIDs.count
                     || (remoteSess.completedWordIDs.count == localSess.completedWordIDs.count && remoteSess.attemptLogs.count > localSess.attemptLogs.count) {
@@ -581,8 +686,9 @@ public enum StudyCloudSyncManager {
                 sessions[key] = remoteSess
             }
         }
-        if !sessions.isEmpty {
-            merged.dictationSessions = sessions
+        merged.dictationSessions = sessions.isEmpty ? nil : sessions
+        if epoch > 0, epoch != (local.dictationResetEpoch ?? 0), epoch != (remote.dictationResetEpoch ?? 0) {
+            merged.dictationSession = nil
         }
 
         return merged
@@ -708,7 +814,11 @@ public enum StudyStoreHygiene {
         let env = ProcessInfo.processInfo.environment
         if env["XCTestConfigurationFilePath"] != nil || env["XCTestBundlePath"] != nil || env["SWIFT_TESTING_ENABLED"] != nil { return true }
         let name = ProcessInfo.processInfo.processName.lowercased()
+        // `swift test` on Swift 6 runs Swift Testing suites inside `swiftpm-testing-helper`,
+        // whose process name matches none of the older checks; without it the fixture scrubber
+        // would mutate test snapshots and the suite would fail on persisted-fixture assertions.
         return name.contains("xctest") || name.contains("packagetests") || name.hasSuffix("tests")
+            || name.contains("swiftpm-testing-helper")
     }
 
     static let fixtureTexts: Set<String> = [

@@ -70,13 +70,18 @@ public enum DictationSubmitOutcome: Equatable, Sendable {
 }
 
 public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
-    /// 艾宾浩斯 + Expanding Retrieval 4 轮错词递进间隔序列：
-    /// 第 1 轮：+10 个单词后复现
-    /// 第 2 轮：+50 个单词后复现
-    /// 第 3 轮：+100 个单词后复现
-    /// 第 4 轮：+200 个单词后终极复现检测（连续 4 轮全部拼对后彻底移出错词循环）
-    static let newWordRetryOffsets = [5, 55, 155, 255]
+    /// 四次正确召回后毕业；最大间隔随队列长度调整，不为凑足 200 词而强制拖长练习。
     public static let expandingRetryOffsets: [Int] = [10, 50, 100, 200]
+
+    /// 学习和错词复习共用间隔策略。候选词不足时在实际可穿插的词内复现，
+    /// 避免单词本很小时重复漫长的固定四轮。显式 retryOffset 仅供兼容旧调用/测试。
+    public static func adaptiveRetryOffset(cycle: Int, availableWords: Int) -> Int {
+        let available = max(0, availableWords)
+        guard available > 0 else { return 0 }
+        let stage = max(0, min(cycle - 1, expandingRetryOffsets.count - 1))
+        let economical = [10, 20, 35, 50][stage]
+        return min(available, economical)
+    }
 
     public let sessionID: UUID
     public let mode: DictationSessionMode
@@ -91,6 +96,11 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
     public private(set) var stubbornWordsMap: [String: StubbornWordRecord] = [:]
     public private(set) var slowReactionWordIDs: Set<String> = []
     public private(set) var attemptLogs: [DictationAttemptLog] = []
+    /// 这一轮听写是从哪个单元开的（单元 id / 文件夹路径 / 多词本合练标记）。
+    /// 用来防止「选了 A 单元却续上 B 单元的旧会话」，把别的单元的单词混进新词学习。
+    public private(set) var originDeck: String? = nil
+    /// sessionID 既是精确轮次标识；重新开始生成新轮，继续练习解码仍是同一轮。
+    public var roundID: UUID { sessionID }
     private var wordsWithInitialAttemptLogged: Set<String> = []
 
     public init(
@@ -99,26 +109,31 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         dateString: String,
         initialWords: [VocabularyWord],
         existingStubbornWordsForToday: [StubbornWordRecord] = [],
-        previousLogs: [DictationAttemptLog] = []
+        previousLogs: [DictationAttemptLog] = [],
+        originDeck: String? = nil
     ) {
         self.sessionID = sessionID
         self.mode = mode
         self.dateString = dateString
+        self.originDeck = originDeck
         var seen = Set<String>()
         self.pendingQueue = initialWords.filter { seen.insert($0.id).inserted }
-        for item in existingStubbornWordsForToday where item.dateString == dateString {
-            stubbornWordsMap[item.wordID] = item
-            sessionErrorCounts[item.wordID] = max(sessionErrorCounts[item.wordID, default: 0], item.errorCount)
+        // 新轮不能继承旧轮错误次数；仅「顽固词复习」按当前选中词条导入既有记录。
+        // 其他单元的历史顽固词不能混进本轮报告或错词队列。
+        if mode == .stubbornWordReview {
+            for item in existingStubbornWordsForToday where item.dateString == dateString && seen.contains(item.wordID) {
+                stubbornWordsMap[item.wordID] = item
+                sessionErrorCounts[item.wordID] = max(sessionErrorCounts[item.wordID, default: 0], item.errorCount)
+            }
         }
-        for log in previousLogs where log.dateString == dateString && !log.isCorrect {
-            sessionErrorCounts[log.wordID] = max(sessionErrorCounts[log.wordID, default: 0], log.sessionErrorCountForWord)
-        }
+        // 旧日志用于全局错词本，不属于这个新轮次；续练通过解码原状态保留进度。
+        _ = previousLogs
     }
 
     private enum CodingKeys: String, CodingKey {
         case sessionID, mode, dateString, pendingQueue, completedWordIDs, sessionErrorCounts
         case activeWrongRetrySet, wrongRetryCycleByWordID, correctionPendingIDs, stubbornWordsMap, slowReactionWordIDs
-        case attemptLogs, wordsWithInitialAttemptLogged
+        case attemptLogs, wordsWithInitialAttemptLogged, originDeck
     }
 
     public init(from decoder: Decoder) throws {
@@ -136,6 +151,17 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         slowReactionWordIDs = try c.decodeIfPresent(Set<String>.self, forKey: .slowReactionWordIDs) ?? []
         attemptLogs = try c.decodeIfPresent([DictationAttemptLog].self, forKey: .attemptLogs) ?? []
         wordsWithInitialAttemptLogged = try c.decodeIfPresent(Set<String>.self, forKey: .wordsWithInitialAttemptLogged) ?? []
+        originDeck = try c.decodeIfPresent(String.self, forKey: .originDeck)
+    }
+
+    /// 这一轮里的词到底属于哪些单元（用队列里剩下的词 + 已完成的词推断）。
+    public var wordDeckIDs: Set<String> {
+        Set(pendingQueue.map(\.deckID)).union(attemptLogs.map(\.deckID))
+    }
+
+    /// 即使本轮尚未提交第一题，也能用待学词集合严格约束窗口显示范围。
+    public var roundWordIDs: Set<String> {
+        Set(pendingQueue.map(\.id)).union(completedWordIDs).union(attemptLogs.map(\.wordID))
     }
 
     public mutating func revisitCompletedWord(_ word: VocabularyWord) {
@@ -143,6 +169,14 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         completedWordIDs.remove(word.id)
         pendingQueue.removeAll { $0.id == word.id }
         pendingQueue.insert(word, at: 0)
+    }
+
+    /// 逻辑分队列：新词保留初始顺序，错词只在本轮本词本队列内滚动；两队列共用调度器。
+    public var pendingLearningWords: [VocabularyWord] {
+        pendingQueue.filter { !activeWrongRetrySet.contains($0.id) }
+    }
+    public var pendingWrongRetryWords: [VocabularyWord] {
+        pendingQueue.filter { activeWrongRetrySet.contains($0.id) }
     }
 
     public var currentWord: VocabularyWord? { pendingQueue.first }
@@ -176,7 +210,7 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
         newWordStrategy: NewWordDictationStrategy?
     ) -> DictationSubmitOutcome? {
         let strategy = mode == .newTask ? newWordStrategy : nil
-        let offsets = strategy == .repeating ? Self.newWordRetryOffsets : Self.expandingRetryOffsets
+        let offsets = Self.expandingRetryOffsets
         guard let targetWord = pendingQueue.first else { return nil }
         let isMatch = DictationAnswerPolicy.matches(rawInput, targetWord: targetWord.word)
         let isFirstAttempt = !wordsWithInitialAttemptLogged.contains(targetWord.id)
@@ -188,7 +222,7 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
             }
             pendingQueue.removeFirst()
             let currentErrors = sessionErrorCounts[targetWord.id, default: 0]
-            // 1. 刚刚完成错词当场订正 -> 进入第 1 轮循环（默认 +3 词后再次出现）
+            // 1. 当场订正后短距重现；若此前已在循环中则保留原轮次。
             if correctionPendingIDs.remove(targetWord.id) != nil {
                 attemptLogs.append(DictationAttemptLog(id: UUID(), sessionID: sessionID, mode: mode, wordID: targetWord.id, word: targetWord.word, deckID: targetWord.deckID, userTyped: rawInput, isCorrect: true, isFirstAttemptInSession: false, sessionErrorCountForWord: currentErrors, timestamp: Date(), dateString: dateString, durationSeconds: durationSeconds))
                 if currentErrors > 5 || stubbornWordsMap[targetWord.id] != nil {
@@ -196,29 +230,25 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
                     wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
                     return .promotedToStubbornWords(errorCountForWordToday: max(currentErrors, stubbornWordsMap[targetWord.id]?.errorCount ?? 6))
                 }
-                // 1.9.4 — normal dictation passes each word exactly once. A misspelled
-                // word is recorded in the wrong-word book and leaves this session;
-                // its expanding retrieval loop belongs to the separate wrong-word
-                // review session, which still uses the 4-cycle ladder below.
-                if mode == .newTask && strategy != .repeating {
-                    activeWrongRetrySet.remove(targetWord.id)
-                    wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
-                    completedWordIDs.insert(targetWord.id)
-                    return .correct(exitedWrongQueue: true)
-                }
                 pendingQueue.removeAll { $0.id == targetWord.id }
-                wrongRetryCycleByWordID[targetWord.id] = 1
-                let chosenOffset = retryOffset ?? offsets[0] // 第 1 轮：+10 词
+                // 订正后短距离重现；第三轮再错时保留第三轮而不是从第一轮重练。
+                let resumedCycle = max(1, wrongRetryCycleByWordID[targetWord.id, default: 0])
+                wrongRetryCycleByWordID[targetWord.id] = resumedCycle
+                let chosenOffset = retryOffset ?? Self.adaptiveRetryOffset(cycle: resumedCycle, availableWords: pendingQueue.count)
                 let insertionIndex = min(max(1, chosenOffset), pendingQueue.count)
                 pendingQueue.insert(targetWord, at: insertionIndex)
                 return .requeuedForRetry(errorCountForWordToday: currentErrors, insertedAtOffset: insertionIndex)
             }
 
-            // 2. 该词处于错词循环队列中，且本次复现拼写正确 -> 推进 4 轮递进循环 (+3 -> +13 -> +53 -> +200)
-            if strategy == .quick {
+            // 2. 快速模式仅要求稍后一次无提示正确召回；保留快速跳题与错词反馈，不做四轮长循环。
+            if strategy == .quick && activeWrongRetrySet.contains(targetWord.id) {
                 activeWrongRetrySet.remove(targetWord.id)
                 wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
+                if stubbornWordsMap[targetWord.id] == nil { completedWordIDs.insert(targetWord.id) }
+                attemptLogs.append(DictationAttemptLog(id: UUID(), sessionID: sessionID, mode: mode, wordID: targetWord.id, word: targetWord.word, deckID: targetWord.deckID, userTyped: rawInput, isCorrect: true, isFirstAttemptInSession: isFirstAttempt, sessionErrorCountForWord: currentErrors, timestamp: Date(), dateString: dateString, durationSeconds: durationSeconds))
+                return .correct(exitedWrongQueue: true)
             }
+            // 重复模式 / 错词复习模式：拼对后推进四轮递进循环。
             if activeWrongRetrySet.contains(targetWord.id) {
                 let completedCycle = wrongRetryCycleByWordID[targetWord.id, default: 1]
                 attemptLogs.append(DictationAttemptLog(id: UUID(), sessionID: sessionID, mode: mode, wordID: targetWord.id, word: targetWord.word, deckID: targetWord.deckID, userTyped: rawInput, isCorrect: true, isFirstAttemptInSession: isFirstAttempt, sessionErrorCountForWord: currentErrors, timestamp: Date(), dateString: dateString, durationSeconds: durationSeconds))
@@ -229,7 +259,7 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
                     let nextCycle = completedCycle + 1
                     wrongRetryCycleByWordID[targetWord.id] = nextCycle
                     pendingQueue.removeAll { $0.id == targetWord.id }
-                    let targetOffset = retryOffset ?? offsets[min(nextCycle - 1, totalCycles - 1)]
+                    let targetOffset = retryOffset ?? Self.adaptiveRetryOffset(cycle: nextCycle, availableWords: pendingQueue.count)
                     let insertionIndex = min(max(1, targetOffset), pendingQueue.count)
                     pendingQueue.insert(targetWord, at: insertionIndex)
                     return .requeuedForRetry(errorCountForWordToday: currentErrors, insertedAtOffset: insertionIndex)
@@ -250,19 +280,22 @@ public struct DictationSessionStateMachine: Codable, Equatable, Sendable {
             return .correct(exitedWrongQueue: false)
         }
 
-        // 拼写错误：重置该词的 4 轮循环进度为 0（订正后从第 1 轮 +3 重新开始）
+        // 拼写错误须先当场订正；已经走到后几轮的词保留轮次，不因一次失误重跑全部间隔。
         let newErrorCount = max(sessionErrorCounts[targetWord.id, default: 0], stubbornWordsMap[targetWord.id]?.errorCount ?? 0) + 1
         sessionErrorCounts[targetWord.id] = newErrorCount
         correctionPendingIDs.insert(targetWord.id)
         activeWrongRetrySet.insert(targetWord.id)
-        wrongRetryCycleByWordID[targetWord.id] = 0
+        if wrongRetryCycleByWordID[targetWord.id] == nil {
+            wrongRetryCycleByWordID[targetWord.id] = 0
+        }
         attemptLogs.append(DictationAttemptLog(id: UUID(), sessionID: sessionID, mode: mode, wordID: targetWord.id, word: targetWord.word, deckID: targetWord.deckID, userTyped: rawInput, isCorrect: false, isFirstAttemptInSession: isFirstAttempt, sessionErrorCountForWord: newErrorCount, timestamp: Date(), dateString: dateString, durationSeconds: durationSeconds))
         if strategy == .quick {
+            // 保持立即跳题及反馈卡，但不能将答错的词误标为完成：短距插回同一轮，稍后无提示召回。
             pendingQueue.removeFirst()
             correctionPendingIDs.remove(targetWord.id)
-            activeWrongRetrySet.remove(targetWord.id)
-            wrongRetryCycleByWordID.removeValue(forKey: targetWord.id)
-            completedWordIDs.insert(targetWord.id)
+            wrongRetryCycleByWordID[targetWord.id] = 1
+            let targetOffset = retryOffset ?? Self.adaptiveRetryOffset(cycle: 1, availableWords: pendingQueue.count)
+            pendingQueue.insert(targetWord, at: min(max(1, targetOffset), pendingQueue.count))
         }
         if newErrorCount > 5 || stubbornWordsMap[targetWord.id] != nil {
             stubbornWordsMap[targetWord.id] = StubbornWordRecord(wordID: targetWord.id, word: targetWord.word, sourceDeckID: targetWord.deckID, sourceDeckTitle: targetWord.deckTitle, dateString: dateString, errorCount: newErrorCount, triggeringSessionID: sessionID)

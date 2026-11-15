@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 public struct StudyWorkspaceState: Codable, Equatable, Sendable {
@@ -15,9 +16,54 @@ public struct StudyWorkspaceState: Codable, Equatable, Sendable {
     public var deckInputWordIDs: [String: String]? = nil
     public var deckShowMeaning: [String: Bool]? = nil
     public var deckRevealedWordIDs: [String: String]? = nil
+    /// 每个单词自己的一份听写记录（模式|日期|词ID → 已输入内容 / 释义 / 揭示状态），
+    /// 换到别的词再回来不会互相覆盖。
+    public var wordInputs: [String: String]? = nil
+    public var wordShowMeaning: [String: Bool]? = nil
+    public var wordRevealedWordIDs: [String: String]? = nil
+    /// 「本轮」听写的起点。存在工作区里：临时退出应用不会重置，
+    /// 只有真正从头开始一轮新的听写才会刷新。
+    public var dictationRoundStartedAt: Date? = nil
     public init() {}
 
-    private enum CodingKeys: String, CodingKey { case listeningMode, activePracticeListeningMode, selectedDeckID, writingMode, activePracticeWritingMode, writingDraftID, dictationInput, inputWordID, showMeaning, revealedWordID, deckInputs, deckInputWordIDs, deckShowMeaning, deckRevealedWordIDs }
+    /// Clear only listening/dictation drafts; preserve writing navigation and draft identity.
+    public mutating func clearDictationDrafts() {
+        activePracticeListeningMode = nil
+        dictationInput = ""
+        inputWordID = nil
+        showMeaning = false
+        revealedWordID = nil
+        deckInputs = nil
+        deckInputWordIDs = nil
+        deckShowMeaning = nil
+        deckRevealedWordIDs = nil
+        wordInputs = nil
+        wordShowMeaning = nil
+        wordRevealedWordIDs = nil
+        dictationRoundStartedAt = nil
+    }
+
+    public mutating func replaceDictationDrafts(with other: StudyWorkspaceState?) {
+        clearDictationDrafts()
+        guard let other else { return }
+        listeningMode = other.listeningMode
+        selectedDeckID = other.selectedDeckID
+        activePracticeListeningMode = other.activePracticeListeningMode
+        dictationInput = other.dictationInput
+        inputWordID = other.inputWordID
+        showMeaning = other.showMeaning
+        revealedWordID = other.revealedWordID
+        deckInputs = other.deckInputs
+        deckInputWordIDs = other.deckInputWordIDs
+        deckShowMeaning = other.deckShowMeaning
+        deckRevealedWordIDs = other.deckRevealedWordIDs
+        wordInputs = other.wordInputs
+        wordShowMeaning = other.wordShowMeaning
+        wordRevealedWordIDs = other.wordRevealedWordIDs
+        dictationRoundStartedAt = other.dictationRoundStartedAt
+    }
+
+    private enum CodingKeys: String, CodingKey { case listeningMode, activePracticeListeningMode, selectedDeckID, writingMode, activePracticeWritingMode, writingDraftID, dictationInput, inputWordID, showMeaning, revealedWordID, deckInputs, deckInputWordIDs, deckShowMeaning, deckRevealedWordIDs, wordInputs, wordShowMeaning, wordRevealedWordIDs, dictationRoundStartedAt }
     public init(from decoder:Decoder) throws {
         self.init()
         let c = try decoder.container(keyedBy:CodingKeys.self)
@@ -35,6 +81,10 @@ public struct StudyWorkspaceState: Codable, Equatable, Sendable {
         deckInputWordIDs = try c.decodeIfPresent([String:String].self, forKey:.deckInputWordIDs)
         deckShowMeaning = try c.decodeIfPresent([String:Bool].self, forKey:.deckShowMeaning)
         deckRevealedWordIDs = try c.decodeIfPresent([String:String].self, forKey:.deckRevealedWordIDs)
+        wordInputs = try c.decodeIfPresent([String:String].self, forKey:.wordInputs)
+        wordShowMeaning = try c.decodeIfPresent([String:Bool].self, forKey:.wordShowMeaning)
+        wordRevealedWordIDs = try c.decodeIfPresent([String:String].self, forKey:.wordRevealedWordIDs)
+        dictationRoundStartedAt = try c.decodeIfPresent(Date.self, forKey:.dictationRoundStartedAt)
     }
 
 }
@@ -123,12 +173,32 @@ import AppKit
     private var day = ""
     private var startedAt: Date?
     private var ticker: Task<Void, Never>?
+    /// 30 秒无操作自动停止计时（冻结累计，不打断音频与练习判定）
+    static let idleLimit: TimeInterval = 30
+    @Published private(set) var idleFrozen = false
+    private var frozenSeconds = 0
+    private var lastActivity = Date()
+    private var activityMonitor: Any?
+    nonisolated(unsafe) private var resetObserver: NSObjectProtocol?
 
     init(scope: Scope = .listening) {
         self.scope = scope
         let saved = scope == .listening ? defaults.integer(forKey: "luma.listening.dailyTarget") : 0
         target = saved > 0 ? saved : 300
         restoreToday()
+        if scope == .listening {
+            resetObserver = NotificationCenter.default.addObserver(forName: Notification.Name("LumaReader.DictationTimerReset"), object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.startedAt = self.running ? Date() : nil
+                    self.frozenSeconds = 0
+                    self.restoreToday()
+                }
+            }
+        }
+    }
+    deinit {
+        if let resetObserver { NotificationCenter.default.removeObserver(resetObserver) }
     }
     private static func key(_ date: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
@@ -161,6 +231,8 @@ import AppKit
     func start() {
         guard !running, NSApplication.shared.isActive else { return }
         restoreToday(); startedAt = Date(); running = true
+        idleFrozen = false; lastActivity = Date()
+        installActivityMonitorIfNeeded()
         // dictation_focus_v7
         if scope == .listening { notifyDictationFocus(true) }
         ticker = Task { @MainActor [weak self] in
@@ -168,6 +240,16 @@ import AppKit
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
                 guard let self else { return }
+                // 冻结期间停止累计：把游标推到当前时刻，今日总时长保持不动
+                if self.idleFrozen {
+                    self.startedAt = Date()
+                    self.seconds = self.frozenSeconds
+                    continue
+                }
+                if Date().timeIntervalSince(self.lastActivity) >= Self.idleLimit {
+                    self.freezeIdle()
+                    continue
+                }
                 ticks += 1
                 if ticks % 15 == 0 { self.checkpoint() }
                 else {
@@ -180,9 +262,43 @@ import AppKit
     }
     func pause() {
         checkpoint(); running = false; startedAt = nil
+        idleFrozen = false; removeActivityMonitor()
         if scope == .listening { notifyDictationFocus(false) }
         ticker?.cancel(); ticker = nil
     }
+    // MARK: - 无操作自动停止计时
+
+    /// 任何键盘 / 鼠标操作都算一次活动；冻结状态下动一下就自动恢复累计。
+    func noteActivity() {
+        lastActivity = Date()
+        guard idleFrozen else { return }
+        idleFrozen = false; startedAt = Date()
+        NotificationCenter.default.post(name: Self.idleNotification, object: nil, userInfo: ["enabled": false])
+    }
+
+    private static let idleNotification = Notification.Name("LumaReader.DictationTimerIdle")
+
+    private func freezeIdle() {
+        guard running, !idleFrozen else { return }
+        checkpoint()
+        frozenSeconds = seconds
+        idleFrozen = true
+        NotificationCenter.default.post(name: Self.idleNotification, object: nil, userInfo: ["enabled": true])
+    }
+
+    private func installActivityMonitorIfNeeded() {
+        guard scope == .listening, activityMonitor == nil else { return }
+        activityMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .mouseMoved]) { [weak self] event in
+            self?.noteActivity()
+            return event
+        }
+    }
+
+    private func removeActivityMonitor() {
+        if let monitor = activityMonitor { NSEvent.removeMonitor(monitor) }
+        activityMonitor = nil
+    }
+
     private func notifyDictationFocus(_ enabled: Bool) {
         NotificationCenter.default.post(name: Notification.Name("LumaReader.DictationFocusChanged"), object: nil, userInfo: ["enabled": enabled])
     }
