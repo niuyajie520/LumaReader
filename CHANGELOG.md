@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-16 12:10:00 (UTC-07:00) · 发布到 GitHub（macOS 1.33.0 + iPhone 1.0.0）
+由 DeepSeek 更改 在 12:10:00，本次把两个平台的版本推到公开仓库，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：release
+- 提交：`4590aad`，96 个文件改动（+81509 / −1628），推到 `niuyajie520/LumaReader` 的 `main`
+- Release：
+  - `v1.33.0` → `LumaReader-1.33.0-B145-20261116-Source.zip`（63.5 MB）、`LumaReader-1.33.0-B145-macOS.zip`（79.1 MB，可直接拖进「应用程序」）
+  - `ios-1.0.0-b5` → `LumaReader-iPhone-1.0.0-B5-20261116-Source.zip`（448 KB）
+- `README.md` 顶部加 iPhone 徽章与「两个平台」表格，说明共用 `LumaCore` 与 `version.json` 单一版本源。
+- 注意：仓库历史原本停在 1.24.0(129)，这次一次性带上 1.25 → 1.33 的全部改动。
+
 ## 2026-11-16 09:45:00 (UTC-07:00) · 架构 · 听写会话与云同步也进内核，版本只留一份
 由 DeepSeek 更改 在 09:45:00，本次把「剩下三件」做完，内容如下：
 - 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）

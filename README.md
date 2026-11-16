@@ -10,6 +10,7 @@
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
     <img alt="SwiftUI, AppKit and WebKit" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20%2B%20WebKit-1B6AC9">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue">
+    <a href="https://github.com/niuyajie520/LumaReader/releases/tag/ios-1.0.0-b5"><img alt="iPhone build" src="https://img.shields.io/badge/iPhone-1.0.0%20(5)-1B6AC9"></a>
   </p>
 </div>
 
