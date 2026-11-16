@@ -11,6 +11,10 @@ struct ContentView: View {
         _controller = State(initialValue:controller ?? ReaderController())
     }
     @State private var studySession:LumaStudySession?
+    /// 打开应用先到主页（设置里可改成「书架」）。
+    @State private var showHome = (UserDefaults.standard.string(forKey: "luma.launch.destination") ?? "home") == "home"
+    @State private var statisticsTab = "reading"
+    @State private var showCommandPalette = false
     @AppStorage("workspaceReadingBookID") private var workspaceReadingBookID=""
     @State private var studyVisible = false
     @State private var studyPreviousVisibility:NavigationSplitViewVisibility = .all
@@ -224,6 +228,17 @@ struct ContentView: View {
             if let window = controller.readingWindow ?? NSApp.keyWindow ?? NSApp.mainWindow {
                 window.toggleFullScreen(nil)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.Navigate"))) { notice in
+            handleNavigation(notice.userInfo?["target"] as? String ?? "home")
+        }
+        .onChange(of: store.selectedID) { _, id in if id != nil { showHome = false } }
+        .onChange(of: activeGroupID) { _, id in if id != nil { showHome = false } }
+        .onChange(of: activeCloudFilter) { _, provider in if provider != nil { showHome = false } }
+        .sheet(isPresented: $showCommandPalette) {
+            LumaCommandPalette(store: store, onRun: runPalette, onClose: { showCommandPalette = false })
+                .preferredColorScheme(store.preferredColorScheme)
+                .tint(store.accent)
         }
         .onReceive(NotificationCenter.default.publisher(for:Notification.Name("LumaReader.OpenStudyCenter"))) { notice in
             openStudy(mode:notice.userInfo?["mode"] as? String ?? "学习",resume:notice.userInfo?["resume"] as? Bool ?? false,directResume:notice.userInfo?["direct"] as? Bool ?? false)
@@ -553,7 +568,8 @@ struct ContentView: View {
             if let book = store.selectedBook { reading(book).transition(.opacity) }
             else if studyVisible,let studySession { StudyCenterScreen(mode:$studyMode,store:store,session:studySession) }
             else if showCloudDashboard { CloudDashboardView(store: store, onClose: { showCloudDashboard = false }).transition(.opacity) }
-            else if store.showStatistics { StatisticsView(activity:store.activity,theme:store.theme,store:store).transition(.opacity) }
+            else if store.showStatistics { unifiedStatistics.transition(.opacity) }
+            else if showHome { homeScreen.transition(.opacity) }
             else { library.transition(.opacity) }
         }
         .frame(minWidth:320,maxWidth:.infinity,maxHeight:.infinity)
@@ -1059,6 +1075,17 @@ struct ContentView: View {
                     .tracking(LumaFontFamily.opticalTracking(for: 22) + brandLayout.headingTracking * 0.5)
             }.padding(.horizontal,18).padding(.top,10).padding(.bottom,22)
 
+            Button { goHome() } label: {
+                Label(L10n.text("主页"), systemImage: "house")
+                    .font(store.homeFont(15, weight: .medium))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 11)
+            }
+            .buttonStyle(LumaSidebarButtonStyle(isSelected: isHomeVisible, accent: store.accent))
+            .help(L10n.text("主页 · ⌘1"))
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
+
             LumaSidebarSection("图书",key:"librarySectionExpanded",symbol:"books.vertical",prominent:true,font:store.homeFont(17,weight:.medium)) {
                 VStack(spacing:3) {
                     if let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) {
@@ -1068,7 +1095,6 @@ struct ContentView: View {
                     sideRow("全部图书",symbol:"books.vertical",count:store.shelfBooks.count)
                     sideRow("正在阅读",symbol:"book",count:store.shelfBooks.filter{$0.progress>0 && !$0.isFinished}.count)
                     sideRow("已读完",symbol:"checkmark.circle",count:store.shelfBooks.filter{$0.isFinished}.count)
-                    sideRow("阅读统计",symbol:"chart.bar.xaxis",count:nil)
                 }.padding(.horizontal,10)
                 LumaSidebarSection("分类",key:"collectionSectionExpanded",onAdd:{ beginGroupEdit() },onSearch:{ categorySearchShown.toggle() }) {
                     VStack(spacing:3) {
@@ -1098,16 +1124,22 @@ struct ContentView: View {
                     studyRow("雅思阅读", mode:"学习_雅思阅读", symbol:"doc.text.magnifyingglass")
                     studyRow("阅读词汇", mode:"学习_阅读词汇", symbol:"text.book.closed")
                     studyRow("写作", mode:"学习_写作_Task1题库", symbol:"pencil")
-                    studyRow("学习统计", mode:"学习_统计", symbol:"chart.bar")
                 }.padding(.horizontal,10)
             }.padding(.top,12)
+            // 阅读统计 + 学习统计合并为一个入口，页内切换。
+            Button { goStatistics() } label: {
+                Label(L10n.text("统计"), systemImage: "chart.bar")
+                    .font(store.homeFont(15, weight: .medium))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 11)
+            }
+            .buttonStyle(LumaSidebarButtonStyle(isSelected: (store.showStatistics && !studyVisible) || (studyVisible && studyMode == "学习_统计"), accent: store.accent))
+            .help(L10n.text("统计 · ⌘7"))
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
             // One big entry: the cloud page's own cards carry every per-cloud action.
             Button {
-                showCloudDashboard = true
-                studyVisible = false
-                activeCloudFilter = nil
-                activeGroupID = nil
-                store.returnToLibrary(statistics: false)
+                openCloudPage()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "cloud").font(.system(size: 21, weight: .regular)).frame(width: 24)
@@ -1245,6 +1277,135 @@ struct ContentView: View {
         NotificationCenter.default.post(name:Notification.Name("LumaReader.RequestWritingExit"),object:nil)
     }
 
+    // MARK: 主页 / 统计 / 命令面板
+
+    private func ensureStudySession() {
+        guard studySession == nil else { return }
+        #if DEBUG
+        studySession=LumaStudySession(storageDirectory:DebugReaderAcceptance.studyDirectory)
+        #else
+        studySession=LumaStudySession.shared
+        #endif
+    }
+
+    private var isHomeVisible: Bool {
+        showHome && !studyVisible && store.selectedBook == nil && !showCloudDashboard && !store.showStatistics
+    }
+
+    private func goHome() {
+        navigateAfterWriting {
+            studyVisible = false
+            showCloudDashboard = false
+            activeCloudFilter = nil; activeGroupID = nil
+            store.returnToLibrary(statistics: false)
+            showHome = true
+        }
+    }
+
+    private func goLibrary() {
+        navigateAfterWriting {
+            studyVisible = false
+            showCloudDashboard = false
+            activeCloudFilter = nil; activeGroupID = nil
+            collection = "全部图书"
+            store.returnToLibrary(statistics: false)
+            showHome = false
+        }
+    }
+
+    private func goStatistics() {
+        navigateAfterWriting {
+            studyVisible = false
+            showCloudDashboard = false
+            activeCloudFilter = nil; activeGroupID = nil
+            store.returnToLibrary(statistics: true)
+            showHome = false
+        }
+    }
+
+    private func openBookFromHome(_ book: Book) {
+        navigateAfterWriting { studyVisible = false; showHome = false; store.open(book) }
+    }
+
+    private func openCloudPage() {
+        showCloudDashboard = true
+        studyVisible = false
+        activeCloudFilter = nil
+        activeGroupID = nil
+        store.returnToLibrary(statistics: false)
+        showHome = false
+    }
+
+    private func runPalette(_ action: LumaPaletteAction) {
+        showCommandPalette = false
+        switch action {
+        case .home: goHome()
+        case .library: goLibrary()
+        case .statistics: goStatistics()
+        case .cloud: openCloudPage()
+        case .settings: openSettings()
+        case .importBooks: store.pickBooks()
+        case .study(let mode): openStudy(mode: mode, resume: true)
+        case .book(let id):
+            if let book = store.shelfBooks.first(where: { $0.id == id }) { openBookFromHome(book) }
+        }
+    }
+
+    private func handleNavigation(_ target: String) {
+        switch target {
+        case "home": goHome()
+        case "library": goLibrary()
+        case "statistics": goStatistics()
+        case "palette": showCommandPalette = true
+        case "listening": openStudy(mode: "学习_听力", resume: true)
+        case "ielts": openStudy(mode: "学习_雅思阅读", resume: true)
+        case "vocab": openStudy(mode: "学习_阅读词汇", resume: true)
+        case "writing": openStudy(mode: "学习_写作_Task1题库", resume: true)
+        default: break
+        }
+    }
+
+    private var homeScreen: some View {
+        LumaHomeView(
+            store: store,
+            summary: studySession?.homeSummary,
+            onContinueDictation: { openStudy(mode: "学习_听力_今日计划", resume: true) },
+            onOpenStudy: { mode in openStudy(mode: mode, resume: true) },
+            onOpenLibrary: { goLibrary() },
+            onOpenBook: { book in openBookFromHome(book) },
+            onOpenStatistics: { goStatistics() },
+            onOpenPalette: { showCommandPalette = true }
+        )
+        .task { ensureStudySession() }
+    }
+
+    /// 阅读统计与学习统计合成一个入口，页内切换。
+    private var unifiedStatistics: some View {
+        VStack(spacing: 0) {
+            Picker(L10n.text("统计范围"), selection: $statisticsTab) {
+                Text(L10n.text("阅读")).tag("reading")
+                Text(L10n.text("学习")).tag("study")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 220)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
+            if statisticsTab == "study", let studySession {
+                StudyCenterScreen(
+                    mode: Binding(get: { "学习_统计" }, set: { newMode in
+                        if newMode != "学习_统计" { openStudy(mode: newMode, resume: false) }
+                    }),
+                    store: store,
+                    session: studySession
+                )
+            } else {
+                StatisticsView(activity:store.activity,theme:store.theme,store:store)
+            }
+        }
+        .task(id: statisticsTab) { if statisticsTab == "study" { ensureStudySession() } }
+    }
+
     private func openStudy(mode:String,resume:Bool,directResume:Bool = false) {
         navigateAfterWriting { openStudyImmediately(mode:mode,resume:resume,directResume:directResume) }
     }
@@ -1264,6 +1425,7 @@ struct ContentView: View {
         columnVisibility = isPracticeDest ? .detailOnly : .all
         studyMode = destination
         studyVisible = true
+        showHome = false
     }
     private func resumeReadingWorkspace(approved:Bool = false) {
         guard let book=store.shelfBooks.first(where:{$0.id.uuidString==workspaceReadingBookID}) else{return}
@@ -1305,6 +1467,7 @@ struct ContentView: View {
             showCloudDashboard = false
             activeCloudFilter = nil; activeGroupID = nil
             collection = title
+            showHome = false
             store.returnToLibrary(statistics: title == "阅读统计")
             }
         } label: {
@@ -1450,10 +1613,11 @@ struct ContentView: View {
         let headingSize = round(30 * store.homeScale)
         VStack(alignment: centered ? .center : .leading, spacing: 4) {
             if let caption = layout.headingCaption {
+                // 说明级（11pt、次要色），不与 H1 标题抢层级。
                 Text(L10n.text(caption))
-                    .font(store.themeHeadingFont(10.5, layout: layout))
-                    .tracking(1.6)
-                    .foregroundStyle(store.accent)
+                    .font(store.themeHeadingFont(11, layout: layout))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Text(layout.headingPrefix + (activeGroupID.flatMap { id in store.collections.active.first(where:{ $0.id == id })?.name } ?? L10n.text(collection)))
@@ -1923,6 +2087,7 @@ struct ReaderSettings: View {
     var previewPDF: () -> Void = {}
     @State private var showAPI = false
     @AppStorage("luma.settings.selectedCategory") private var settingsCategory = "外观与主题"
+    @AppStorage("luma.launch.destination") private var launchDestination = "home"
     @State private var categoryHistory: [String] = ["外观与主题"]
     @State private var historyIndex: Int = 0
     @State private var searchQuery: String = ""
@@ -2253,6 +2418,10 @@ struct ReaderSettings: View {
                         }
 
                         Section(L10n.text("主页字体、语言与图标")) {
+                            Picker(L10n.text("打开应用时显示"), selection: $launchDestination) {
+                                Text(L10n.text("主页")).tag("home")
+                                Text(L10n.text("书架")).tag("library")
+                            }
                             LabeledContent(L10n.text("全局字号")) {
                                 Slider(value: $store.globalTextScale, in: 0.9...1.2, step: 0.05)
                                     .accessibilityLabel(L10n.text("全局字号"))
@@ -2468,8 +2637,7 @@ struct ReaderSettings: View {
                                         Label("试听", systemImage: "speaker.wave.2.fill")
                                             .font(.caption)
                                     }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                                    .buttonStyle(LumaButtonStyle(.secondary, size: .small))
                                 }
                             }
                             LabeledContent(L10n.text("模型文件管理")) {
@@ -2480,8 +2648,7 @@ struct ReaderSettings: View {
                                         Label(kokoro.isInstallingModels ? "正在安装模型…" : "安装／修复本地模型", systemImage: "arrow.down.circle")
                                             .font(.caption)
                                     }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                                    .buttonStyle(LumaButtonStyle(.secondary, size: .small))
                                     .disabled(kokoro.isInstallingModels || kokoro.isSwitching)
 
                                     Button(role: .destructive) {
@@ -2490,8 +2657,7 @@ struct ReaderSettings: View {
                                         Label("删除当前模型 (\(kokoro.modelTitle))", systemImage: "trash")
                                             .font(.caption)
                                     }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                                    .buttonStyle(LumaButtonStyle(.secondary, size: .small))
 
                                     Menu {
                                         Button(role: .destructive) {
@@ -3531,7 +3697,7 @@ final class LumaCustomAIProviderStore: ObservableObject {
         } catch {
             let errMsg = LumaAIChatMessageItem(
                 role: .assistant,
-                content: "请求未能完成：\(error.localizedDescription)\n\n请在右上角「⚙️ 设置」中检查 **\(provider.name)** 的 API Key、Base URL (`\(provider.baseURL)`) 与模型名称 (`\(provider.modelID)`)。",
+                content: "请求未能完成：\(error.localizedDescription)\n\n请在「设置」中检查 **\(provider.name)** 的 API Key、Base URL (`\(provider.baseURL)`) 与模型名称 (`\(provider.modelID)`)。",
                 providerName: provider.name,
                 modelID: provider.modelID
             )
@@ -3735,6 +3901,8 @@ struct LumaCustomAISettingsSheet: View {
     @State private var availableModels: [String] = []
     @State private var systemPrompt: String = "你是 Luma 阅读助手。请直接、清晰、准确地回答用户关于阅读内容或逻辑的问题。"
     @State private var statusBanner: String = ""
+    /// nil = 进行中/中性，true = 成功，false = 失败；颜色之外再配 SF Symbol，不用 ✓/✕ 字符当图标
+    @State private var statusSucceeded: Bool? = nil
     @State private var isTesting: Bool = false
     @State private var showLegacyAIPanel: Bool = false
 
@@ -3758,8 +3926,7 @@ struct LumaCustomAISettingsSheet: View {
                     saveCurrentEdits()
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(accent)
+                .buttonStyle(LumaButtonStyle(.primary, accent: accent, onAccent: accent.lumaContrastingInk))
             }
 
             Divider()
@@ -3909,7 +4076,7 @@ struct LumaCustomAISettingsSheet: View {
                                 .font(.caption.bold())
                                 .foregroundStyle(ink.opacity(0.75))
                             Spacer()
-                            Button("🔄 从接口拉取模型列表 (/v1/models)") {
+                            Button("从接口拉取模型列表") {
                                 saveCurrentEdits()
                                 Task {
                                     do {
@@ -3919,9 +4086,11 @@ struct LumaCustomAISettingsSheet: View {
                                             modelID = first
                                         }
                                         saveCurrentEdits()
-                                        statusBanner = "✓ 已成功从接口拉取 \(models.count) 个可用模型！"
+                                        statusSucceeded = true
+                                        statusBanner = "已从接口拉取 \(models.count) 个可用模型"
                                     } catch {
-                                        statusBanner = "⚠️ \(error.localizedDescription)"
+                                        statusSucceeded = false
+                                        statusBanner = error.localizedDescription
                                     }
                                 }
                             }
@@ -3956,9 +4125,10 @@ struct LumaCustomAISettingsSheet: View {
                     }
 
                     HStack(spacing: 12) {
-                        Button(isTesting ? "正在测试连接…" : "⚡ 测试连接") {
+                        Button(isTesting ? "正在测试连接…" : "测试连接") {
                             saveCurrentEdits()
                             isTesting = true
+                            statusSucceeded = nil
                             statusBanner = "正在向 \(baseURL) 发送测试请求…"
                             Task {
                                 let start = Date()
@@ -3969,9 +4139,11 @@ struct LumaCustomAISettingsSheet: View {
                                         history: [LumaAIChatMessageItem(role: .user, content: "Hi", providerName: "你", modelID: modelID)]
                                     )
                                     let elapsed = Date().timeIntervalSince(start)
-                                    statusBanner = String(format: "✓ 连接成功 (耗时 %.2fs)：%@", elapsed, String(reply.prefix(60)))
+                                    statusSucceeded = true
+                                    statusBanner = String(format: "连接成功（耗时 %.2f 秒）：%@", elapsed, String(reply.prefix(60)))
                                 } catch {
-                                    statusBanner = "✕ 连接失败：\(error.localizedDescription)"
+                                    statusSucceeded = false
+                                    statusBanner = "连接失败：\(error.localizedDescription)"
                                 }
                                 isTesting = false
                             }
@@ -3980,10 +4152,10 @@ struct LumaCustomAISettingsSheet: View {
 
                         Button("保存并设为当前默认 AI") {
                             saveCurrentEdits()
-                            statusBanner = "✓ 已保存「\(name)」并设为当前默认 AI 服务商！"
+                            statusSucceeded = true
+                            statusBanner = "已保存「\(name)」，设为默认 AI 服务商"
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(accent)
+                        .buttonStyle(LumaButtonStyle(.primary, accent: accent, onAccent: accent.lumaContrastingInk))
 
                         Spacer()
 
@@ -3996,10 +4168,14 @@ struct LumaCustomAISettingsSheet: View {
                     }
 
                     if !statusBanner.isEmpty {
-                        Text(statusBanner)
-                            .lumaFont(size: 12, weight: .medium)
-                            .foregroundStyle(statusBanner.hasPrefix("✓") ? Color.green : (statusBanner.hasPrefix("✕") ? Color.red : accent))
-                            .textSelection(.enabled)
+                        Label {
+                            Text(statusBanner)
+                                .textSelection(.enabled)
+                        } icon: {
+                            Image(systemName: statusSucceeded == true ? "checkmark.circle.fill" : (statusSucceeded == false ? "exclamationmark.triangle.fill" : "arrow.triangle.2.circlepath"))
+                        }
+                        .lumaFont(size: 12, weight: .medium)
+                        .foregroundStyle(statusSucceeded == true ? Color.green : (statusSucceeded == false ? Color.red : accent))
                     }
 
                     Spacer()
@@ -4225,7 +4401,7 @@ struct LumaModernAIChatPanel: View {
                                     Text("与 \(activeProv.name) 对话")
                                         .lumaFont(size: 15, weight: .semibold)
                                         .foregroundStyle(inkColor.opacity(0.85))
-                                    Text("在左侧书中选中任意段落点击 ✨ 或直接在下方提问。右侧为你的要求，左侧为 AI 的答复。")
+                                    Text("在左侧书中选中段落后点 \(Image(systemName: "sparkles"))，或直接在下方提问。")
                                         .lumaFont(size: 13)
                                         .lineSpacing(4)
                                         .foregroundStyle(inkColor.opacity(0.55))
@@ -4471,18 +4647,16 @@ struct LumaModernAIChatPanel: View {
 enum LumaMotionSpring {
     static let panelOpen = Animation.spring(response:0.40,dampingFraction:0.86)
     static let panelClose = Animation.spring(response:0.30,dampingFraction:1.0)
-    static let press = Animation.spring(response:0.20,dampingFraction:0.78)
-    static let release = Animation.spring(response:0.32,dampingFraction:0.72)
+    // DESIGN.md：按下 / 松开 snappy 0.14，无回弹。
+    static let press = Animation.snappy(duration:0.14)
+    static let release = Animation.snappy(duration:0.14)
 }
 
-/// 用于原本 .plain 样式的按钮：外观不变，增加按下缩放/变暗与松手轻回弹。
+/// 用于原本 .plain 样式的按钮：外观不变，增加按下缩放/变暗，无回弹。
 struct LumaPressFeedbackStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // 等同于统一按钮系统的 LumaPressStyle：按下 0.97 + 略变暗，无回弹。
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1:(configuration.isPressed ? 0.97:1))
-            .opacity(configuration.isPressed ? 0.78:1)
-            .animation(reduceMotion ? nil:(configuration.isPressed ? LumaMotionSpring.press:LumaMotionSpring.release),value:configuration.isPressed)
+        LumaPressStyle().makeBody(configuration: configuration)
     }
 }
 

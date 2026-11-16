@@ -174,25 +174,28 @@ public struct StudyGlassCapsuleButtonStyle: ButtonStyle {
         self.height = height
     }
 
+    /// 走统一按钮系统：高度归到 28 / 36 / 44，圆角 10，悬停只加淡底，按下 0.97。
+    /// 玻璃质感仍由当前主题的 glassRenderer 绘制（星漫是深色面板，莫奈是液态玻璃）。
     public func makeBody(configuration: Configuration) -> some View {
-        let scale: CGFloat = reduceMotion ? 1.0 : (configuration.isPressed ? 0.96 : (hovered ? 1.02 : 1.0))
+        let size = LumaButtonSize.nearest(to: height)
+        let pressed = configuration.isPressed
         configuration.label
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .font(.system(size: 13, weight: prominent || selected ? .semibold : .medium))
+            .font(.system(size: size.fontSize, weight: prominent || selected ? .semibold : .medium))
             .foregroundStyle(prominent ? Color.white : appearance.ink)
-            .padding(.horizontal, horizontalPadding)
-            .frame(minHeight: height)
+            .padding(.horizontal, min(horizontalPadding, size.horizontalPadding + 4))
+            .frame(minHeight: size.height)
             .background(
-                Capsule(style: .continuous)
-                    .fill(hovered ? appearance.ink.opacity(0.06) : Color.clear)
+                RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous)
+                    .fill(appearance.ink.opacity(pressed ? LumaButtonMetric.pressFill : (hovered ? LumaButtonMetric.hoverFill : 0)))
             )
-            .studyGlassCapsule(cornerRadius: height / 2, prominent: prominent, selected: selected)
-            .contentShape(Capsule(style: .continuous))
-            .scaleEffect(scale)
+            .studyGlassCapsule(cornerRadius: LumaButtonMetric.cornerRadius, prominent: prominent, selected: selected)
+            .contentShape(RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous))
+            .scaleEffect(pressed && !reduceMotion ? LumaButtonMetric.pressScale : 1)
             .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.78), value: hovered)
-            .animation(reduceMotion ? nil : .spring(response: 0.16, dampingFraction: 0.82), value: configuration.isPressed)
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: reduceMotion), value: hovered)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: reduceMotion), value: pressed)
     }
 }
 

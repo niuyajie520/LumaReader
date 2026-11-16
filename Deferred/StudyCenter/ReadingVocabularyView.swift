@@ -98,7 +98,7 @@ struct VocabularyPageHeading<Actions: View>: View {
 
 struct VocabularyPageMenuLabel: View {
     var body: some View {
-        Image(systemName: "ellipsis")
+        Image(systemName: "ellipsis.circle")
             .frame(width: 30, height: 32)
             .contentShape(Rectangle())
     }

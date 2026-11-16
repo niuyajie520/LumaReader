@@ -56,8 +56,8 @@ public enum LumaMotionToken {
     public static let chipDuration: Double = 0.22
 
     // 缩放幅度（仅控件，绝不用于正文或输入框）。
-    public static let hoverScale: CGFloat = 1.04
-    public static let pressScale: CGFloat = 0.94
+    public static let hoverScale: CGFloat = 1.0
+    public static let pressScale: CGFloat = 0.97
 
     // 缓动。使用 macOS 14+ 的 smooth / snappy（以感知时长定义，便于控制上限）。
     public static var hover: Animation { .smooth(duration: hoverDuration) }
@@ -67,17 +67,17 @@ public enum LumaMotionToken {
     public static var numeric: Animation { .smooth(duration: numericDuration) }
     public static var chip: Animation { .smooth(duration: chipDuration) }
 
-    // 动态设计：带回弹的弹簧（以感知时长定义；悬停 / 按下 ≤ 250ms）。
-    public static let dynamicHoverScale: CGFloat = 1.07
-    public static let dynamicPressScale: CGFloat = 0.90
+    // 动态设计：苹果 WWDC23 建议 bounce ≈ 0.15 以内「不显得弹」；悬停不放大（≤1.02），按下 0.96–0.97。
+    public static let dynamicHoverScale: CGFloat = 1.02
+    public static let dynamicPressScale: CGFloat = 0.96
     public static let sheenOpacity: Double = 0.24
-    public static var dynamicHover: Animation { .spring(duration: 0.24, bounce: 0.32) }
+    public static var dynamicHover: Animation { .spring(duration: 0.22, bounce: 0.10) }
     public static var dynamicPress: Animation { .spring(duration: 0.14, bounce: 0) }
-    public static var dynamicRelease: Animation { .spring(duration: 0.25, bounce: 0.45) }
-    public static var dynamicState: Animation { .spring(duration: 0.25, bounce: 0.30) }
+    public static var dynamicRelease: Animation { .spring(duration: 0.24, bounce: 0.15) }
+    public static var dynamicState: Animation { .spring(duration: 0.24, bounce: 0.10) }
     /// 选中底色在相邻按钮之间滑动、进度环填充。状态过渡，不属于悬停/按下。
-    public static var dynamicMorph: Animation { .spring(duration: 0.32, bounce: 0.22) }
-    public static var dynamicChip: Animation { .spring(duration: 0.30, bounce: 0.35) }
+    public static var dynamicMorph: Animation { .spring(duration: 0.30, bounce: 0.08) }
+    public static var dynamicChip: Animation { .spring(duration: 0.26, bounce: 0.12) }
     public static var dynamicSheen: Animation { .smooth(duration: 0.12) }
 
     // 既有参数（数值与原 MotionTokens 完全一致，仅集中到此处，供主 App 引用）。
@@ -172,7 +172,6 @@ struct LumaIconButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let style: LumaIconButtonStyle
     @State private var hovered = false
-    @State private var pointer: CGPoint?
     @State private var bounceTick = 0
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isFocused) private var isFocused
@@ -210,17 +209,15 @@ struct LumaIconButtonBody: View {
 
     private var scale: CGFloat {
         guard dynamic else { return 1 }
-        if pressed { return LumaMotionToken.dynamicPressScale }
-        return hot ? LumaMotionToken.dynamicHoverScale : 1
+        return pressed ? LumaButtonMetric.pressScale : 1
     }
 
-    private var sheenColor: Color { style.emphasis == .prominent ? style.onAccent : style.accent }
 
     var body: some View {
         let shape = Capsule(style: .continuous)
         configuration.label
             .foregroundStyle(foreground)
-            // 动态：松手与选中状态变化时图标弹跳一次（事件触发，不循环）。
+            // 统一按钮系统：只在状态真正改变（选中 / 激活）时图标弹一次；普通点击不弹，不再有指针高光。
             .symbolEffect(.bounce.down, options: .nonRepeating, value: bounceTick)
             .background {
                 ZStack {
@@ -231,22 +228,6 @@ struct LumaIconButtonBody: View {
                     } else {
                         shape.fill(stateFill)
                     }
-                }
-            }
-            .overlay {
-                // 动态：指针跟随的柔和高光，只在悬停期间存在。
-                if dynamic, hot, let pointer {
-                    GeometryReader { proxy in
-                        RadialGradient(
-                            colors: [sheenColor.opacity(LumaMotionToken.sheenOpacity), sheenColor.opacity(0)],
-                            center: UnitPoint(x: pointer.x / max(1, proxy.size.width), y: pointer.y / max(1, proxy.size.height)),
-                            startRadius: 0,
-                            endRadius: max(proxy.size.width, proxy.size.height) * 0.8
-                        )
-                    }
-                    .clipShape(shape)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
                 }
             }
             .overlay {
@@ -270,23 +251,11 @@ struct LumaIconButtonBody: View {
             .contentShape(shape)
             .focusEffectDisabled(LumaControlMetric.customFocusRing)
             .onHover { inside in hovered = inside }
-            .onContinuousHover { phase in
-                guard dynamic else { if pointer != nil { pointer = nil }; return }
-                switch phase {
-                case .active(let location): pointer = location
-                case .ended: pointer = nil
-                }
-            }
-            .onChange(of: configuration.isPressed) { wasPressed, isPressed in
-                if dynamic, wasPressed, !isPressed { bounceTick += 1 }
-            }
             .onChange(of: style.emphasis) { _, _ in
                 if dynamic { bounceTick += 1 }
             }
             .animation(dynamic ? LumaMotionToken.dynamicHover : nil, value: hovered)
-            .animation(dynamic ? LumaMotionToken.dynamicSheen : nil, value: pointer)
-            .animation(dynamic ? (configuration.isPressed ? LumaMotionToken.dynamicPress : LumaMotionToken.dynamicRelease) : nil,
-                       value: configuration.isPressed)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: !dynamic), value: configuration.isPressed)
             .animation(dynamic ? LumaMotionToken.dynamicState : nil, value: style.emphasis)
     }
 }
@@ -312,4 +281,47 @@ public extension View {
             }
         }
     }
+}
+
+// MARK: - v4 字号阶梯 / 形状 / 图标语义
+
+/// 字号阶梯：说明 11 · 次要 13 · 正文 15 · H2 17 · 22 · H1 28 · 展示 40。
+/// 听写输入框不走这套阶梯，仍由 DictationAnswerMetrics 自适应（v4 硬约束 3）。
+public enum LumaTypeScale {
+    public static let caption: CGFloat = 11
+    public static let secondary: CGFloat = 13
+    public static let body: CGFloat = 15
+    public static let h2: CGFloat = 17
+    public static let h2Large: CGFloat = 22
+    public static let h1: CGFloat = 28
+    public static let display: CGFloat = 40
+    public static let lineSpacingRatio: CGFloat = 0.4
+}
+
+/// 圆角家族 4 / 10 / 18，统一描边 1.5pt。
+public enum LumaShapeToken {
+    public static let radiusSmall: CGFloat = 4
+    public static let radiusMedium: CGFloat = 10
+    public static let radiusLarge: CGFloat = 18
+    public static let stroke: CGFloat = 1.5
+}
+
+/// 图标语义表：一个概念一个图标，一个图标一个概念。新代码只从这里取图标名。
+public enum LumaSymbol: String, CaseIterable, Sendable {
+    case replay = "speaker.wave.2"
+    case slow = "tortoise"
+    case submit = "return"
+    case meaningUnclear = "questionmark.circle"
+    case firstLetterHint = "lightbulb"
+    case showChinese = "character.bubble"
+    case spellingWrong = "xmark.circle"
+    case correct = "checkmark.circle"
+    case stubborn = "flame"
+    case systemError = "exclamationmark.triangle"
+    case more = "ellipsis.circle"
+    case startNewWords = "play.fill"
+    case wrongWordReview = "arrow.counterclockwise"
+    case viewWords = "list.bullet"
+    case previousWord = "chevron.backward"
+    case pause = "pause"
 }

@@ -352,7 +352,8 @@ struct LumaPracticeView: View {
             Text("\(engine.index + 1)/\(engine.total)")
                 .font(.system(size: 12, weight: .medium).monospacedDigit())
                 .foregroundStyle(quietInk)
-            Text("✓ \(engine.rightCount)")
+            Label("\(engine.rightCount)", systemImage: "checkmark")
+                .help("一次答对数")
                 .font(.system(size: 12, weight: .medium).monospacedDigit())
                 .foregroundStyle(quietInk)
             Spacer(minLength: 4)
@@ -638,16 +639,17 @@ struct LumaConfusableLibraryView: View {
             Button { openMini(scope: nil) } label: { Image(systemName: "pip") }
                 .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
                 .help("打开悬浮小窗（置顶，看视频时也能练）  ⌥⌘6")
+            if !library.groups.isEmpty {
             Menu {
                 Button { onStart("all") } label: { Label("全部易混词", systemImage: "square.stack") }
-                Button { onStart("hard") } label: { Label("仅易错的", systemImage: "exclamationmark.triangle") }
+                Button { onStart("hard") } label: { Label("仅易错的", systemImage: "flame") }
                 if let category {
                     Button { onStart("cat:" + category) } label: { Label("当前分类：\(category)", systemImage: "folder") }
                 }
             } label: { Label("练习", systemImage: "play.fill") }
             .menuStyle(.button).menuIndicator(.hidden)
             .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 32)).fixedSize()
-            .disabled(library.groups.isEmpty)
+            }
         }
     }
 

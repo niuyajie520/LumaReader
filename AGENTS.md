@@ -80,3 +80,20 @@ English: The explicit error-feedback designs are Monet pigment bloom, Space rada
 3. 侧栏可按主题位于窗口左侧或右侧；书库标题区、书封装饰、主题标题字体可按主题变化。
 4. 听写输入框的尺寸与位置必须保持不变（练习模式侧栏宽度为 0）；红线二、三、四其余内容继续有效。
 English: The owner authorized per-theme layouts (reader header arrangement, sidebar edge, library heading, shelf ornaments) and classic accent/surface colour changes. The seven reader actions keep their count, behaviour, in-group order and hover rules; the dictation input size and position stay unchanged; red lines 2–4 remain in force.
+
+## 最新授权（v4 · 1.25.0）：前端重设计，四条硬约束取代红线三、四 / Latest authorization (v4 · 1.25.0)
+
+中文：用户明确授权（2026-11-15）对学习中心做彻底的前端重设计。本节优先于上文红线三、红线四及「练习模式侧栏宽度为 0」「错误动效不可改」「进度条不可改」「新功能只能加不能删」等旧要求，它们作废。红线一（阅读顶栏与红黄绿）、红线二（写作划词笔记与高亮）、红线五的色值保护不在本次范围，继续有效。只有以下四条不许动：
+1. 听力 / 听写的行为语义：出题队列、判定规则、错词重现、计时、逐词草稿、落盘、云端合并。
+2. 答错后的中文展示：中文释义、正确拼写、错在哪些字母、「拼写有误 / 请订正」与「意思不清」的展示逻辑。
+3. 听写输入框本身（DictationPracticeLayout.swift / DictationAnswerMetrics）：大、水平居中、单行、直接打字、回车提交；不得改成逐字母格子、行内填空、弹窗或缩小。
+4. 学新词与错词复习两套数据彻底分离：听写页只服务本轮（deckID + roundID）；任何统计先用 deckID + roundID 双重过滤；禁止用时间戳、只用 deckID、只用「今天」判断本轮；队列为空不回退全词库；全局错词与本轮错题不得共用一个列表或标题。统一使用 RoundScope 过滤。
+
+English: The owner authorized a full study-center front-end redesign. This section supersedes red lines 3 and 4 and the old "practice sidebar width 0 / error motion frozen / progress rail frozen / add-only" rules. Red lines 1, 2 and the palette protection of red line 5 remain. Only four constraints are frozen: dictation behaviour and data semantics; post-mistake Chinese feedback; the dictation input box itself; strict separation of new-word practice and wrong-word review, with every round statistic filtered by deckID + roundID through RoundScope and no fallback to the whole word list.
+
+## 设计规范 / Design rules
+
+中文：所有界面改动遵守根目录 `DESIGN.md`（模式、一屏一个主操作、组件尺寸与间距、颜色、反馈层级、空状态、动效、文案、拒绝清单）。
+English: Every UI change follows the root `DESIGN.md`.
+中文：设计 skill（impeccable、taste-skill）的安装方法见根目录 `DESIGN_TOOLS.md`。
+English: How to install the design skills: root `DESIGN_TOOLS.md`.

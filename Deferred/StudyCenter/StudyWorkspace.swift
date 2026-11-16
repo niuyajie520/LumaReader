@@ -122,6 +122,55 @@ public struct StudyWorkspaceState: Codable, Equatable, Sendable {
                draft.elapsedSeconds > 0 ||
                model.storeSnapshot.activeWritingDrafts.values.contains(where: { $0.id == draft.id })
     }
+    /// 主页用的摘要。本轮数字按 deckID + roundID 过滤；「今日」是全部词本，主页上会标明。
+    public struct HomeSummary: Equatable, Sendable {
+        public let roundDeckTitle: String?
+        public let roundGraduated: Int
+        public let roundTotal: Int
+        public let roundRetrying: Int
+        public let roundWrong: Int
+        public let lastDictationAt: Date?
+        public let todayDictatedAllDecks: Int
+        public let wrongDueAllDecks: Int
+        public let unitsInProgress: Int
+        public let hasWritingDraft: Bool
+        public var hasActiveRound: Bool { roundDeckTitle != nil && roundTotal > 0 && roundGraduated < roundTotal }
+    }
+
+    public var homeSummary: HomeSummary {
+        let machine = model.dictationMachine
+        let snapshot = model.storeSnapshot
+        let now = Date()
+        let finished = machine.isSessionFinished
+        let title = finished ? nil : (machine.currentWord?.deckTitle ?? machine.pendingQueue.first?.deckTitle)
+        let scope = RoundScope(deckIDs: machine.wordDeckIDs, roundID: machine.roundID)
+        let roundWrong = scope.logs(snapshot.effectiveWrongLogs).count
+        let total = machine.completedWordIDs.count + Set(machine.pendingQueue.map(\.id)).count
+        let dueIDs = snapshot.effectiveWrongWordIDs.filter {
+            (snapshot.reviewSchedule?[$0]?.dueAt ?? .distantPast) <= now
+        }
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        let today = DictationSessionStateMachine.todayDictatedWordCount(
+            from: snapshot.dictationLogs, on: dayFormatter.string(from: now))
+        let units = (snapshot.dictationSessions ?? [:]).values.filter {
+            !$0.isSessionFinished && (!$0.completedWordIDs.isEmpty || !$0.attemptLogs.isEmpty)
+        }.count
+        return HomeSummary(
+            roundDeckTitle: (machine.completedWordIDs.isEmpty && machine.attemptLogs.isEmpty) ? nil : title,
+            roundGraduated: machine.completedWordIDs.count,
+            roundTotal: total,
+            roundRetrying: machine.pendingWrongRetryWords.count,
+            roundWrong: roundWrong,
+            lastDictationAt: snapshot.dictationLogs.last?.timestamp,
+            todayDictatedAllDecks: today,
+            wrongDueAllDecks: dueIDs.count,
+            unitsInProgress: units,
+            hasWritingDraft: hasActiveWritingProgress
+        )
+    }
+
     /// - Parameter directResume: 仅「菜单栏 → 继续写作」传 true，直接回到未完成的写作；
     ///   侧栏点「写作」不传，始终先进入题库主页（Task 1 / Task 2 之一），由用户自己选题，
     ///   未完成的草稿通过顶栏「继续写作」按钮进入。
@@ -318,7 +367,7 @@ struct ListeningDailyGoalCard: View {
             HStack {
                 if !compact {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("今日听写").font(.headline)
+                        Text("今日 · 全部词本").font(.headline)
                         Text("\(completed) / \(timer.target) 词").font(.title2.weight(.semibold)).monospacedDigit()
                     }
                 }
@@ -337,7 +386,7 @@ struct ListeningDailyGoalCard: View {
                 .accessibilityLabel(timer.running ? "暂停听写计时" : "开始或继续听写计时")
                 }
                 if !compact {
-                    Button { settingsShown = true } label: { Image(systemName: "ellipsis") }
+                    Button { settingsShown = true } label: { Image(systemName: "ellipsis.circle") }
                         .buttonStyle(.plain).padding(8).help("设置每日目标")
                         .popover(isPresented: $settingsShown) {
                             VStack(alignment: .leading, spacing: 12) {

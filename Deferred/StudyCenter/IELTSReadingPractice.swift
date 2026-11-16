@@ -286,7 +286,7 @@ struct IELTSReadingPractice: View {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(ink.opacity(0.5))
-                        TextField("搜索文章标题或篇目编号...", text: $search)
+                        TextField("搜索文章标题或篇目编号…", text: $search)
                             .textFieldStyle(.plain)
                     }
                     .padding(.horizontal, 12)
@@ -1021,11 +1021,13 @@ struct IELTSReadingPractice: View {
                 Divider()
                 HStack(spacing: 8) {
                     Text("分屏比例").frame(width: 65, alignment: .leading)
-                    Button("4:6") { splitRatio = 0.40 }.buttonStyle(.bordered)
-                    Button("5:5 标准") { splitRatio = 0.50 }.buttonStyle(.borderedProminent)
-                    Button("6:4") { splitRatio = 0.60 }.buttonStyle(.bordered)
+                    Button("4:6") { splitRatio = 0.40 }
+                        .buttonStyle(LumaButtonStyle(.secondary, size: .small, selected: abs(splitRatio - 0.40) < 0.01))
+                    Button("5:5 标准") { splitRatio = 0.50 }
+                        .buttonStyle(LumaButtonStyle(.secondary, size: .small, selected: abs(splitRatio - 0.50) < 0.01))
+                    Button("6:4") { splitRatio = 0.60 }
+                        .buttonStyle(LumaButtonStyle(.secondary, size: .small, selected: abs(splitRatio - 0.60) < 0.01))
                 }
-                .controlSize(.small)
             }
             .padding(16)
             .frame(width: 290)
@@ -1907,7 +1909,7 @@ struct IELTSReadingPractice: View {
                 let isFocused = activeFocus == question.id
                 VStack(alignment: .leading, spacing: 8) {
                     questionLabel(question, isFocused: isFocused)
-                    answerField(question.id, label: "输入简答词组...", isFocused: isFocused)
+                    answerField(question.id, label: "输入简答词组…", isFocused: isFocused)
                         .frame(maxWidth: 320)
                         .padding(.leading, 30)
                     if submitted { feedback(question, options: []) }

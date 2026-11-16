@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "product": "LumaReader",
+  "macos": {
+    "version": "1.33.0",
+    "build": "145",
+    "source_id": "20261116a"
+  },
+  "ios": {
+    "version": "1.0.0",
+    "build": "5"
+  }
+}

@@ -3,7 +3,7 @@ import SwiftUI
 /// One brief, noninteractive accent per failed submission. No repeating timer.
 /// Each of the 15 visual theme systems triggers its own unmistakable error visual effect:
 /// - `monet`: Soft radial red glow
-/// - `space`: Red radar laser scan line across the box
+/// - `space`（星漫）: Halftone ripple from the box edge + ink burst at the top-right corner
 /// - `manga`: Comic exclamation stamp (!) + diagonal speed lines
 /// - `mangaOcean`: Fresh Ocean Manga — Cerulean sea-splash comic callout ("WAVE! 浪花") + droplet speed lines
 /// - `mangaCity`: Fresh City Pop Manga — Neon chromatic speech bubble ("⚡ RETRY!") + twin magenta/cyan offset frame
@@ -34,16 +34,48 @@ struct DictationThemeErrorAccent: View {
                 .scaleEffect(0.78 + progress * 0.22)
                 .opacity(1 - progress)
             } else if active && system == "space" {
-                ZStack {
+                // 星漫：一圈红色网点从框边向外扩散后消失 + 右上角弹出墨线「爆点」，总长不到半秒。
+                ZStack(alignment: .topTrailing) {
                     if !reduceMotion {
-                        RoundedRectangle(cornerRadius:22).strokeBorder(Color.red.opacity(0.75),lineWidth:1)
-                            .scaleEffect(1 + progress * 0.055).opacity(1 - progress)
-                        Rectangle().fill(LinearGradient(colors:[.clear,.red.opacity(0.8),.clear],startPoint:.top,endPoint:.bottom))
-                            .frame(width:2,height:max(0,geometry.size.height - 24))
-                            .position(x:12 + (geometry.size.width - 24) * progress,y:geometry.size.height / 2)
-                            .opacity(1 - progress * 0.85)
+                        Canvas { context, size in
+                            let pad: CGFloat = 24
+                            let grow = progress * 18
+                            let ring = CGRect(x: pad - grow, y: pad - grow,
+                                              width: size.width - (pad - grow) * 2, height: size.height - (pad - grow) * 2)
+                            let alpha = 0.75 * Double(1 - progress)
+                            let dot = CGSize(width: 3.2, height: 3.2)
+                            var x = ring.minX
+                            while x <= ring.maxX {
+                                for y in [ring.minY, ring.maxY] {
+                                    context.fill(Path(ellipseIn: CGRect(origin: CGPoint(x: x - 1.6, y: y - 1.6), size: dot)), with: .color(StarMangaPalette.alert.opacity(alpha)))
+                                }
+                                x += 10
+                            }
+                            var y = ring.minY + 10
+                            while y < ring.maxY {
+                                for x in [ring.minX, ring.maxX] {
+                                    context.fill(Path(ellipseIn: CGRect(origin: CGPoint(x: x - 1.6, y: y - 1.6), size: dot)), with: .color(StarMangaPalette.alert.opacity(alpha)))
+                                }
+                                y += 10
+                            }
+                        }
+                        .padding(-24)
+                        Canvas { context, size in
+                            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+                            var rays = Path()
+                            for i in 0..<8 {
+                                let angle = Double(i) * .pi / 4
+                                rays.move(to: CGPoint(x: c.x + cos(angle) * 10, y: c.y + sin(angle) * 10))
+                                rays.addLine(to: CGPoint(x: c.x + cos(angle) * 22, y: c.y + sin(angle) * 22))
+                            }
+                            context.stroke(rays, with: .color(StarMangaPalette.alert), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                        }
+                        .frame(width: 48, height: 48)
+                        .scaleEffect(0.5 + 0.5 * min(1, progress * 3))
+                        .opacity(min(1, Double(progress) * 4))
+                        .offset(x: 22, y: -22)
                     }
-                    RoundedRectangle(cornerRadius:22).strokeBorder(Color.red.opacity(0.9),lineWidth:1.2)
+                    RoundedRectangle(cornerRadius:22).strokeBorder(StarMangaPalette.alert.opacity(0.95),lineWidth:2)
                 }
             } else if active && system == "manga" {
                 ZStack(alignment:.topTrailing) {

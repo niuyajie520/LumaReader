@@ -177,6 +177,24 @@ public final class StudyPersistenceManager: @unchecked Sendable {
             try? archive.save(drafts: snapshot.activeWritingDrafts, submissions: snapshot.writingSubmissions)
         }
 
+        // 一次性词库清理：同一份词本被导入两遍会留下两套平行 deck（同一个词练两遍），
+        // 另有英式/美式拼写并存的条目。原始 JSON 先整份备份，再写回去重后的词库。
+        if !((snapshot.installedVocabularyPackIDs ?? []).contains(VocabularyLibraryCleanup.marker)),
+           let words = snapshot.importedWords, !words.isEmpty {
+            let outcome = VocabularyLibraryCleanup.cleaned(words)
+            // 词库本来就干净时不要写盘：文件里一个字节没变，就不该产生迁移备份和改写。
+            let changed = outcome.words.count != words.count
+                || outcome.words.map(\.word) != words.map(\.word)
+            if changed {
+                let cleanupBackupName = "before-vocabulary-cleanup-\(Int(Date().timeIntervalSince1970)).json"
+                try? rawData.write(to: backupDirectoryURL.appendingPathComponent(cleanupBackupName), options: .atomic)
+                snapshot.importedWords = outcome.words
+                VocabularyLibraryCleanup.repairReferences(in: &snapshot, removedWordIDs: outcome.removedWordIDs)
+                snapshot.installedVocabularyPackIDs = (snapshot.installedVocabularyPackIDs ?? []) + [VocabularyLibraryCleanup.marker]
+                try saveUnlocked(snapshot)
+            }
+        }
+
         // Persist the marker and reset atomically before any independent schema migration write.
         if needsDictationReset {
             Self.clearDictation(&snapshot, epoch: Int64(Date().timeIntervalSince1970 * 1_000))
@@ -538,76 +556,27 @@ public enum StudyCloudSyncManager {
         }
         merged.installedVocabularyPackIDs = Array(Set((local.installedVocabularyPackIDs ?? []) + (remote.installedVocabularyPackIDs ?? []))).sorted()
 
-        // 1. Imported Vocabulary Words (union by deckID + word.lowercased())
-        var wordMap: [String: VocabularyWord] = [:]
-        var orderedWords: [VocabularyWord] = []
-        for w in (local.importedWords ?? []) + (remote.importedWords ?? []) {
-            let key = "\(w.deckID)|\(w.word.lowercased())|\(w.definitionZH)"
-            if wordMap[key] == nil {
-                wordMap[key] = w
-                orderedWords.append(w)
-            }
-        }
-        if !orderedWords.isEmpty {
-            merged.importedWords = orderedWords
+        // 1. Imported Vocabulary Words（并集，规则在 LumaCore.SyncMerge）
+        let mergedWords = SyncMerge.mergeWords(local.importedWords ?? [], remote.importedWords ?? [])
+        if !mergedWords.isEmpty {
+            merged.importedWords = mergedWords
         }
 
-        // 2. Stubborn Words (union by wordID + dateString, keeping max errorCount)
-        var stubbornMap: [String: StubbornWordRecord] = [:]
-        for rec in localDictation.stubbornWords + remoteDictation.stubbornWords {
-            let key = "\(rec.wordID)|\(rec.dateString)"
-            if let existing = stubbornMap[key] {
-                if rec.errorCount > existing.errorCount {
-                    stubbornMap[key] = rec
-                }
-            } else {
-                stubbornMap[key] = rec
-            }
-        }
-        merged.stubbornWords = stubbornMap.values.sorted {
-            $0.errorCount != $1.errorCount ? $0.errorCount > $1.errorCount : $0.word < $1.word
-        }
+        // 2. Stubborn Words（同词同日取较大错误次数）
+        merged.stubbornWords = SyncMerge.mergeStubborn(localDictation.stubbornWords, remoteDictation.stubbornWords)
 
-        // 2b. Slow Reaction Words (union by wordID, keeping max slowCount & maxReactionSeconds)
-        var slowMap: [String: SlowReactionWordRecord] = [:]
-        for rec in (localDictation.slowReactionWords ?? []) + (remoteDictation.slowReactionWords ?? []) {
-            if var existing = slowMap[rec.wordID] {
-                existing.slowCount = max(existing.slowCount, rec.slowCount)
-                existing.maxReactionSeconds = max(existing.maxReactionSeconds, rec.maxReactionSeconds)
-                if rec.updatedAt > existing.updatedAt {
-                    existing.lastReactionSeconds = rec.lastReactionSeconds
-                    existing.updatedAt = rec.updatedAt
-                    existing.dateString = rec.dateString
-                }
-                if let rBest = rec.bestReactionSeconds {
-                    existing.bestReactionSeconds = min(existing.bestReactionSeconds ?? rBest, rBest)
-                }
-                slowMap[rec.wordID] = existing
-            } else {
-                slowMap[rec.wordID] = rec
-            }
-        }
-        merged.slowReactionWords = slowMap.isEmpty ? nil : slowMap.values.sorted { $0.lastReactionSeconds > $1.lastReactionSeconds }
+        // 2b. Slow Reaction Words（次数取大、最慢取大、最快取小）
+        let mergedSlow = SyncMerge.mergeSlowReaction(localDictation.slowReactionWords ?? [], remoteDictation.slowReactionWords ?? [])
+        merged.slowReactionWords = mergedSlow.isEmpty ? nil : mergedSlow
 
-        // 2c. Daily Reading Seconds (keep max seconds per date)
-        var readingMap = local.dailyReadingSeconds ?? [:]
-        for (dateKey, secs) in (remote.dailyReadingSeconds ?? [:]) {
-            readingMap[dateKey] = max(readingMap[dateKey, default: 0], secs)
-        }
+        // 2c. Daily Reading Seconds（同一天取较大值）
+        let readingMap = SyncMerge.mergeDailyReading(local.dailyReadingSeconds ?? [:], remote.dailyReadingSeconds ?? [:])
         if !readingMap.isEmpty {
             merged.dailyReadingSeconds = readingMap
         }
 
-        // 3. Dictation Attempt Logs (union by ID, sorted chronologically)
-        var seenLogIDs = Set<UUID>()
-        var combinedLogs: [DictationAttemptLog] = []
-        for log in localDictation.dictationLogs + remoteDictation.dictationLogs {
-            if seenLogIDs.insert(log.id).inserted {
-                combinedLogs.append(log)
-            }
-        }
-        combinedLogs.sort { $0.timestamp < $1.timestamp }
-        merged.dictationLogs = combinedLogs
+        // 3. Dictation Attempt Logs（按 id 去重、按时间正序）
+        merged.dictationLogs = SyncMerge.mergeLogs(localDictation.dictationLogs, remoteDictation.dictationLogs)
         // Preserve per-attempt exclusions across the same log union; no historical attempt or schedule is deleted.
         let suppressed = Set(localDictation.suppressedWrongLogIDs ?? []).union(remoteDictation.suppressedWrongLogIDs ?? [])
         merged.suppressedWrongLogIDs = suppressed.isEmpty ? nil : suppressed.sorted { $0.uuidString < $1.uuidString }
@@ -620,17 +589,8 @@ public enum StudyCloudSyncManager {
         merged.roundMeaningWordIDs = roundMeanings.isEmpty ? nil : roundMeanings
         merged.wrongWordMarks = nil
 
-        // 4. Review Schedule (keep higher stage or later dueAt per wordID)
-        var schedule = localDictation.reviewSchedule ?? [:]
-        for (wordID, remoteProg) in (remoteDictation.reviewSchedule ?? [:]) {
-            if let localProg = schedule[wordID] {
-                if remoteProg.stage > localProg.stage || (remoteProg.stage == localProg.stage && remoteProg.dueAt > localProg.dueAt) {
-                    schedule[wordID] = remoteProg
-                }
-            } else {
-                schedule[wordID] = remoteProg
-            }
-        }
+        // 4. Review Schedule（取档位更高、或同档位但下次复习更晚的一侧）
+        let schedule = SyncMerge.mergeSchedule(localDictation.reviewSchedule ?? [:], remoteDictation.reviewSchedule ?? [:])
         merged.reviewSchedule = schedule.isEmpty ? nil : schedule
 
         // 5. Active Writing Drafts (keep newer lastSavedAt per draft key)

@@ -5,7 +5,7 @@
   EPUB · PDF · 14 art-directed themes · annotations · dictation · writing · AI · cloud sync</p>
 
   <p>
-    <a href="https://github.com/niuyajie520/LumaReader/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.22.1%20(118)-2ea44f"></a>
+    <a href="https://github.com/niuyajie520/LumaReader/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.33.0%20(145)-2ea44f"></a>
     <img alt="macOS 26 or later" src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white">
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
     <img alt="SwiftUI, AppKit and WebKit" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20%2B%20WebKit-1B6AC9">
@@ -16,6 +16,8 @@
 LumaReader is a native macOS app for **deep reading and deliberate practice**. It pairs a serious EPUB/PDF reading engine with a study workspace: highlights and notes, vocabulary dictation, IELTS-style writing practice, an AI assistant, and folder-based cloud sync.
 
 中文：LumaReader 是一个原生 macOS 阅读与学习工作台——EPUB/PDF 阅读、14 套艺术主题、批注与笔记、雅思听写与写作练习、AI 助手，以及 iCloud / OneDrive / Google Drive 文件夹同步。所有数据默认保存在本机。
+
+> **设计规范 / Design:** 界面规则见 [`DESIGN.md`](DESIGN.md)；设计 skill 安装方法见 [`DESIGN_TOOLS.md`](DESIGN_TOOLS.md)。
 
 > **Status:** personal project, actively developed. Builds are compiled and ad-hoc signed locally; there is no App Store distribution.
 
@@ -67,9 +69,9 @@ Command line:
 
 ```bash
 curl -L -o LumaReader-Source.zip \
-  https://github.com/niuyajie520/LumaReader/releases/download/v1.22.1/LumaReader-1.22.1-B118-20261113-Source.zip
+  https://github.com/niuyajie520/LumaReader/releases/download/v1.32.0/LumaReader-1.32.0-B142-20261115-Source.zip
 unzip LumaReader-Source.zip
-cd LumaReader-1.22.1-B118-20261113-Source
+cd LumaReader-1.32.0-B142-20261115-Source
 bash Install.command
 ```
 

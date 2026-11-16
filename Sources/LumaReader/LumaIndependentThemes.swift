@@ -16,7 +16,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
     var title: String {
         switch self {
         case .monet: return "Monet · 液态玻璃"
-        case .space: return "Space · 深空观星台"
+        case .space: return "星漫 · 太空漫画"
         case .manga: return "Manga · 多元漫画原稿"
         case .mangaOcean: return "海风漫绘 · Ocean Manga"
         case .mangaCity: return "都市漫绘 · City Pop Manga"
@@ -35,7 +35,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
     var subtitle: String {
         switch self {
         case .monet: return "封面莫奈动态取色与多层半透明液态玻璃"
-        case .space: return "天文台星轨、激光扫描线与暗夜深空视野"
+        case .space: return "深空星轨 + 漫画墨线：会自转的星球、网点星空、月球基地听写"
         case .manga: return "支持黑白原稿、大海/城市/森林清新漫风切换与分镜速度线"
         case .mangaOcean: return "蔚蓝海平面分镜、青蓝网点、海面碎光星芒与海鸥速度线"
         case .mangaCity: return "黄昏天际线分镜、霓虹双色硬阴影、电线杆飞鸟与晚霞网点"
@@ -54,7 +54,7 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
     var badgeTag: String {
         switch self {
         case .monet: return "流体光学"
-        case .space: return "深空暗夜"
+        case .space: return "太空漫画"
         case .manga: return "多元漫风"
         case .mangaOcean: return "大海漫风"
         case .mangaCity: return "城市漫风"
@@ -113,11 +113,11 @@ enum LumaVisualThemeSystem: String, CaseIterable, Identifiable, Codable, Sendabl
 }
 
 enum ThemeGalleryCategory: String, CaseIterable, Identifiable {
-    case all = "全部主题 (15)"
-    case freshManga = "清新漫画 (4)"
+    case all = "全部主题 (14)"
+    case freshManga = "清新漫画 (3)"
     case gameLegends = "游戏殿堂 (3)"
     case animeFresh = "日漫小清新 (6)"
-    case immersive = "深空与莫奈 (2)"
+    case immersive = "星漫与莫奈 (2)"
     var id: String { rawValue }
     var symbol: String {
         switch self {
@@ -131,7 +131,7 @@ enum ThemeGalleryCategory: String, CaseIterable, Identifiable {
     func includes(_ item: LumaVisualThemeSystem) -> Bool {
         switch self {
         case .all: return true
-        case .freshManga: return item == .manga || item.isFreshMangaSeries
+        case .freshManga: return item.isFreshMangaSeries
         case .gameLegends: return item.isGameLegendSeries
         case .animeFresh:
             switch item {
@@ -807,7 +807,7 @@ struct LumaThemeSystemSelectorView: View {
     }
 
     private var filteredSystems: [LumaVisualThemeSystem] {
-        LumaVisualThemeSystem.allCases.filter { selectedCategory.includes($0) }
+        LumaVisualThemeSystem.allCases.filter { $0 != .manga && selectedCategory.includes($0) }
     }
 
     var body: some View {
@@ -911,7 +911,6 @@ struct LumaThemeSystemSelectorView: View {
                                     lineWidth: isSelected ? 2.0 : 0.8
                                 )
                         )
-                        .scaleEffect(!reduceMotion && isHovered ? 1.012 : 1.0)
                     }
                     .buttonStyle(.plain)
                     .onHover { inside in hoveredItem = inside ? item : (hoveredItem == item ? nil : hoveredItem) }

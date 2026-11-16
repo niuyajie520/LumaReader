@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "LumaReader",
-  "version": "1.24.0",
-  "build": "129",
-  "source_id": "20261114",
+  "version": "1.33.0",
+  "build": "145",
+  "source_id": "20261116a",
   "installer": "Install.command",
   "required": [
     "Package.swift",
@@ -15,6 +15,7 @@
     "Sources/LumaReader/Resources/Reader.css",
     "Deferred/StudyCenter/Package.swift",
     "Deferred/StudyCenter/StudyHome.swift",
+    "Deferred/StudyCenter/VocabularyLibraryCleanup.swift",
     "Deferred/StudyCenter/ConfusablePractice.swift",
     "Deferred/StudyCenter/ConfusableViews.swift",
     "Deferred/StudyCenter/MiniPracticeWindow.swift",
@@ -41,6 +42,23 @@
     "Deferred/StudyCenter/IELTSReadingPractice.swift",
     "Deferred/StudyCenter/Resources/IELTSReadingSamples.json",
     "Deferred/StudyCenter/Resources/IELTSReadingLayoutSample.json",
-    "Deferred/StudyCenter/Resources/IELTSReadingRainwaterDiagram.png"
+    "Deferred/StudyCenter/Resources/IELTSReadingRainwaterDiagram.png",
+    "Deferred/StudyCenter/StarMangaScenes.swift",
+    "Deferred/StudyCenter/LumaButtonSystem.swift",
+    "version.json",
+    "Scripts/release.sh",
+    "Scripts/sync-version.py",
+    "Packages/LumaCore/Package.swift",
+    "Packages/LumaCore/Sources/LumaCore/DictationRules.swift",
+    "Packages/LumaCore/Sources/LumaCore/DictationSession.swift",
+    "Packages/LumaCore/Sources/LumaCore/WordReview.swift",
+    "Packages/LumaCore/Sources/LumaCore/SyncMerge.swift",
+    "Packages/LumaCore/Sources/LumaCore/VocabularyWord.swift",
+    "Deferred/StudyCenter/LumaCoreBridge.swift",
+    "spec/behaviour.json",
+    "spec/constants.json",
+    "Packages/LumaCore/Sources/LumaCore/ExamEnglishInputPolicy.swift",
+    "Packages/LumaCore/Sources/LumaCore/LumaCoreVersion.swift",
+    "Scripts/check-core-spec.py"
   ]
 }

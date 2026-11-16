@@ -1,91 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// 融合艾宾浩斯遗忘曲线 (Ebbinghaus Forgetting Curve) 与 GitHub 开源 FSRS (Free Spaced Repetition Scheduler) DSR 记忆模型：
-/// - D (Difficulty): 记忆难度 [1.0, 10.0]，根据拼写正误与反应时长 (>5.0s 慢反应 / <=2.0s 秒答) 自动动态更新
-/// - S (Stability): 记忆稳定性（天），即记忆保持率从 100% 衰减至 90% 所需的天数
-/// - R (Retrievability): 实时艾宾浩斯记忆保持率 R(t, S) = (1 + 19/81 * t / S)^(-0.5)
-public struct WordReviewProgress: Codable, Equatable, Sendable {
-    public static let ebbinghausBaseIntervals: [Int] = [1, 3, 5, 7, 10, 14]
-    public var stage: Int
-    public var dueAt: Date
-    public var lastReviewedAt: Date?
-    public var stability: Double
-    public var difficulty: Double
-    public var lapses: Int
-
-    public init(
-        stage: Int = 0,
-        dueAt: Date = .distantPast,
-        lastReviewedAt: Date? = nil,
-        stability: Double = 0.0,
-        difficulty: Double = 5.0,
-        lapses: Int = 0
-    ) {
-        self.stage = stage
-        self.dueAt = dueAt
-        self.lastReviewedAt = lastReviewedAt
-        self.stability = stability
-        self.difficulty = difficulty
-        self.lapses = lapses
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case stage, dueAt, lastReviewedAt, stability, difficulty, lapses
-    }
-
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        stage = try c.decodeIfPresent(Int.self, forKey: .stage) ?? 0
-        dueAt = try c.decodeIfPresent(Date.self, forKey: .dueAt) ?? .distantPast
-        lastReviewedAt = try c.decodeIfPresent(Date.self, forKey: .lastReviewedAt)
-        stability = try c.decodeIfPresent(Double.self, forKey: .stability) ?? 0.0
-        difficulty = try c.decodeIfPresent(Double.self, forKey: .difficulty) ?? 5.0
-        lapses = try c.decodeIfPresent(Int.self, forKey: .lapses) ?? 0
-    }
-
-    /// 实时计算当前时刻的艾宾浩斯记忆保持率 R(t) ∈ [0.0, 1.0]
-    public func ebbinghausRetrievability(at now: Date = Date()) -> Double {
-        guard let last = lastReviewedAt else {
-            return stage > 0 ? 0.90 : 0.0
-        }
-        let elapsedDays = max(0.0, now.timeIntervalSince(last) / 86400.0)
-        let effS = max(0.5, stability > 0 ? stability : Double(Self.ebbinghausBaseIntervals[min(max(0, stage - 1), Self.ebbinghausBaseIntervals.count - 1)]))
-        return pow(1.0 + (19.0 / 81.0) * (elapsedDays / effS), -0.5)
-    }
-
-    public mutating func record(
-        cleanRecall: Bool,
-        reactionSeconds: Double? = nil,
-        at now: Date = Date(),
-        calendar: Calendar = .current
-    ) {
-        let intervals = Self.ebbinghausBaseIntervals
-        let r = ebbinghausRetrievability(at: now)
-        lastReviewedAt = now
-
-        if cleanRecall {
-            let days = intervals[min(stage, intervals.count - 1)]
-            stage = min(stage + 1, intervals.count)
-            // FSRS difficulty & stability update modulated by reaction latency
-            let isSlow = (reactionSeconds ?? 2.5) > 5.0
-            let isFast = (reactionSeconds ?? 2.5) <= 1.8
-            let gradeDelta: Double = isSlow ? 0.45 : (isFast ? -0.35 : -0.10)
-            difficulty = min(10.0, max(1.0, difficulty + gradeDelta))
-            let prevS = max(1.0, stability > 0 ? stability : Double(days))
-            let growth = 1.0 + exp(0.75) * (11.0 - difficulty) * pow(prevS, -0.18) * (exp((1.0 - r) * 0.25) - 1.0 + (isFast ? 0.65 : (isSlow ? 0.22 : 0.45)))
-            stability = max(Double(days), min(14.0, prevS * max(1.15, growth)))
-            dueAt = calendar.date(byAdding: .day, value: days, to: now) ?? now
-        } else {
-            stage = 0
-            lapses += 1
-            difficulty = min(10.0, max(1.0, difficulty + 0.85))
-            stability = max(0.5, (stability > 0 ? stability : 1.0) * 0.35)
-            dueAt = now
-        }
-    }
-}
-
 public struct WritingRevision: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public let submissionID: UUID
@@ -167,13 +82,12 @@ public struct WritingReviewPanel: View {
                 }
                 Spacer()
                 if let onImportWordsToListening, let evaluation = original.aiEvaluation, !evaluation.sentenceCorrections.isEmpty {
-                    Button("📥 一键将本篇好词搭配导入听力生词本") {
+                    Button("把本篇好词搭配导入听力生词本") {
                         let words = Self.extractVocabularyWords(from: evaluation.sentenceCorrections, examTitle: original.examTitle)
                         onImportWordsToListening(words)
-                        vocabImportBanner = "已导入 \(words.count) 个高分搭配/修正词条到「写作错词与高分搭配本」，可在听力模块直接听写！"
+                        vocabImportBanner = "已导入 \(words.count) 个高分搭配/修正词条到「写作错词与高分搭配本」，可在听力里听写"
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(appearance.accent)
+                    .buttonStyle(LumaButtonStyle(.primary, accent: appearance.accent))
                 }
                 Toggle("显示红绿行内修改对比", isOn: $showInlineDiff)
                     .toggleStyle(.switch)
@@ -267,7 +181,7 @@ public struct WritingReviewPanel: View {
                                             Button("+ 加入听力生词本") {
                                                 let extracted = Self.extractVocabularyWords(from: [item], examTitle: original.examTitle)
                                                 onImportWordsToListening(extracted)
-                                                vocabImportBanner = "已将「\(extracted.first?.word ?? item.upgradedExpression)」加入听力生词本！"
+                                                vocabImportBanner = "已将「\(extracted.first?.word ?? item.upgradedExpression)」加入听力生词本"
                                             }
                                             .font(.caption)
                                         }
@@ -315,8 +229,7 @@ public struct WritingReviewPanel: View {
                     revision.updatedAt = Date()
                     if let message = onSave(revision) { error = message } else { dismiss() }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(appearance.accent)
+                .buttonStyle(LumaButtonStyle(.primary, accent: appearance.accent))
             }
         }
         .padding(24)

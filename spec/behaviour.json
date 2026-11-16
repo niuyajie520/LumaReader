@@ -1,0 +1,188 @@
+{
+  "specification": "2",
+  "judgement": [
+    {
+      "input": "atmosphere",
+      "target": "atmosphere",
+      "match": true
+    },
+    {
+      "input": "Atmosphere",
+      "target": "atmosphere",
+      "match": true
+    },
+    {
+      "input": "  atmosphere  ",
+      "target": "atmosphere",
+      "match": true
+    },
+    {
+      "input": "at mos phere",
+      "target": "atmosphere",
+      "match": false
+    },
+    {
+      "input": "double-grill",
+      "target": "double grill",
+      "match": true
+    },
+    {
+      "input": "double_grill",
+      "target": "double grill",
+      "match": true
+    },
+    {
+      "input": "double grills",
+      "target": "double-grill",
+      "match": false
+    },
+    {
+      "input": "in charge of",
+      "target": "in charge of",
+      "match": true
+    },
+    {
+      "input": "in  charge   of",
+      "target": "in charge of",
+      "match": true
+    },
+    {
+      "input": "in charge off",
+      "target": "in charge of",
+      "match": false
+    },
+    {
+      "input": "",
+      "target": "atmosphere",
+      "match": false
+    },
+    {
+      "input": "atmosphere",
+      "target": "",
+      "match": false
+    }
+  ],
+  "normalization": [
+    {
+      "input": "  Atmosphere.  ",
+      "normalized": "atmosphere"
+    },
+    {
+      "input": "double  -  grill",
+      "normalized": "double-grill"
+    },
+    {
+      "input": "ａｔｍｏｓｐｈｅｒｅ",
+      "normalized": "atmosphere"
+    },
+    {
+      "input": "大气层",
+      "normalized": ""
+    },
+    {
+      "input": "abc大气",
+      "normalized": "\u0000"
+    }
+  ],
+  "entryKind": [
+    {
+      "input": "atmosphere",
+      "kind": "word"
+    },
+    {
+      "input": "in charge of",
+      "kind": "word"
+    },
+    {
+      "input": "take it for granted",
+      "kind": "word"
+    },
+    {
+      "input": "at the end of the day",
+      "kind": "longPhrase"
+    },
+    {
+      "input": "keep an eye on the ball",
+      "kind": "longPhrase"
+    }
+  ],
+  "minorSlip": [
+    {
+      "input": "at a end of the day",
+      "target": "at the end of the day",
+      "fragment": "the"
+    },
+    {
+      "input": "keep an ear on the ball",
+      "target": "keep an eye on the ball",
+      "fragment": null
+    },
+    {
+      "input": "keep an eye ball",
+      "target": "keep an eye on the ball",
+      "fragment": null
+    },
+    {
+      "input": "at the end of day time",
+      "target": "at the end of the day",
+      "fragment": null
+    }
+  ],
+  "reviewSchedule": {
+    "cleanRecallIntervals": [
+      1,
+      3,
+      5,
+      7,
+      10,
+      14
+    ],
+    "sameDaySecondCorrectKeepsStage": true,
+    "wrongAnswer": {
+      "stage": 0,
+      "lapsesIncrement": 1,
+      "dueAt": "now"
+    }
+  },
+  "session": {
+    "note": "听写会话状态机（LumaCore.DictationSessionStateMachine）。两个平台都跑这一份，Android 照此实现。",
+    "quickStrategy": {
+      "wrongAnswer": "立即跳到下一个词，同时把该词按 adaptiveRetryOffset(cycle:1, available) 插回本轮队列；不标记为完成。",
+      "correctAfterWrongQueue": "从错词集合里移出并完成该词，返回 correct(exitedWrongQueue: true)。",
+      "onTheSpotCorrection": false
+    },
+    "repeatingStrategy": {
+      "wrongAnswer": "停在原地要求订正（correcting），不计完成。",
+      "afterCorrection": "按 relearnStep(5) 个词的间隔插回；进入四轮 5/55/155/255 递进。",
+      "highStageMiss": "第 3 档及以上答错，确认通过后回退到上一档（relearnTargetCycleByWordID = cycle - 1）。"
+    },
+    "moveToEndAfterErrors": 3,
+    "promoteToStubbornAfterErrors": 6,
+    "firstAttemptFlag": "isFirstAttemptInSession 只在同一个词的第一次作答为 true；订正与后续复习都是 false。",
+    "logFields": [
+      "id",
+      "sessionID",
+      "mode",
+      "wordID",
+      "word",
+      "deckID",
+      "userTyped",
+      "isCorrect",
+      "isFirstAttemptInSession",
+      "sessionErrorCountForWord",
+      "timestamp",
+      "dateString",
+      "durationSeconds"
+    ]
+  },
+  "syncMerge": {
+    "note": "云同步合并（LumaCore.SyncMerge）。任何一侧的记录都不删。",
+    "words": "按 deckID + 小写单词去重，保留先出现的一条。",
+    "schedule": "同一单词取档位更高者；档位相同取 dueAt 更晚者。",
+    "logs": "按 id 去重，按 timestamp 正序。",
+    "stubborn": "按 wordID + dateString 去重，取较大 errorCount。",
+    "slowReaction": "slowCount 取大、maxReactionSeconds 取大、bestReactionSeconds 取小、lastReactionSeconds 取 updatedAt 更新的一条。",
+    "dailyReading": "同一天取较大秒数。",
+    "marks": "字符串集合取并集后排序。"
+  }
+}

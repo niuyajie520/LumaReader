@@ -83,23 +83,23 @@ struct LumaThemeLayout: Equatable, Sendable {
         switch system {
         case .monet:
             if monetEnabled {
-                return LumaThemeLayout(headingCaption: "MONET · 封面取色", brandSymbol: "paintpalette.fill", ornament: .glassSheen)
+                return LumaThemeLayout(headingCaption: "莫奈 · 封面取色", brandSymbol: "paintpalette.fill", ornament: .glassSheen)
             }
             switch classic {
             case .paper:
                 return LumaThemeLayout(libraryHeader: .centered, headingDesign: .serif, headingWeight: .regular,
-                                       headingTracking: 1, headingCaption: "书房 · LIBRARY", brandSymbol: "book.closed.fill",
+                                       headingTracking: 1, headingCaption: "书房", brandSymbol: "book.closed.fill",
                                        ornament: .paperStack, gridSpacing: 30, gridRowSpacing: 34)
             case .mint:
                 return LumaThemeLayout(libraryHeader: .stacked, headingDesign: .rounded, headingWeight: .semibold,
-                                       headingCaption: "青苔 · SAGE", brandSymbol: "leaf.fill", ornament: .glassSheen)
+                                       headingCaption: "青苔", brandSymbol: "leaf.fill", ornament: .glassSheen)
             case .rose:
                 return LumaThemeLayout(readerHeader: .centerDock, libraryHeader: .stacked, headingDesign: .rounded,
-                                       headingCaption: "花信 · BLOOM", brandSymbol: "camera.macro", ornament: .softBloom,
+                                       headingCaption: "花信", brandSymbol: "camera.macro", ornament: .softBloom,
                                        gridSpacing: 30, gridRowSpacing: 32)
             case .midnight:
                 return LumaThemeLayout(sidebarOnTrailing: true, libraryHeader: .toolsLeading, headingDesign: .sans,
-                                       headingWeight: .light, headingTracking: 2, headingCaption: "夜读 · NOCTURNE",
+                                       headingWeight: .light, headingTracking: 2, headingCaption: "夜读",
                                        brandSymbol: "moon.stars.fill", ornament: .glowRim)
             case .black:
                 return LumaThemeLayout(readerHeader: .unifiedLeading, headingDesign: .sans, headingWeight: .semibold,
@@ -109,41 +109,41 @@ struct LumaThemeLayout: Equatable, Sendable {
         case .space:
             return LumaThemeLayout(sidebarOnTrailing: true, readerHeader: .centerDock, libraryHeader: .centered,
                                    headingDesign: .sans, headingWeight: .light, headingTracking: 4,
-                                   headingCaption: "OBSERVATORY · 观星台", brandSymbol: "sparkles", ornament: .orbitRim,
+                                   headingCaption: "观星台", brandSymbol: "sparkles", ornament: .orbitRim,
                                    gridSpacing: 32, gridRowSpacing: 34)
         case .manga:
             return LumaThemeLayout(libraryHeader: .stacked, headingDesign: .sans, headingWeight: .heavy,
-                                   headingCaption: "第 1 话 · CHAPTER 01", brandSymbol: "book.pages.fill", ornament: .inkPanel,
+                                   headingCaption: "第 1 话", brandSymbol: "book.pages.fill", ornament: .inkPanel,
                                    gridSpacing: 26, gridRowSpacing: 32)
         case .mangaOcean:
             return LumaThemeLayout(readerHeader: .centerDock, headingDesign: .rounded, headingWeight: .heavy,
-                                   headingCaption: "海风 · SEA BREEZE", brandSymbol: "sailboat.fill", ornament: .inkPanel)
+                                   headingCaption: "海风", brandSymbol: "sailboat.fill", ornament: .inkPanel)
         case .mangaCity:
             return LumaThemeLayout(sidebarOnTrailing: true, readerHeader: .unifiedLeading, libraryHeader: .toolsLeading,
                                    headingDesign: .sans, headingWeight: .heavy, headingTracking: 1,
-                                   headingCaption: "CITY POP · 都市", brandSymbol: "building.2.fill", ornament: .neonOffset)
+                                   headingCaption: "都市", brandSymbol: "building.2.fill", ornament: .neonOffset)
         case .mangaForest:
             return LumaThemeLayout(readerHeader: .centerDock, libraryHeader: .stacked, headingDesign: .rounded,
-                                   headingWeight: .semibold, headingCaption: "森 · KOMOREBI", brandSymbol: "tree.fill",
+                                   headingWeight: .semibold, headingCaption: "森 · 木漏日", brandSymbol: "tree.fill",
                                    ornament: .leafTape)
         case .nier:
             return LumaThemeLayout(readerHeader: .unifiedLeading, libraryHeader: .stacked, headingDesign: .sans,
                                    headingWeight: .light, headingTracking: 3, headingPrefix: "■ ",
-                                   headingCaption: "ARCHIVE // 废墟都市 · 资料库", brandSymbol: "square.grid.3x3.square",
+                                   headingCaption: "废墟都市 · 资料库", brandSymbol: "square.grid.3x3.square",
                                    ornament: .tacticalBrackets, gridSpacing: 34, gridRowSpacing: 38)
         case .wasteland:
             return LumaThemeLayout(sidebarOnTrailing: true, readerHeader: .centerDock, libraryHeader: .toolsLeading,
                                    headingDesign: .monospaced, headingWeight: .semibold, headingTracking: 1,
-                                   headingPrefix: "> ", headingCaption: "TERMINAL · 废土档案库 [ONLINE]",
+                                   headingPrefix: "> ", headingCaption: "废土档案库 · 在线",
                                    brandSymbol: "gauge.with.dots.needle.33percent", ornament: .terminalPlate,
                                    gridSpacing: 32, gridRowSpacing: 36)
         case .zelda:
             return LumaThemeLayout(readerHeader: .centerDock, libraryHeader: .centered, headingDesign: .serif,
-                                   headingWeight: .regular, headingTracking: 2, headingCaption: "古代石板 · ARCHIVE",
+                                   headingWeight: .regular, headingTracking: 2, headingCaption: "古代石板 · 资料库",
                                    brandSymbol: "shield.lefthalf.filled", ornament: .runeFrame, gridSpacing: 32, gridRowSpacing: 36)
         case .shinkai:
             return LumaThemeLayout(readerHeader: .centerDock, libraryHeader: .centered, headingDesign: .rounded,
-                                   headingWeight: .semibold, headingCaption: "晴空 · BLUE SKY", brandSymbol: "cloud.sun.fill",
+                                   headingWeight: .semibold, headingCaption: "晴空", brandSymbol: "cloud.sun.fill",
                                    ornament: .cloudSoft, gridSpacing: 30, gridRowSpacing: 34)
         case .chihiro:
             return LumaThemeLayout(sidebarOnTrailing: true, headingDesign: .serif, headingWeight: .semibold,
@@ -151,11 +151,11 @@ struct LumaThemeLayout: Equatable, Sendable {
                                    gridRowSpacing: 34)
         case .kanagawa:
             return LumaThemeLayout(sidebarOnTrailing: true, libraryHeader: .toolsLeading, headingDesign: .serif,
-                                   headingWeight: .regular, headingTracking: 2, headingCaption: "浮世 · UKIYO",
+                                   headingWeight: .regular, headingTracking: 2, headingCaption: "浮世",
                                    brandSymbol: "water.waves", ornament: .sealStamp)
         case .roseDawn:
             return LumaThemeLayout(readerHeader: .centerDock, libraryHeader: .stacked, headingDesign: .rounded,
-                                   headingCaption: "晨曦手账 · DIARY", brandSymbol: "camera.macro", ornament: .washiTape,
+                                   headingCaption: "晨曦手账", brandSymbol: "camera.macro", ornament: .washiTape,
                                    gridSpacing: 30, gridRowSpacing: 36)
         case .akari:
             return LumaThemeLayout(sidebarOnTrailing: true, libraryHeader: .centered, headingDesign: .serif,
@@ -163,7 +163,7 @@ struct LumaThemeLayout: Equatable, Sendable {
                                    brandSymbol: "lightbulb.max.fill", ornament: .lanternGlow, gridRowSpacing: 40)
         case .matcha:
             return LumaThemeLayout(readerHeader: .centerDock, headingDesign: .rounded, headingWeight: .semibold,
-                                   headingCaption: "茶席 · TEA", brandSymbol: "cup.and.saucer.fill", ornament: .porcelain,
+                                   headingCaption: "茶席", brandSymbol: "cup.and.saucer.fill", ornament: .porcelain,
                                    gridSpacing: 30, gridRowSpacing: 34)
         }
     }

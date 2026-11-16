@@ -95,7 +95,18 @@ struct LumaReaderApp: App {
                 Button(L10n.text("导入图书…")) { store.pickBooks() }.keyboardShortcut("o")
                 Button(L10n.text("同步已接入云盘")) { store.syncAllConnectedClouds() }.keyboardShortcut("r", modifiers: [.command, .shift])
                 Divider()
-                Button(L10n.text("返回书库")) { store.returnToLibrary() }.keyboardShortcut("l")
+                Button(L10n.text("返回书库")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"library"]); openWindow(id:"main") }.keyboardShortcut("l")
+            }
+            CommandMenu(L10n.text("前往")) {
+                Button(L10n.text("搜索书和功能…")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"palette"]); openWindow(id:"main") }.keyboardShortcut("k")
+                Divider()
+                Button(L10n.text("主页")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"home"]); openWindow(id:"main") }.keyboardShortcut("1")
+                Button(L10n.text("书架")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"library"]); openWindow(id:"main") }.keyboardShortcut("2")
+                Button(L10n.text("听力")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"listening"]); openWindow(id:"main") }.keyboardShortcut("3")
+                Button(L10n.text("雅思阅读")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"ielts"]); openWindow(id:"main") }.keyboardShortcut("4")
+                Button(L10n.text("阅读词汇")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"vocab"]); openWindow(id:"main") }.keyboardShortcut("5")
+                Button(L10n.text("写作")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"writing"]); openWindow(id:"main") }.keyboardShortcut("6")
+                Button(L10n.text("统计")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"statistics"]); openWindow(id:"main") }.keyboardShortcut("7")
             }
             CommandMenu("学习") {
                 Button("继续听写") {NotificationCenter.default.post(name:Notification.Name("LumaReader.OpenStudyCenter"),object:nil,userInfo:["mode":"学习_听力","resume":true]);openWindow(id:"main")}.keyboardShortcut("3",modifiers:[.command,.option])
@@ -125,7 +136,7 @@ struct LumaReaderApp: App {
                 Button(L10n.text("重置主页字体")) { store.resetHomeTypography() }.keyboardShortcut("0", modifiers: [.command])
                 Divider()
                 Button(L10n.text("展开 / 折叠批注")) { store.toggleInspector() }.keyboardShortcut("1", modifiers: [.command,.option])
-                Button(L10n.text("阅读统计")) { store.returnToLibrary(statistics:true) }.keyboardShortcut("2",modifiers:[.command,.option])
+                Button(L10n.text("阅读统计")) { NotificationCenter.default.post(name:Notification.Name("LumaReader.Navigate"),object:nil,userInfo:["target":"statistics"]) }.keyboardShortcut("2",modifiers:[.command,.option])
                 Button(L10n.text("进入 / 退出沉浸阅读")) { store.toggleImmersive() }.keyboardShortcut("i",modifiers:[.command,.option])
                 Button(L10n.text("导出批注…")) { store.exportNotes() }.keyboardShortcut("e", modifiers: [.command,.shift])
             }

@@ -116,8 +116,16 @@ struct StudyLearningRulesTests {
         let calendar=Calendar(identifier:.gregorian)
         progress.record(cleanRecall:true,at:date,calendar:calendar)
         #expect(calendar.dateComponents([.day],from:date,to:progress.dueAt).day==1)
+        // 同一天再答对一次只算当堂练对：档位不动，也不改动已经排好的到期日。
+        let scheduledDue=progress.dueAt
         progress.record(cleanRecall:true,at:date,calendar:calendar)
-        #expect(calendar.dateComponents([.day],from:date,to:progress.dueAt).day==3)
+        #expect(progress.stage==1)
+        #expect(progress.dueAt==scheduledDue)
+        // 隔天第一次无提示答对，才按 [1,3,5,7,10,14] 进到 3 天。
+        let nextDay=WordReviewProgress.nextDayStart(after:date,calendar:calendar)
+        progress.record(cleanRecall:true,at:nextDay,calendar:calendar)
+        #expect(progress.stage==2)
+        #expect(calendar.dateComponents([.day],from:nextDay,to:progress.dueAt).day==3)
         progress.record(cleanRecall:false,at:date,calendar:calendar)
         #expect(progress.stage==0)
         let originalID=UUID()

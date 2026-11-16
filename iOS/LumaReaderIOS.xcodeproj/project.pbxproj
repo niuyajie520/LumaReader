@@ -1,0 +1,559 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E5E5B52B37FD91161150BA22 /* LumaReaderIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23EB9E30BBC2D3CC5B7CB1BB /* LumaReaderIOSApp.swift */; };
+		D1E0FED10A134728A10DA67C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4EF4D55A7286ED3D650CDB /* Theme.swift */; };
+		8AE8A65F91C1D572BA447CB7 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D081447BA3549FA52EAB446 /* Models.swift */; };
+		279F952D960625D7EDB78369 /* LumaCoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A5421C2D37AE1D7E3F1F61E /* LumaCoreBridge.swift */; };
+		172E9340952F4BFB4608C223 /* StudyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66594177406A8255679C0F59 /* StudyStore.swift */; };
+		0FC71BEC3383505A48C2E83C /* DictationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1801BB3E66D8BB437D9C46D0 /* DictationEngine.swift */; };
+		B32A2A13C44723101B80D4CC /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE195508F63339D7F494748 /* SpeechService.swift */; };
+		D9E01E48A2CD13421F2FB3D2 /* CloudSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E451A7C4A62C914ECD8E46 /* CloudSyncService.swift */; };
+		E251334A983B9C2405235CDE /* DictationHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8044FABBCB0364ADA3C0359 /* DictationHomeView.swift */; };
+		B8E240E6ABE90E7D54D44E47 /* VocabularyHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D5A42D0E864BED3EB031994 /* VocabularyHomeView.swift */; };
+		C079D028A1BE36D2C96C1366 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53A2E73E9FB587BD8AFAEC9 /* SettingsView.swift */; };
+		BE306727F03AB3812F3A2263 /* MiniZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14C9191CA9851664976227D /* MiniZip.swift */; };
+		D21CB4317FC6344C6327D0EA /* BookLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5071E5F2124E22AF8B2973CE /* BookLibrary.swift */; };
+		B763FB0737AC6F8A01D07425 /* ReaderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110D72154E1272A77666D2F8 /* ReaderViews.swift */; };
+		0B25BC8C132855784303B667 /* Reader.css in Resources */ = {isa = PBXBuildFile; fileRef = 6AA27C0E274F7BA724BEAF0B /* Reader.css */; };
+		C4CD7473DCEFF63F2717B397 /* Reader.js in Resources */ = {isa = PBXBuildFile; fileRef = 1318DF65576E26FA8A9CC820 /* Reader.js */; };
+		52A832D26F6EFE7F707A5F2E /* ReadingVocabulary.json in Resources */ = {isa = PBXBuildFile; fileRef = DFF279BE822644C5C434B1A7 /* ReadingVocabulary.json */; };
+		4612A74BAFEEFF80726B5EF0 /* sample.epub in Resources */ = {isa = PBXBuildFile; fileRef = 591A4D2A2938655CDFE5C06B /* sample.epub */; };
+		607218924D1A2927D5DAE361 /* LumaReaderSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2759C60ECE2781C669112600 /* LumaReaderSmokeTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F5BF48AA40CAD7891EB709FC /* LumaReader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LumaReader.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		23EB9E30BBC2D3CC5B7CB1BB /* LumaReaderIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LumaReaderIOSApp.swift"; sourceTree = "<group>"; };
+		0B4EF4D55A7286ED3D650CDB /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Theme.swift"; sourceTree = "<group>"; };
+		5D081447BA3549FA52EAB446 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models.swift"; sourceTree = "<group>"; };
+		3A5421C2D37AE1D7E3F1F61E /* LumaCoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LumaCoreBridge.swift"; sourceTree = "<group>"; };
+		66594177406A8255679C0F59 /* StudyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudyStore.swift"; sourceTree = "<group>"; };
+		1801BB3E66D8BB437D9C46D0 /* DictationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DictationEngine.swift"; sourceTree = "<group>"; };
+		CCE195508F63339D7F494748 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpeechService.swift"; sourceTree = "<group>"; };
+		54E451A7C4A62C914ECD8E46 /* CloudSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CloudSyncService.swift"; sourceTree = "<group>"; };
+		D8044FABBCB0364ADA3C0359 /* DictationHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DictationHomeView.swift"; sourceTree = "<group>"; };
+		8D5A42D0E864BED3EB031994 /* VocabularyHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VocabularyHomeView.swift"; sourceTree = "<group>"; };
+		A53A2E73E9FB587BD8AFAEC9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
+		E14C9191CA9851664976227D /* MiniZip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MiniZip.swift"; sourceTree = "<group>"; };
+		5071E5F2124E22AF8B2973CE /* BookLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BookLibrary.swift"; sourceTree = "<group>"; };
+		110D72154E1272A77666D2F8 /* ReaderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReaderViews.swift"; sourceTree = "<group>"; };
+		6AA27C0E274F7BA724BEAF0B /* Reader.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = "Reader.css"; sourceTree = "<group>"; };
+		1318DF65576E26FA8A9CC820 /* Reader.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "Reader.js"; sourceTree = "<group>"; };
+		DFF279BE822644C5C434B1A7 /* ReadingVocabulary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ReadingVocabulary.json"; sourceTree = "<group>"; };
+		591A4D2A2938655CDFE5C06B /* sample.epub */ = {isa = PBXFileReference; lastKnownFileType = text; path = "sample.epub"; sourceTree = "<group>"; };
+		B15A13ACECE86FF5B996CE6C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		242D4F5030E4948F9DD5E630 /* LumaReaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LumaReaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2759C60ECE2781C669112600 /* LumaReaderSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LumaReaderSmokeTests.swift"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		518DA81DB9B99529C0C0AEBE = {
+			isa = PBXGroup;
+			children = (
+				82CF2A43A7100F086D7FCFDD /* LumaReaderIOS */,
+				38CD173E1FD8F9104FBBC3B3 /* LumaReaderIOSUITests */,
+				547D009064F7C3F13BEF3460 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		82CF2A43A7100F086D7FCFDD /* LumaReaderIOS */ = {
+			isa = PBXGroup;
+			children = (
+				D1D0524B025E57AFFF263442,
+				35D315DEBBF45F223B169A61,
+				984D844B917CCD4C29DE2A97,
+				887A6F90336FF23D95C3914B,
+				B15A13ACECE86FF5B996CE6C,
+			);
+			path = "LumaReaderIOS";
+			sourceTree = "<group>";
+		};
+		D1D0524B025E57AFFF263442 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				23EB9E30BBC2D3CC5B7CB1BB,
+				0B4EF4D55A7286ED3D650CDB,
+			);
+			path = "App";
+			sourceTree = "<group>";
+		};
+		35D315DEBBF45F223B169A61 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				5D081447BA3549FA52EAB446,
+				3A5421C2D37AE1D7E3F1F61E,
+				66594177406A8255679C0F59,
+				1801BB3E66D8BB437D9C46D0,
+				CCE195508F63339D7F494748,
+				54E451A7C4A62C914ECD8E46,
+			);
+			path = "Core";
+			sourceTree = "<group>";
+		};
+		984D844B917CCD4C29DE2A97 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				7235D6BCB3D7B7930F1627D4,
+				8BFC0C14A1B39117C6803992,
+				3AAE1CE838AC5ACD29C7CA37,
+				2C3495591E10CB2A6AB17552,
+			);
+			path = "Features";
+			sourceTree = "<group>";
+		};
+		7235D6BCB3D7B7930F1627D4 /* Dictation */ = {
+			isa = PBXGroup;
+			children = (
+				D8044FABBCB0364ADA3C0359,
+			);
+			path = "Dictation";
+			sourceTree = "<group>";
+		};
+		8BFC0C14A1B39117C6803992 /* Vocabulary */ = {
+			isa = PBXGroup;
+			children = (
+				8D5A42D0E864BED3EB031994,
+			);
+			path = "Vocabulary";
+			sourceTree = "<group>";
+		};
+		3AAE1CE838AC5ACD29C7CA37 /* Reader */ = {
+			isa = PBXGroup;
+			children = (
+				E14C9191CA9851664976227D,
+				5071E5F2124E22AF8B2973CE,
+				110D72154E1272A77666D2F8,
+			);
+			path = "Reader";
+			sourceTree = "<group>";
+		};
+		2C3495591E10CB2A6AB17552 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A53A2E73E9FB587BD8AFAEC9,
+			);
+			path = "Settings";
+			sourceTree = "<group>";
+		};
+		887A6F90336FF23D95C3914B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				6AA27C0E274F7BA724BEAF0B,
+				1318DF65576E26FA8A9CC820,
+				DFF279BE822644C5C434B1A7,
+				591A4D2A2938655CDFE5C06B,
+			);
+			path = "Resources";
+			sourceTree = "<group>";
+		};
+		38CD173E1FD8F9104FBBC3B3 /* LumaReaderIOSUITests */ = {
+			isa = PBXGroup;
+			children = (
+				2759C60ECE2781C669112600,
+			);
+			path = "LumaReaderIOSUITests";
+			sourceTree = "<group>";
+		};
+		547D009064F7C3F13BEF3460 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC /* LumaReader.app */,
+				242D4F5030E4948F9DD5E630 /* LumaReaderUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* LumaReader */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 354589B28580510B6EC24620 /* Build configuration list for PBXNativeTarget "LumaReader" */;
+			buildPhases = (
+				7A70D71C385290AF96BF1031 /* Sources */,
+				424153ED3CD079DB4DB459AF /* Frameworks */,
+				285BB1C1430063331E9F5DD0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			packageProductDependencies = (
+				B62599ED019D417FF243802E /* LumaCore */,
+			);
+			name = LumaReader;
+			productName = LumaReader;
+			productReference = F5BF48AA40CAD7891EB709FC /* LumaReader.app */;
+			productType = "com.apple.product-type.application";
+		};
+		EB41FE22E8A18DBA299ECEF8 /* LumaReaderUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F5B32AF9E9E2274986EB3A84 /* Build configuration list for PBXNativeTarget "LumaReaderUITests" */;
+			buildPhases = (
+				BC4A44D7EADDA72B53BE44B6 /* Sources */,
+				77F6F6B69FA02A17CD464E6B /* Frameworks */,
+				29EB0851F4C1271B5A9B069B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7A20F437CB00CB0BB998F004 /* PBXTargetDependency */,
+			);
+			name = LumaReaderUITests;
+			productName = LumaReaderUITests;
+			productReference = 242D4F5030E4948F9DD5E630 /* LumaReaderUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXTargetDependency section */
+		7A20F437CB00CB0BB998F004 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 42AEFBAE01D2DFD981F7DA7D /* LumaReader */;
+			targetProxy = 64D57E852FE4841BCF481C3A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		64D57E852FE4841BCF481C3A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 42AEFBAE01D2DFD981F7DA7D;
+			remoteInfo = LumaReader;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					EB41FE22E8A18DBA299ECEF8 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 42AEFBAE01D2DFD981F7DA7D;
+					};
+				};
+			};
+			buildConfigurationList = 1F4E3D13C2320EDA50221924 /* Build configuration list for PBXProject "LumaReader" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"zh-Hans",
+				en,
+				Base,
+			);
+			mainGroup = 518DA81DB9B99529C0C0AEBE;
+			productRefGroup = 547D009064F7C3F13BEF3460 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			packageReferences = (
+				CCC66EB380916CC8DEC98B24 /* XCLocalSwiftPackageReference "../Packages/LumaCore" */,
+			);
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* LumaReader */,
+				EB41FE22E8A18DBA299ECEF8 /* LumaReaderUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		285BB1C1430063331E9F5DD0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0B25BC8C132855784303B667 /* Reader.css in Resources */,
+				C4CD7473DCEFF63F2717B397 /* Reader.js in Resources */,
+				52A832D26F6EFE7F707A5F2E /* ReadingVocabulary.json in Resources */,
+				4612A74BAFEEFF80726B5EF0 /* sample.epub in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7A70D71C385290AF96BF1031 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5E5B52B37FD91161150BA22 /* LumaReaderIOSApp.swift in Sources */,
+				D1E0FED10A134728A10DA67C /* Theme.swift in Sources */,
+				8AE8A65F91C1D572BA447CB7 /* Models.swift in Sources */,
+				279F952D960625D7EDB78369 /* LumaCoreBridge.swift in Sources */,
+				172E9340952F4BFB4608C223 /* StudyStore.swift in Sources */,
+				0FC71BEC3383505A48C2E83C /* DictationEngine.swift in Sources */,
+				B32A2A13C44723101B80D4CC /* SpeechService.swift in Sources */,
+				D9E01E48A2CD13421F2FB3D2 /* CloudSyncService.swift in Sources */,
+				E251334A983B9C2405235CDE /* DictationHomeView.swift in Sources */,
+				B8E240E6ABE90E7D54D44E47 /* VocabularyHomeView.swift in Sources */,
+				C079D028A1BE36D2C96C1366 /* SettingsView.swift in Sources */,
+				BE306727F03AB3812F3A2263 /* MiniZip.swift in Sources */,
+				D21CB4317FC6344C6327D0EA /* BookLibrary.swift in Sources */,
+				B763FB0737AC6F8A01D07425 /* ReaderViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		424153ED3CD079DB4DB459AF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3FF617E65415889C38CD6FAF /* LumaCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXBuildFile section (LumaCore) */
+		3FF617E65415889C38CD6FAF /* LumaCore in Frameworks */ = {isa = PBXBuildFile; productRef = B62599ED019D417FF243802E /* LumaCore */; };
+/* End PBXBuildFile section (LumaCore) */
+
+/* Begin XCLocalSwiftPackageReference section */
+		CCC66EB380916CC8DEC98B24 /* XCLocalSwiftPackageReference "../Packages/LumaCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../Packages/LumaCore";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B62599ED019D417FF243802E /* LumaCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LumaCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXSourcesBuildPhase section (UI test) */
+		BC4A44D7EADDA72B53BE44B6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				607218924D1A2927D5DAE361 /* LumaReaderSmokeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section (UI test) */
+
+/* Begin PBXResourcesBuildPhase section (UI test) */
+		29EB0851F4C1271B5A9B069B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section (UI test) */
+
+/* Begin PBXFrameworksBuildPhase section (UI test) */
+		77F6F6B69FA02A17CD464E6B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section (UI test) */
+
+/* Begin XCBuildConfiguration section */
+		92E165A9035A603BE73D2E62 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E1D3BBA94590957B0374D6E9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F22D2FFCC45240A8FF5EBE4A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "LumaReaderIOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.luma.reader.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		FE4F802C632EAD717BA35062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "LumaReaderIOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.luma.reader.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		B8D2362C8D03C6A80E30BF77 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.luma.reader.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = LumaReader;
+			};
+			name = Debug;
+		};
+		551AB1C219BE994286EFA4E2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.luma.reader.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = LumaReader;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1F4E3D13C2320EDA50221924 /* Build configuration list for PBXProject "LumaReader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				92E165A9035A603BE73D2E62 /* Debug */,
+				E1D3BBA94590957B0374D6E9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		354589B28580510B6EC24620 /* Build configuration list for PBXNativeTarget "LumaReader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F22D2FFCC45240A8FF5EBE4A /* Debug */,
+				FE4F802C632EAD717BA35062 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F5B32AF9E9E2274986EB3A84 /* Build configuration list for PBXNativeTarget "LumaReaderUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8D2362C8D03C6A80E30BF77 /* Debug */,
+				551AB1C219BE994286EFA4E2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

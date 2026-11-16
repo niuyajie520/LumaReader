@@ -7,9 +7,13 @@ let package = Package(
     products: [
         .library(name: "LumaReaderStudyKit", targets: ["LumaReaderStudyKit"]),
     ],
+    dependencies: [
+        .package(path: "../../Packages/LumaCore"),
+    ],
     targets: [
         .target(
             name: "LumaReaderStudyKit",
+            dependencies: ["LumaCore"],
             path: ".",
             exclude: ["Tests"],
             sources: [
@@ -39,10 +43,14 @@ let package = Package(
                 "WrongWordsCenter.swift",
                 "StudyWorkspace.swift",
                 "VocabularyImport.swift",
+                "VocabularyLibraryCleanup.swift",
                 "VocabularyImportReview.swift",
                 "ConfusablePractice.swift",
                 "ConfusableViews.swift",
                 "MiniPracticeWindow.swift",
+                "StarMangaScenes.swift",
+                "LumaButtonSystem.swift",
+                "LumaCoreBridge.swift",
             ],
             resources: [.copy("Resources/CoraVocabulary"), .copy("Resources/ReadingVocabulary.json"), .copy("Resources/IELTSReadingSamples.json"),
                         .copy("Resources/IELTSReadingLayoutSample.json"),

@@ -46,7 +46,6 @@ struct DictationUnitWrongWindowRenderTests {
         let view = DictationUnitWrongWindowView(
             snapshot: binding, words: words, deckIDs: ["unit-a"],
             deckTitle: "测试词本",
-            roundStartedAt: Date(timeIntervalSince1970: 1_700_000_000 - 60),
             roundID: session, roundWordIDs: ["w1", "w2", "w3"],
             onChange: { _ in }
         )

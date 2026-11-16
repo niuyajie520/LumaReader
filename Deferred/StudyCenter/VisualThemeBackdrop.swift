@@ -53,6 +53,10 @@ private struct VisualThemeBackdropDrawing: View, Equatable {
                 scenicIllustrationLayer
                     .drawingGroup()
             }
+            if system == "space" && !(custom?.replaceBuiltIn ?? false) {
+                // 星漫：在原有深空图层上加一层漫画网点星空与墨线星球。
+                StarMangaSkyLayer()
+            }
             #if canImport(AppKit)
             if let custom { HeroImageLayer(settings: custom, paper: paper).id(heroRevision) }
             #endif

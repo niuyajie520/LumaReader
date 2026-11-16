@@ -1,3 +1,388 @@
+# Changelog
+
+## 2026-11-16 09:45:00 (UTC-07:00) · 架构 · 听写会话与云同步也进内核，版本只留一份
+由 DeepSeek 更改 在 09:45:00，本次把「剩下三件」做完，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：architecture / cross-platform（macOS 1.33.0 · build 145，iPhone 1.0.0 · build 5）
+
+**1. 听写会话状态机进内核**
+- 新增 `Packages/LumaCore/Sources/LumaCore/DictationSession.swift`：`DictationSessionStateMachine`、
+  `DictationSessionMode`、`DictationSubmitOutcome`、`DictationTuning`、`DictationAttemptLog`、
+  `StubbornWordRecord`、`SlowReactionWordRecord`；`submitAnswer(...)` 与 `skipRemaining()` 为公开 API。
+- macOS：`Deferred/StudyCenter/DictationEngine.swift` 只留报告视图，`LumaCoreBridge.swift` 用
+  `typealias` 把八个类型名映射回内核，既有调用点一行没改。
+- iPhone：`Core/DictationEngine.swift` 重建成薄封装（`DictationSession` 持一份状态机，只做
+  `@Observable` 与 UI 派生量），判题、错词插回位置、三档退档全部改由内核决定。
+
+**2. 云同步合并进内核**
+- 新增 `Packages/LumaCore/Sources/LumaCore/SyncMerge.swift`：`mergeWords` / `mergeSchedule` /
+  `mergeLogs` / `mergeStubborn` / `mergeSlowReaction` / `mergeDailyReading` / `mergeMarks`。
+- macOS `StudyPersistence.merge(local:remote:)` 与 iPhone `StudyStore.mergeRemote(...)` 都改调这一份；
+  比较「档位更高 / 到期更晚」的规则只写了一遍。
+
+**3. 版本只留一份**
+- 新增 `version.json`（macOS 与 iOS 各自的 version/build/source_id）作为唯一版本源。
+- 新增 `Scripts/sync-version.py`：把 `version.json` 写进 `release.json` 与 iOS 工程生成脚本；
+  `--check` 用于 CI 检查漂移。
+- 新增 `Scripts/release.sh --target macos|ios|both [--test] [--install]`：同步版本 → 构建 →
+  校验 → 打源码包（macOS 与 iPhone 各一个 ZIP），一条命令出两个平台的包。
+
+**4. 规范漂移的自动检查**
+- 新增 `Scripts/check-core-spec.py`：校对 `spec/constants.json` 的数字与 `LumaCore/` 源码、
+  `behaviour.json` 的 `specification` 与 `LumaCoreVersion.specification` 是否同步；
+  `release.sh` 每次出包先跑它。
+
+**验证**
+- `Packages/LumaCore`：`Executed 17 tests, with 0 failures`（新增 10 个会话状态机与 8 个合并规则用例）。
+- `python3 Scripts/check-core-spec.py` → `spec 与内核一致：specification=2，8 组用例，13 个常量`。
+- `Deferred/StudyCenter`：103 tests / 27 suites / 18 issues，与基线 `/tmp/base-fails.txt` 逐条一致。
+- iPhone：`xcodebuild ... build` 通过；全量 6 个 UI 用例（听写、阅读翻页、点词、词库、设置、截图）全绿。
+- macOS：`bash Scripts/build-macos.sh` 通过（202 秒），`check-app-bundle.py PASS`；
+  已用 `rsync` 静默替换 `/Applications/Luma Reader.app`（1.33.0 / 145，未启动应用）。
+- 出包：`bash Scripts/release.sh --target both`，产物
+  `~/Desktop/LumaReader-macOS-1.33.0-B145-Source.zip` 与 `~/Desktop/LumaReader-iPhone-1.0.0-B5-Source.zip`
+  （后者解压后单独编译通过）。
+
+**未做**
+- 真机验证（iOS 需用户自己的 Apple ID 签名；iCloud 文件夹同步需真机两个设备）。
+- Android：`spec/README.md` 的路线图已列出 Kotlin 侧要实现的五个类型与验收方式。
+
+## 2026-11-16 09:20:00 (UTC-07:00) · iPhone 版 1.0.0 (build 4) · 接上共享内核 LumaCore
+由 DeepSeek 更改 在 09:20:00，本次让 iPhone 版真正用上同一份规则，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：ios / architecture
+- 改动：
+  - `iOS/generate_project.py` 生成 `XCLocalSwiftPackageReference`（`../Packages/LumaCore`）与 `XCSwiftPackageProductDependency`，app target 通过 `packageProductDependencies` 链接 `LumaCore`。
+  - 新增 `iOS/LumaReaderIOS/Core/LumaCoreBridge.swift`（`@_exported import LumaCore`），删掉 iOS 里复制的 `DictationAnswerPolicy` / `DictationEntryKind` / `DictationPhraseDiff`（-3484 字符）。判题与「长措辞只差虚词」从此只有一份实现。
+  - `CURRENT_PROJECT_VERSION` 3 → 4。
+- 验证：`xcodebuild -project LumaReaderIOS.xcodeproj -scheme LumaReader -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO build` 通过；全量 UI 用例 `Executed 6 tests, with 0 failures`（135.0 秒），说明换内核后听写判题行为未变。
+- 未改动（下一步再搬）：iOS 的 `WordReviewProgress`、`DictationSession`、云同步合并仍留在 app 内；`spec/README.md` 已记下这三处待办。
+- 打包布局：源码包根为 `LumaReader-iPhone/`，其中 `iOS/`（工程与源码）与 `Packages/LumaCore/` 平级，正好对应工程里的 `../Packages/LumaCore`。
+
+## 2026-11-16 09:05:00 (UTC-07:00) · 架构 · 抽出共享内核 LumaCore
+由 DeepSeek 更改 在 09:05:00，本次为「一套规则服务 macOS / iPhone，将来好接 Android」做地基，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：architecture / refactor / cross-platform（**未发布新版本**，macOS 行为不变，`release.json` 未动）
+- 新增 `Packages/LumaCore`（纯 Foundation，不 import SwiftUI/AppKit/UIKit，不碰文件与网络）：
+  - `DictationAnswerPolicy`、`DictationEntryKind`、`DictationPhraseDiff`（判题、条目分类、长措辞虚词门槛）
+  - `WordReviewProgress`、`WordReviewOrdering`（艾宾浩斯 + FSRS 混合调度、到期优先排序）
+  - `VocabularyWord`、`ExamEnglishInputPolicy`（词条模型、雅思英文输入策略）
+  - `LumaCoreVersion.specification`（规则版本号，改规则要 +1）
+- `Deferred/StudyCenter/Package.swift` 增加对 `Packages/LumaCore` 的本地依赖，新增 `LumaCoreBridge.swift`
+  里 `@_exported import LumaCore`，因此 StudyKit 内部既有代码一行 import 都不用改。
+- 新增跨平台合同：`spec/behaviour.json`（判题/归一化/分类/虚词差异/复习间隔的输入→期望输出）、
+  `spec/constants.json`（四档阶梯 5/55/155/255、错词偏移 10/20/35/50、间隔 1/3/5/7/10/14、长措辞阈值 5、
+  虚词表、设计 token）、`spec/README.md`（移植边界与 Android 路线）、`docs/PLATFORM-PLAN.md`（三步走与备选方案取舍）。
+  `Packages/LumaCore/Tests/LumaCoreTests/RuleFixtureTests.swift` **直接读这两个 JSON** 做断言，不是另写一份期望值。
+- 顺手修掉一个真实的迁移缺陷：词库清理迁移原来「只要 importedWords 非空就改写文件并备份」，
+  即使词库本来就干净也会重写一遍（`DictationResetMigrationTests` 的字节级校验因此失败）。
+  现在只有「真的删了词或改了拼写」才写盘。
+- 涉及文件：`Packages/LumaCore/**`（新增）、`spec/**`（新增）、`docs/PLATFORM-PLAN.md`（新增）、
+  `Deferred/StudyCenter/{Package.swift,DictationEngine.swift,StudyReview.swift,LumaStudyCenterAllInOne.swift,StudyPersistence.swift}`、`Deferred/StudyCenter/LumaCoreBridge.swift`（新增）、`CHANGELOG.md`
+- 原因：用户要求「为以后的 android 作准备」。听写引擎此前在 macOS 与 iOS 各有一份，同一个 bug 要改两遍，
+  iOS 那份还多出一个 macOS 没有的缺陷（`isFirstAttemptInSession` 恒 true）——漂移必须用共享内核 + 可执行规范堵住。
+- 验证：
+  - `xcrun swift test`（`Packages/LumaCore`）→ 6 tests / 0 failures（全部用例来自 `spec/behaviour.json`）。
+  - `xcrun swift test`（`Deferred/StudyCenter`）→ 103 tests / 27 suites，失败清单与拆分前逐条一致（11 个环境型用例，
+    都是需要图形窗口的 AppKit 界面测试），没有新增失败。
+  - `bash Scripts/build-macos.sh` → 构建完成，`check-app-bundle.py` 结果 `PASS`（169.7 秒）。
+- 未验证：iPhone 工程还没切到 `LumaCore`（下一步：`generate_project.py` 生成 `XCLocalSwiftPackageReference`，
+  删掉 iOS 侧复制的判题与调度代码）；`DictationSession` 状态机仍在两端各一份；云同步合并算法未抽。
+## 2026-11-16 05:40:00 (UTC-07:00) · iPhone 版 1.0.0 (build 3)
+由 DeepSeek 更改 在 05:40:00，本次把阅读从「连续滚动、一屏以外被截掉」改成真正的整页翻页，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：ios / reader / layout
+- 症状：长章节只显示到屏幕底部就断掉，翻页无效；底栏页码永远是 `1 / 1 页`。
+- 根因（都是实测出来的，不是读代码猜的）：
+  1. `Resources/Reader.js` 的分页靠 `document.getElementById('luma-viewport')` 是否存在决定，分页模式用 CSS 多栏（`column-count`）。手机上窄屏只算出一列，超出内容既不分栏也不产生横向 `scrollWidth`，所以永远算成 1 页、后面的正文被 `overflow:hidden` 静默裁掉。
+  2. `Resources/Reader.css:19` 的 `body { padding: 48px 44px 100px !important; }` 是给 macOS 窗口写的，手机上把正文整体右移 44pt、右侧超出视口被裁（实测 `left=62px`，清掉后 `left=18px`）。
+  3. `Reader.js` 末尾 `// === LumaReader v1.10.14 Instant Split-View Smooth Scale ===` 会在 resize 时给 `document.body` 加 `scaleX`（macOS 分屏特效用），在 iOS 上把正文横向拉扁。
+  4. 正文与章节底栏都用 `.safeAreaInset` 时仍互相压，最后两行被底栏盖住。
+- 改法：
+  - 阅读页不再使用 Reader.js 的多栏分页（`ReaderHTML.compose` 不再输出 `#luma-viewport` 包装），改由 iOS 侧的 `Coordinator.iosPagerScript` 分页：按 `innerHeight` 与正文 `lineHeight` 算出每页整行数（`step = floor(available / lineHeight) * lineHeight`），`body` 高度设为正好 `step`，正文用 `translate3d(0, -pageIndex * step, 0)` 整页位移，`transition` 180ms；`window.Luma.turn(delta)` 被接管，翻到本章头尾返回 `false`，由 Swift 切章；页底加 6px 纸色遮罩盖住跨页处半个字的字头。
+  - `body` 内边距归零、`#luma-content` 的宽度与左右留白由 JS 按 `window.innerWidth` 显式设定（`calc(100vw - 36px)`，两侧各 18pt），旋转/改字号时重新排版。
+  - 删掉 `Reader.js` 里的 macOS 分屏 `scaleX` 动画段（iOS 这份 `Resources/Reader.js` 副本）。
+  - 阅读页改成 `VStack(spacing: 0) { 正文区域; 章节底栏 }`，两者不再叠压；底栏页码加 `accessibilityIdentifier("reader.page")`，章节行加 `reader.chapter`。
+  - 测试用书换成新的 3 章示例（`Resources/sample.epub`），`-seed-sample-book` 先删旧书再重新导入，避免测到上一次容器里的旧章节。
+- 同一版里一并做的三件事：
+  - **左右滑动翻页**：在页面内判定 `touchstart/touchend`（横向位移 ≥48pt、纵向不超过横向的 0.6 倍、700ms 内），比点边缘的 48pt 窄条自然；点词查词不受影响。
+  - **接着上次那一页读**：进阅读页首帧向书库要磁盘上的最新 `progress`（不信任导航传进来的快照），算出章内页序后用 `window.__lumaPagerJump` 直接定位；切章、改字号都会重排后重新定位。
+  - 修掉一个只在测试里暴露的真问题：`-seed-sample-book` 原来每次回到书架都「删书 → 重导」，把刚存的阅读进度清零（重开书永远回第 1 页）。改成每次启动只种一次。
+  - 听写卡片遇到没有释义的词（比如从阅读里加进来的生词）原来什么都不显示，现在显示「暂无释义」，不会出现空卡片。
+- 涉及文件：`iOS/LumaReaderIOS/Features/Reader/ReaderViews.swift`、`iOS/LumaReaderIOS/Resources/{Reader.js,Reader.css,sample.epub}`、`iOS/LumaReaderIOSUITests/LumaReaderSmokeTests.swift`、`iOS/generate_project.py`、`iOS/README.md`、`CHANGELOG.md`
+- 原因：用户要求「把这个任务定到明天早上 5:30 开始」之前先自主推进；阅读不能翻页属于交付级缺陷。
+- 不变：macOS 版源码、`release.json`、macOS 安装包；听写与词库逻辑未改。
+- 验证：
+  - `xcodebuild test -project LumaReaderIOS.xcodeproj -scheme LumaReader -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` → 6 tests / 0 failures（117.6 秒）；`testOpenSampleBook` 里真的点右侧翻页带，断言页码从 `1 / 5` 变 `2 / 5`，并截图核对两页的正文首尾不重不漏。
+  - 截图核对：第 1 页止于「with hedges and the occasional white」，第 2 页从「with hedges and the occasional white / farmhouse.」接上，页底没有半行残字，底栏与正文不再重叠。
+  - 同一次用例里还验证了：点右边缘翻到 `2 / 5`、左滑翻到 `3 / 5`、退到书架再点回来仍停在第 3 页、点词弹出查词面板并加入生词本（词库 6063 → 6064）。
+- 未验证：真机上的滑动手感与阻尼（模拟器里只有点击/滑动手势，没有真实惯性）；超长章节（数十页）的翻页性能；带图片/表格的 EPUB 分页；真机字号切换后的重新分页。
+
+## 2026-11-15 22:10:00 (UTC-07:00) · iPhone 版 1.0.0 (build 2)
+由 DeepSeek 更改 在 22:10:00，本次是 iPhone 版第一个**在模拟器上真跑过**的构建，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：new-product / ios / verification
+- 更正上一条记录里的错误结论：「本机 `xcrun simctl` 缺 CoreSimulator、iOS 应用无法运行」是错的。`xcrun simctl list runtimes` 显示 iOS 27.2 运行时齐全，iPhone 17 模拟器 `CB391BF6-5029-447A-A441-B51CF4010E4E` 可以 boot / install / launch / 截图；本机只是没有 Simulator.app 图形界面（headless 足够）。
+- 修掉的 7 个真问题（都是模拟器上点出来、看到像素才发现的，不是读代码猜的）：
+  1. 软件键盘弹出后「提交」被键盘盖住（无障碍树里 `HITTABLE >>> false`，点击落到 `UIKeyboardLayoutStar` 上），真机上打完字根本提交不了 → 输入框与提交按钮改为 `.safeAreaInset(edge: .bottom)` 钉在键盘上方，正文进 `ScrollView` 并可拖动收键盘。
+  2. 输入框本身也被键盘挤出屏幕：自动化「点输入框」实际点在提交按钮上，空答案被记成一次错误（幽灵提交）。与上一条同源，一并修好；另把提交按钮改成「输入为空时禁用」，空答案再也记不进错题。
+  3. `Core/DictationEngine.swift` 的 `isFirstAttemptInSession` 恒为 `true`（`advance()` 里就写入了「已记录首次尝试」集合），与 macOS 版 `Deferred/StudyCenter/DictationEngine.swift:314` 的语义不一致 → 改成在 `submit()` 里先算 `let isFirstAttempt = !wordsWithInitialAttemptLogged.contains(word.id)` 再 insert。
+  4. 章节底栏（上一章 / 第 1/3 章 / 下一章）压在正文上，最后两行被遮住 → 底栏改 `.safeAreaInset(edge: .bottom)`，正文可见区域随之缩短。
+  5. 阅读时底部 TabBar 仍占 83pt → 进阅读页 `.toolbar(.hidden, for: .tabBar)`，竖屏多出两行正文。
+  6. 手机上原本没有查词入口（只有长按拖选才会触发系统选区）→ 新增点词查词：注入脚本用 `caretRangeFromPoint` 取点到的词，经 `reader` 消息通道回 Swift，弹出 `WordLookupSheet`；左右 48pt 翻页带仍优先响应。
+  7. 文档选择器允许把整个文件夹当作选中项，选中后只会报「导入失败」→ `handleImport` 增加 `expandForImport`：选中文件夹时把夹里 EPUB/ZIP/TXT/MD/HTML 批量导入。
+- 新增回归测试 `iOS/LumaReaderIOSUITests/LumaReaderSmokeTests.swift` 与工程里的 UI 测试 target（`generate_project.py` 生成 `LumaReaderUITests`，scheme 带 TestAction）：6 个用例在模拟器上真的点击/打字/导入/翻页，全部通过（114.7 秒）。
+- 仅供测试的钩子：`#if DEBUG` + 启动参数 `-seed-sample-book` 会把包内 `Resources/sample.epub` 直接种进书架，免得自动化去驱动系统「文件」选择器；Release 构建里这段代码不存在。
+- 涉及文件：`iOS/LumaReaderIOS/Core/DictationEngine.swift`、`iOS/LumaReaderIOS/Core/StudyStore.swift`、`iOS/LumaReaderIOS/Core/SpeechService.swift`、`iOS/LumaReaderIOS/Features/Dictation/DictationHomeView.swift`、`iOS/LumaReaderIOS/Features/Reader/{ReaderViews,BookLibrary}.swift`、`iOS/LumaReaderIOS/Features/Settings/SettingsView.swift`、`iOS/LumaReaderIOS/Resources/sample.epub`（新增）、`iOS/LumaReaderIOSUITests/LumaReaderSmokeTests.swift`（新增）、`iOS/generate_project.py`、`iOS/README.md`、`CHANGELOG.md`
+- 原因：用户提供 Xcode 模拟器并要求「我有 xcode 模拟器你可以」——不再以「编译通过但没跑过」交付。
+- 不变：macOS 版源码、`release.json`、macOS 安装包。
+- 验证：
+  - `xcodebuild test -project LumaReaderIOS.xcodeproj -scheme LumaReader -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` → 6 tests / 0 failures（`testFourTabsRender`、`testVocabularyDeckListsWords`、`testDictationRoundJudgesWrongThenCorrect`、`testSettingsSyncSectionHasFolderButton`、`testOpenSampleBook`、`testCaptureScreenshots`）。
+  - `xcodebuild ... -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` → BUILD SUCCEEDED（arm64）。
+  - 截图核对：四个 Tab、听写进行中（键盘弹出时输入框与提交按钮都在可视区）、答错订正态、阅读章节、点词查词面板、词库（6063 + 阅读生词本 1 = 6064，说明「阅读点词 → 生词本 → 听写」链路通）。
+- 未验证：真机签名安装与首次信任流程；真机 iCloud 文件夹授权、两台设备真实合并；真机语音音质与时延；EPUB 目前是连续滚动而非分页（`paged` 关闭），分页在手机宽度下的表现未调；TXT/Markdown/HTML 在设备上的中文编码。
+
+## 2026-11-15 17:35:00 (UTC-07:00) · iPhone 版 1.0.0 (build 1)
+由 DeepSeek 更改 在 17:35:00，本次新增 iPhone 版 Luma Reader（独立 Xcode 工程，不影响 macOS 版的 `release.json`），内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：new-product / ios
+- 更新内容：
+  - 新建独立工程 `iOS/LumaReaderIOS.xcodeproj`（iPhone only，`app.luma.reader.ios`，iOS 18+），只保留四块：听写、阅读、词库（阅读生词）、设置；写作、AI 对话、星漫、统计诊断、IELTS 批改全部不进 iOS 版。
+  - 听写：`Core/DictationEngine.swift` 复刻 macOS 侧的判定与调度规则（空格/连字符/下划线可互换；快速过词与 5/55/155/255 四档循环复习；错 3 次挪本轮队尾；≥5 词长措辞只差虚词时只重拼一次不计错），当天看答案后的订正不算掌握，第二天才排进到期词。
+  - 阅读：`Features/Reader/` 自带 `MiniZip` 解 EPUB（无第三方依赖）、解析 container/OPF/spine、把章节 HTML + `Reader.css` 内联后用 `WKWebView` 分页显示；左右各留 48pt 翻页带，翻到章节头尾自动切章；点选单词弹释义并可一键加进 `阅读生词本`（deckID `ios.reading`），第二天进听写。
+  - 词库：按词本浏览、搜索、看复习档位；支持导入本 App JSON、macOS 版整份 `luma_study_store.json`、一行一个词的 TXT。
+  - 数据：`Documents/StudyCenter/luma_study_store.json` 与 macOS 同 schema，App 只覆盖自己管理的键，Mac 独有字段原样保留；首次打开词库为空时用内置 6063 条阅读词表起底（deckID `ios.reading.core`），导入 mac 数据时若只有这层底表则整份替换而不是并集。
+  - 云同步：设置里选一个文件夹（iCloud 云盘即可），每台设备写 `device-<设备>.json`，同步时合并其它设备文件（词条并集、复习进度取较晚的一次、日志按 id 去重）。
+  - 朗读：iPhone 上改用系统 `AVSpeechSynthesizer`（离线、免下载）；macOS 版的 Kitten TTS nano（15M）依赖上位机 Python 守护进程做音素化，iOS 上没有对应运行时，README 里写明原因与后续 onnxruntime-swift 方案。
+  - 修正两处移植期问题：`applySettings` 原本把排版宽度写死 680px（手机屏上会横向溢出），改为按 WebView 实际宽度减 36pt 并随旋转重算；章节内原本没有翻页入口（只能滑到下一章），补上左右翻页带并保留 JS 翻到边界后切章的兜底。
+- 涉及文件：`iOS/LumaReaderIOS.xcodeproj/project.pbxproj`、`iOS/generate_project.py`、`iOS/README.md`、`iOS/LumaReaderIOS/{App,Core,Features,Resources}/**`（13 个 Swift 文件 + 3 个资源）、`CHANGELOG.md`
+- 原因：用户要求「把这个打包为 iphone 版本，只要听写和阅读单词和阅读功能，其他全部不要，然后支持那种云同步，听力模型只保留那个 15m 的，UI 要按手机重新排」。
+- 不变：macOS 版的任何源码、`release.json`、安装包。
+- 验证：`xcodebuild -project LumaReaderIOS.xcodeproj -scheme LumaReader -sdk iphoneos -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` 编译通过（arm64，0 warning），产物含 `Reader.css`/`Reader.js`/`ReadingVocabulary.json`。
+- 未验证：本机 `xcrun simctl` 缺 CoreSimulator 运行时、`security find-identity` 0 个签名身份，**iOS 应用无法运行验证**；界面观感、真机翻页手感、云同步真实合并均未在设备上验证。
+
+## 2026-11-15 15:58:35 (UTC-07:00) · v1.32.2 (build 144)
+由 DeepSeek 更改 在 15:58:35，本次更新的安装包为 v1.32.2（build 144），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：study-data / library-cleanup
+- 更新内容：
+  - 新增一次性词库清理 `VocabularyLibraryCleanup`（`Deferred/StudyCenter/VocabularyLibraryCleanup.swift`），在 `StudyPersistence.loadAndMigrateIfNeeded()` 里首次启动执行一次，原始 `luma_study_store.json` 先整份备份到 `backups/before-vocabulary-cleanup-<时间戳>.json`：
+    1. 删掉重复导入留下的第二套 deck：`luma.c20.ch3/ch4/ch5/ch11`（剑20 语料库）与 `luma.p1–p4`（场景词），共 4320 条；保留 `c20.corpus.*` 与 `ielts.*`。
+    2. 英式拼写统一改为美式（含复数与所有格：`favourites`、`traveller's`、`chequebook`、`organiser`）：`catalogue→catalog`、`cheque→check`、`civilisation→civilization`、`favourable→favorable`、`favourite→favorite`、`flavour→flavor`、`labour→labor`、`litre→liter`、`mould→mold`、`moustache→mustache`、`odour→odor`、`organisation→organization`、`organiser→organizer`、`chequebook→checkbook`、`traveller→traveler`；合并后仍只有占位释义的 `check` 补成「支票；检查」。
+    3. 同一词本家族内按「忽略大小写/连字符/下划线」判重（`double grill` == `double-grill`），保留释义更完整的一条。
+    4. 同一单元内「短语已经把单词完整练到」时删掉多余的单词条目（例如 `kangaroo` 与 `red kangaroo`、`cement` 与 `eco-cement` 同单元只留短语）：只认单词是短语的最后一个词、短语不超过三个词、且短语释义里确实包含单词释义，避免 `bus`、`rent` 这类核心词被 `bus stop`、`rent a flat` 顺手删掉。
+    5. 把指向已删除 deck 的 `workspace.selectedDeckID` 与听写会话收回到现存词库，避免点开是空壳；被删词条留下的听写日志、顽固词、慢反应词、复习进度一并清掉，错词本不会出现空词条（用户已说明学习记录可以全部删除，此处只清理被删词条自己的记录）。
+  - 实测（在用户真实 `luma_study_store.json` 上跑同一份逻辑）：词条 11410 → 7031（删 4379 条：重复词本/重复词条 4324、被短语覆盖的单词 55），deck 34 → 17；清理后只剩 `organism` 这类本来就属美式拼写的词命中英式正则。
+  - 重复清理用 `installedVocabularyPackIDs` 里的 `vocabulary-dedupe-20261115` 标记保证只执行一次。
+  - `Deferred/StudyCenter/Package.swift` 的 `sources` 清单登记新文件（SwiftPM 按显式文件列表编译，缺登记会报 `cannot find 'VocabularyLibraryCleanup' in scope`）。
+- 涉及文件：`Deferred/StudyCenter/VocabularyLibraryCleanup.swift`（新增）、`Deferred/StudyCenter/Tests/VocabularyLibraryCleanupTests.swift`（新增）、`Deferred/StudyCenter/StudyPersistence.swift`、`Deferred/StudyCenter/Package.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户词库里同一份词本被导入两遍（11410 条中仅 7119 个不同词），并提出「我更想要美国拼写，把所有都改过来，然后全部删除多余的」。
+- 不变：听写判定规则、错词调度、复习进度数据结构、本轮错题按词计数。
+- 验证：`xcrun swift test --package-path Deferred/StudyCenter --filter VocabularyLibraryCleanupTests` 6 个用例全通过（重复词本、英美拼写合并、连字符判重、短语覆盖单词、中心词保留、记录清理）；`bash Scripts/build-macos.sh` 通过；`codesign --verify` 通过；静默安装到 `/Applications/Luma Reader.app`（不启动应用、不抢窗口）。清理逻辑在应用下次启动时生效。
+- 未验证：未跑全量 `xcrun swift test`；未在真机上重启应用确认清理后的词库列表。
+
+## 2026-11-15 13:10:00 (UTC-07:00) · v1.32.1 (build 143)
+由 DeepSeek 更改 在 13:10:00，本次更新的安装包为 v1.32.1（build 143），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：ui / counting
+- 更新内容：「本轮错题」彻底不显示错误次数，只显示错了几个词。行尾的「错 2 次」标记去掉；窗口标题从「N 个词 · 共错 M 次 · 已选 K」改为「N 个词 · 已选 K」；顶栏徽章的悬停提示不再提总次数。同一个词错十次仍然只有一行、只算一个词。导出 CSV 仍保留「错误次数」列（数据导出用，不在界面显示）。
+- 涉及文件：`Deferred/StudyCenter/{DictationUnitWrongWindow,StudyHome}.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户指出「我明明只错了一遍，为什么显示数字二，应该只显示 1，因为我只错了一个单词，并不是计算我一共错了几遍」。
+- 不变：按词归并逻辑、搜索、全选、导出、听写判定与错词调度。
+- 验证：`bash Scripts/build-macos.sh` 通过；`codesign --verify` 通过；静默安装到 `/Applications/Luma Reader.app`，未启动应用、未抢窗口。
+- 未验证：未跑 `xcrun swift test`；界面观感未做真机点击验证。
+
+## 2026-11-15 12:58:00 (UTC-07:00) · v1.32.0 (build 142) 编译与安装
+由 DeepSeek 更改 在 12:58:00，本次更新的安装包为 v1.32.0（build 142），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：build / verify
+- 更新内容：
+  - 对 v1.32.0 的前端改动做首次编译：`bash Scripts/build-macos.sh` 成功（179.35 秒），产物 `dist/Luma Reader.app`，`check-app-bundle.py` PASS。
+  - 静默安装到 `/Applications/Luma Reader.app`：`rsync -a --delete`（不运行 `Install.command`，避免它末尾 `open` 抢窗口），未启动应用、未截图、未做界面点击验证。
+  - `codesign --verify --deep --strict` 通过；`lsregister -f` 已刷新；Info.plist 版本确认为 1.32.0 / 142。
+- 涉及文件：无源码改动（仅编译产物与安装副本）
+- 原因：用户要求「帮我安装好，不要跟我抢窗口」。
+- 验证：编译通过、签名校验通过、Info.plist 版本一致。
+- 未验证：`xcrun swift test` 未跑；实际界面观感（SF Symbols 状态条、统计列表、去除悬停放大与回弹后的手感）未做真机点击验证。
+
+## 2026-11-15 12:45:00 (UTC-07:00) · v1.32.0 (build 142)
+由 Claude 更改 在 12:45:00，本次更新的安装包为 v1.32.0（build 142），更新的内容如下：
+- 执行者：Claude（运行于 DSH agent · claude-opus-5-5）
+- 类型：ui
+- 更新内容（补完 `DESIGN.md` 里尚未落实的前端规范）：
+  - 图标：状态提示不再用 ✓ / ✕ / ✨ 字符当图标，改用 SF Symbols。AI 设置页的连接/拉取模型结果改为「图标 + 文字」并用独立状态字段判断成功、失败（不再靠字符前缀上色）；写作导入提示、听写结果「已掌握」、易混词计数改用 `checkmark` / `checkmark.circle.fill`。
+  - 文案：去掉提示里的感叹号（加入听写词库、加入写作错词本、加入听力生词本、星漫「差一点」）；半角「...」改为全角「…」（语音引擎检测、评估中、阅读搜索框、简答输入框；`sk-...` 是密钥格式，保留）；AI 对话空状态说明压成一句。
+  - 悬停不放大：去掉星漫主页星球悬停 1.04 放大、主题选择卡悬停 1.012 放大、听力分类拖放目标 1.08 放大与回弹。
+  - 动效不回弹：`LumaMotionSpring.press/release` 改为 `.snappy(0.14)`；设置齿轮去掉 1.18 弹跳与弹簧，只保留旋转；听写工具栏按钮悬停 0.12 秒淡入、按下 snappy；词库/分类拖拽重排、错词中心进度环改为 `.smooth(0.25)`。
+  - 不用紫色装饰：错词中心「顽固」由紫色改为红色（配三角警示图标，非颜色线索仍在）。
+  - 拒绝清单「大数字 + 小标签统计卡排成一排」：错词中心概览改为一行安静摘要（窄窗口自动折两行）；听写结果页、学习统计页的统计卡改为一个分组面板里的列表行（名称左、数值右，长说明进悬停提示）。学习统计页标题由「学习统计与能力诊断（原生 Swift Charts）」改为「学习统计」，长副标题压成一句并把细节放进 `.help`。
+  - `README.md` 版本徽章与下载命令更新到 v1.32.0（build 142）。
+- 涉及文件：`Sources/LumaReader/ContentView.swift`、`Sources/LumaReader/GlassControls.swift`、`Sources/LumaReader/LumaHomeView.swift`、`Sources/LumaReader/LumaIndependentThemes.swift`、`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/WrongWordsCenter.swift`、`Deferred/StudyCenter/ConfusableViews.swift`、`Deferred/StudyCenter/StudyReview.swift`、`Deferred/StudyCenter/StarMangaScenes.swift`、`Deferred/StudyCenter/LumaStudyCenterAllInOne.swift`、`Deferred/StudyCenter/IELTSReadingPractice.swift`、`release.json`、`README.md`、`CHANGELOG.md`
+- 原因：用户要求补完 `DESIGN.md` / `DESIGN_TOOLS.md` 中尚未完成的前端建议，只改源码并交付 ZIP，编译与验证由用户自行完成。
+- 不变：听写判定、错词调度、听写输入框（`DictationPracticeLayout.swift` / `DictationAnswerMetrics`）、阅读顶栏与红黄绿、写作划词高亮、主题色值文件（`Theme.swift`、`MonetTheme.swift`、`LumaDesignTokens.swift`、`StudyAppearance.swift`）均未改动。
+- 验证：无（按用户要求不编译、不测试、不操作电脑）。
+- 未验证：`swift build`、`swift test`、安装与界面观感全部未验证，由用户在 Mac 上完成。
+
+## 2026-11-15 11:52:00 (MST) · 1.31.2 (141)
+由 DeepSeek 更改 在 11:52:00，本次更新的安装包为 v1.31.2（build 141），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：ui / counting
+- 更新内容：「本轮错题」按**词**计数，不再按错误条目数。一个词错了 5 次，徽章仍然只加 1，行尾写「错 5 次」；只有「共错 N 次」时才在标题里补一句总次数。之前徽章数的是错误记录条数，错两次同一个词会显示「2」，容易被读成错了两个词。窗口标题改为「N 个词 · 共错 M 次 · 已选 K」，行内次数标记从「×N」改成「错 N 次」。
+- 涉及文件：`Deferred/StudyCenter/{StudyHome,DictationUnitWrongWindow}.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户指出「只想错了一个单词，为什么显示两个」。
+- 不变：判定规则、错词阶梯、分组与搜索逻辑、听写输入框尺寸与排版。
+- 验证：`xcrun swift test` 103 个用例 / 27 个套件，失败 15 项，与改动前基线逐条一致。
+- 安装：静默替换 `/Applications/Luma Reader.app`（未启动应用、未抢窗口），下次打开即生效。
+
+## 2026-11-15 11:45:00 (MST) · 1.31.1 (140)
+由 DeepSeek 更改 在 11:45:00，本次更新的安装包为 v1.31.1（build 140），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：learning-logic / ui
+- 更新内容：
+  - 「本轮错题」窗口按词归并：同一个词错十次也只占一行，旁边标「×10」，行里显示最近一次输入，鼠标停留可看全部写错的内容。之前一次错误一行，同一个词会重复出现好几条。
+  - 「本轮错题」窗口新增搜索框：按单词、中文释义或写错的内容筛选，标题显示「匹配 N / 共 M 条」；全选按当前筛选结果来，导出新增「导出当前列表」并带「错误次数」列。
+  - 学新词阶梯不再因为一次手滑把词「判成毕业」：队列里只剩这一个词时（第 3、4 档末尾最常见），之前答对一次就直接出列、从队列消失；现在必须走满四档才毕业，高档答错照旧退一档、隔一个确认步再回到较低档，词不会凭空消失。
+- 涉及文件：`Deferred/StudyCenter/DictationUnitWrongWindow.swift`、`Deferred/StudyCenter/DictationEngine.swift`、`Deferred/StudyCenter/Tests/{WrongListDedupTests,NewWordLadderTests}.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户指出同一个词重复占行、需要搜索，以及第 3 轮不小心写错后词直接消失的问题。
+- 不变：判定规则、错词阶梯数值（5/55/155/255）、快速过词默认值、听写页输入框尺寸与自适应字号、焦点与排版。
+- 验证：`xcrun swift test` 103 个用例 / 27 个套件，失败 15 项，与改动前基线逐条一致（均为无窗口环境下的 AppKit／图表用例预存失败）；新增 15 个用例（跨天门槛 4、长措辞 6、按词归并 3、队列末尾不毕业 2）全部通过。
+- 未验证：错题窗口的搜索框与「×N」标记没有在真机上截图确认（用户正在使用这台机器，没有抢占窗口）。
+
+## 2026-11-15 10:36:00 (MST) · 1.31.0 (139)
+由 DeepSeek 更改 在 10:36:00，本次更新的安装包为 v1.31.0（build 139），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：learning-logic
+- 更新内容：
+  - 当天订正不再冒充「掌握」：一个词真正拉长复习间隔，只认「换个时段／隔天无提示答对」。当堂看答案后改对只算练对（档位不动，保持原定到期日）。此前每次提交都写长期复习进度，错一次就把档位清零并立刻到期，队列里反复出现的正是刚看过的词。
+  - 新词从「整单元全塞」改为「到期优先」：昨天该复习的词排在新词前面，仍然保持原有顺序，不额外增加轮次。此前新建会话直接把整个单元的单词倒进队列，不分新旧、不看是否到期。
+  - 5 个词以上的长措辞走轻量门槛：首次只错冠词／介词这类虚词时，只标出差异片段并整条重拼一次，不计错、不入顽固词、不进四轮循环；错实词或第二次再错才回落原错词路径。4 个词以内的固定搭配仍按单词的标准和阶梯走。
+- 涉及文件：`Deferred/StudyCenter/StudyReview.swift`、`Deferred/StudyCenter/DictationEngine.swift`、`Deferred/StudyCenter/StudyHome.swift`、`Deferred/StudyCenter/Tests/{NextDayRecallGateTests,PhraseGateTests,StudyLearningRulesTests}.swift`、`release.json`、`CHANGELOG.md`
+- 原因：用户要求按评审方案落地「隔天首次无提示回忆」与「长措辞轻量门槛」，并明确 3–4 个词的固定搭配沿用单词标准、不特殊对待。
+- 不变：判断是否正确的规则、错词阶梯与插回偏移、快速过词／循环复习两种策略的默认值、输入框尺寸与自适应字号、焦点与滚动行为、听写页排版。
+- 验证：`xcrun swift test` 98 个用例 / 25 个套件，失败 15 项，与改动前基线（88 用例 / 23 套件 / 15 项）逐条一致 —— 均为无窗口环境下 AppKit／图表类用例的预存失败，本次未新增任何失败；新增的 10 个用例全部通过（跨天门槛 4 个、长措辞门槛 6 个）。
+- 未验证：真机听写流程（隔天回忆、到期优先排序、长措辞提示语）未逐项手动点击确认。
+
+## 2026-11-15 09:29:40 (MST) · 1.30.2 (138)
+由 DeepSeek 更改 在 09:29:40，本次更新的安装包为 v1.30.2（build 138），更新的内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：release
+- 更新内容：
+  - 安装 1.30.2（B138）到本机并做真机验证；本次未改动任何源码。
+- 涉及文件：`release.json`、`Install.command`、`/Applications/Luma Reader.app`
+- 原因：用户要求把 LumaReader-2 里的归档安装到本机。
+- 验证：xcrun swift build -c release 构建通过（无错误）；bash Install.command 退出码 0；codesign --verify --deep --strict 通过；release_guard.py app 通过；真机打开 1.30.1 修复后的听写页（返回 / 错词 / 计时 / 输入框 / 提交）排版正常，无重叠。
+- 未验证：专注模式默认关闭（新键 luma.dictation.focusMode.v2）只做了代码核对，没在界面里逐项点选确认。
+- 测试：`xcrun swift test` 130 个用例 / 32 个套件，6 处失败全部集中在 ReaderChromePointerTests 与 ImmersiveReaderTests（窗口/焦点相关的环境型失败，与 1.30.0 基线完全一致，本次改动未新增失败）。
+
+# LumaReader 1.30.2 B138
+
+由 Claude 更改。听写专注模式默认关闭。
+- 执行者：Claude（Opus 5.5）
+- 打字时标题栏和底部按钮不再变淡，始终可点。想要专注效果可在「⋯ 练习选项」里打开。
+- 设置换了新键名，升级后一律从「关」开始。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.30.1 B137
+
+由 Claude 更改。修复听写页排版失效（1.25.0 起引入的回归）。
+- 执行者：Claude（Opus 5.5）
+- 原因：听写页的排版容器固定要求四块内容（标题栏 / 第二行 / 输入框 / 状态）。1.25.0 删除重复进度条后只剩三块，容器直接放弃排版，四块全部叠在窗口正中：返回按钮、进度、本轮错题、计时和「⋯ 练习选项」（倍速在里面）被输入框盖住无法点击，订正提示与输入框的占位文字重叠。
+- 修复：在原进度条的位置放一个零高度占位，排版恢复为标题在上、输入框居中、订正提示在下。排版容器本身（冻结文件）未改。
+- 不变：听写输入框、判定、队列、错词阶梯、数据隔离。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.30.0 B136
+
+由 Claude 更改。全应用按钮统一成一套（impeccable 自检遗留项）。
+- 执行者：Claude（Opus 5.5）
+- 新增 `LumaButtonSystem.swift`：四种角色（主要 / 次要 / 安静 / 危险）、三档尺寸（28 / 36 / 44）、圆角统一 10、一条按下动效（0.97，无回弹）。
+- 原来混用的十几种按钮样式（学习中心玻璃胶囊、阅读中心触感按钮、侧栏行、头部图标、工具栏图标、书封、色板、首页按钮、文件夹树按钮、按下反馈样式）全部改为读这组数值；调用处不动。
+- 去掉：悬停放大（玻璃胶囊 1.02、工具栏图标 1.12、书封放大并上浮）、阅读顶栏图标的指针跟随高光、每次点击都弹一下的图标动画（只在状态真正切换时弹）。
+- 系统 `.bordered` / `.borderedProminent` 全部换成统一按钮：设置里的试听 / 下载、AI 服务商保存、写作重写稿保存、错题窗口操作栏、听写「练习选项」里的两行、雅思阅读分屏比例（现在会高亮当前比例）。
+- 首页「导入听写词表」从手画描边改为次要按钮。
+- DESIGN.md 新增「按钮」一节。
+- 不变：听写输入框、判定、队列、错词阶梯、数据隔离。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.29.0 B135
+
+由 Claude 更改。学习 impeccable 与 taste-skill 两套设计规范（并参考 Ant Design / Element / EasyUI 的组件原则）后的一轮整体修正，并新增 DESIGN.md。
+- 执行者：Claude（Opus 5.5）
+- 新增根目录 DESIGN.md：模式（操作 / 阅读）、一屏一个主操作、组件尺寸与 8 点间距栅格、颜色、反馈层级（就地 → 行内 → 提示条 → 确认 → 模态）、空状态、动效、文案、拒绝清单与交付自检。AGENTS.md 指向它。
+- 主页：去掉标题上方的小标签；「今日」三张大数字卡片改为一句话，只有「复习 N 个错词」可点；去掉与侧栏重复的六格功能卡片；去掉页面载入入场动画。
+- 星漫主页：中心卡片去掉黑色小标签和「↵」字符；紫色星球换成青绿色。
+- 漫画墨线外观只用于漫画系主题；尼尔、塞尔达、废土回到普通卡片外观。
+- 星漫听写输入框去掉「月面基地 · 主控屏」装饰小字。
+- 全局：按钮和标签里的 emoji（⚡🔥🎧📥☁️⚙️🔄📅📖✍️）换成纯文字或 SF Symbols。
+- 文案：听写反馈压成一句（如「拼写正确 · 用时 3.2 秒」「第 2/4 档 · 隔 55 个词再听」）；提示条去掉感叹号。
+- 不变：听写输入框、判定、队列、错词阶梯、数据隔离。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.28.0 B134
+
+由 Claude 更改。深空与漫画合并为一个新主题「星漫 · 太空漫画」，听写页变成月球基地。
+- 执行者：Claude（Opus 5.5）
+- 主题：主题画廊里原来的「深空」和「漫画」两个主题合并为「星漫」（深空底色 + 漫画墨线与网点）。原来用深空或漫画的，升级后自动是星漫，不用重选。
+- 主页（星漫）：六颗墨线星球绕着中间的「继续上次」公转（约 4 分钟一圈），各自自转；外圈一颗卫星反向绕行，每 26 秒一颗带速度线的彗星划过。鼠标停在任意星球上公转就暂停，名称以漫画对话气泡显示。今日数字放在漫画旁白框里。
+- 听写页（星漫）：月球基地场景——网点月面与陨石坑、基地穹顶与舷窗、天线红灯闪烁、右上角自转的地球、左下角漫画宇航员（平常轻轻浮动；答错时挠头盔冒汗并提示「差一点！订正后 ⌘R 再听」；答对时竖大拇指）。场景只在四周空白处，不拦截点击；专注模式下随四周一起变暗。
+- 输入框（星漫）：大小、位置、字号自适应、回车提交不变；底色换成深夜蓝面板，四角加分镜角线、底部渐隐网点、左上角「月面基地 · 主控屏」小字。
+- 答错效果（星漫）：边框变红轻摇 → 一圈红色网点从框边扩散消失 → 右上角弹出墨线爆点，不到半秒；替换原来的雷达扫描线。
+- 其它学习页（听力主页、雅思阅读、阅读词汇）在星漫下统一为深色面板 + 细浅描边，主按钮为青色实色块 + 墨线粗边 + 错位墨影；雅思阅读版面不变。书架与主页背景加一层漫画网点星空。
+- 动效遵循「减少动态效果」：开启后所有场景静止。看书的正文页不加任何动效。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.27.0 B133
+
+由 Claude 更改。新增主页，打开应用先到主页；⌘K 命令面板；听写专注模式。
+- 执行者：Claude（Opus 5.5）
+- 主页：最大一块是「继续上次」（听写本轮或正在读的书，取最近做的那件），回车直接继续；旁边是另一件可以继续的事；「今日 · 全部词本与书」三个数（听写词数、错词待复习、阅读分钟）；六个功能入口各带一句当前状态。第一次打开没有数据时显示「从这里开始」，可导入书或听写词表。
+- 主题：同一个主页三种外观——默认卡片；深空主题是星轨，中心是「继续上次」，每颗行星一个功能，名称只在鼠标悬停时出现；漫画与尼尔、塞尔达、废土主题用墨线分镜框。
+- 设置 › 主页字体、语言与图标：新增「打开应用时显示：主页 / 书架」。
+- 侧栏：最上方新增「主页」；「阅读统计」和「学习统计」合并为一个「统计」，页内切换阅读 / 学习。
+- 菜单「前往」：⌘K 搜索书和功能（方向键选、回车执行、Esc 关闭），⌘1 主页、⌘2 书架、⌘3 听力、⌘4 雅思阅读、⌘5 阅读词汇、⌘6 写作、⌘7 统计。⌘L 返回书库照旧。
+- 听写页：专注模式（默认开，练习选项里可关）——开始打字后标题区和底栏淡出，鼠标一动就回来；进度改成「新词 · 重现中 · 已毕业」三个数；去掉与标题下进度行重复的通栏进度条。
+- 空状态：本轮错题窗口没有错题时不再显示一排灰按钮；易混词没有词组时不显示灰色「练习」按钮。
+- 不变：听写输入框、判定、队列、错词阶梯、学新词与错词复习的数据隔离。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.26.0 B132
+
+由 Claude 更改。整理两处文件管理器，动效改得更克制自然。
+- 执行者：Claude（Opus 5.5）
+- 听力分类（听写单元文件夹）：去掉单独的「上级」按钮（后退键和面包屑已能返回）；视图从「图标 / 分栏 / 树形列表」三种减为「图标 / 分栏」两种，旧的列表偏好自动落到图标视图；面包屑起点改为「听力分类」；顶部「全部听写 (N)」改为「听写这里 · N 词」。
+- 文件夹卡片：去掉书本图标、自定义铅笔标记、分隔线、「一键听写」按钮和右箭头；只留图标、名称、词数和一个圆形播放键。点卡片进入文件夹，点播放键听写本文件夹。右键菜单去掉表情符号。
+- 云盘文件：整页只剩一个「⋯」（新建文件夹、上传、刷新、在 Finder 中打开）；项数只显示一次；用可点击的面包屑代替「上一级」按钮和整串路径；删除底部操作栏，单个文件的打开、重命名、显示、移到废纸篓都在右键菜单（双击打开）；空文件夹给出「上传文件…」引导；加载时不再让布局跳动。
+- 动效：参照苹果 WWDC23《Animate with springs》与 Emil Kowalski 的原则，回弹系数全部降到 0.15 以内；按钮按下缩到 0.96–0.97，悬停基本不放大；答错摇晃缩短到约 0.3 秒；答对时进度环不再大幅弹跳。
+- 不变：听写输入框、判定、队列、错词阶梯、答错后的中文与错字母展示；云盘文件只能在已连接的目录内操作的安全检查。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.25.1 B131
+
+由 Claude 更改。学新词「循环复习」的错词滚动改为 5 / 55 / 155 / 255 四档，答错不再从头爬。
+- 执行者：Claude（Opus 5.5）
+- 只看整个单词 / 词组对不对，不按字母分。
+- 词距严格按 5、55、155、255 个词；第四档拼对即毕业。说明文字与程序一致。
+- 答错只退一档：在 155 或 255 档答错，订正后先隔 5 个词确认一次，对了直接回到上一档（255 错 → 5 → 155 → 255；155 错 → 5 → 55 → 155 → 255）；5、55 档答错从 5 档重走。
+- 订正时手抖打错不算新的一次听错。
+- 本轮同一个词真正听错第 3 次，挪到本轮最后单独练，不再插在中间拖慢整轮。
+- 反馈文字会说明「隔几个词再确认、对了回到第几档」。
+- 只影响「学新词 · 循环复习」；快速过词、错词复习、跨天复习暂不变。
+- 新增 DictationTuning（阶梯、确认步、挪到最后的次数集中在一处）与 NewWordLadderTests。
+- 验证：按用户要求未编译、未跑测试。
+
+# LumaReader 1.25.0 B130
+
+由 Claude 更改。学习中心前端重设计第一步（v4）：听写页降噪，「本轮」口径统一。
+- 执行者：Claude（Opus 5.5）
+- 听写页：底栏只留「重播 / 慢放」「意思不清」和唯一主按钮「提交」；「上一个」「显示中文」「首字母提示」「播报倍速」收进右上角「⋯ 练习选项」，快捷键 ⌘R、⇧⌘R、⌥⌘M、⌘/ 不变。标题写明归属（如「剑20 · 第3章 · 本轮」），右上新增「本轮错题 N」徽章，点开即编辑。计时暂停时加暂停符号。
+- 本轮口径：新增 RoundScope（deckID + roundID）。错题徽章、本轮错题窗口、进度行、「本轮错词」全部经它过滤。去掉错题窗口按时间戳兜底的旧分支；听写页「最近错词」原先读全部记录，现在只显示本词本本轮；进度行「今日 N」改为「本轮已听 N」，全部词本的今日数字只在听力主页显示，标题为「今日 · 全部词本」。
+- 听力主页：词本卡去掉装饰耳机图标和每张卡上的「⋯」；点整张卡开始 / 继续听写，右下角一个「查看单词」小图标，其余操作在右键菜单。删除未被使用的旧听写工具条（内含重复的倍速与「⋯」）。
+- 图标：「⋯」统一为 ellipsis.circle；顽固 / 易错词改用火焰，感叹号三角只表示软件出错；拼错提示用叉号；「意思不清」只用问号。
+- 文案：主题标题上方的小字去掉英文与「//」，降为说明级灰字。
+- 新增 LumaTypeScale（11/13/15/17/22/28/40）、LumaShapeToken、LumaSymbol 图标语义表；新增 RoundScopeTests（验收场景 D1–D4）。
+- 不变：听写输入框（DictationPracticeLayout / DictationAnswerMetrics）、判定、队列、落盘、答错后的中文与错字母展示。
+- 验证：按用户要求未编译、未跑测试；如安装失败请把 Logs 里最新日志发回。
+
 # LumaReader 1.24.0 B129
 
 由 DeepSeek 更改。首次运行 B128 时先备份旧听写数据，再执行获授权的听写记录清零。

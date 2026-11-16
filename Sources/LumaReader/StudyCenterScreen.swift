@@ -51,13 +51,18 @@ struct StudyCenterScreen: View {
                     .overlay(shape.strokeBorder(accentColor,lineWidth:mangaWeight + (selected ? 0.5:0)).allowsHitTesting(false)))
                 }
                 if themeSystem == .space {
+                    // 星漫：深色面板 + 细浅描边；主按钮是实色块 + 墨线粗边 + 错位墨影（漫画分镜笔法）。
                     let shape = RoundedRectangle(cornerRadius:radius,style:.continuous)
                     if prominent {
-                        return AnyView(view.background(shape.fill(LinearGradient(colors:[accentColor.opacity(0.85),Color(hex:"111629")],startPoint:.topLeading,endPoint:.bottomTrailing)))
-                            .overlay(shape.strokeBorder(Color(hex:"C6CAD9").opacity(0.55),lineWidth:1).allowsHitTesting(false)))
+                        return AnyView(view
+                            .foregroundStyle(StarMangaPalette.sky)
+                            .background(shape.fill(StarMangaPalette.cyan))
+                            .background(shape.fill(StarMangaPalette.ink).offset(x:3,y:3))
+                            .overlay(shape.strokeBorder(StarMangaPalette.ink,lineWidth:2).allowsHitTesting(false)))
                     }
-                    return AnyView(view.readerGlass(radius:radius,enabled:glassActive,tint:chromeColor)
-                        .overlay(shape.strokeBorder(accentColor.opacity(selected ? 0.75:0),lineWidth:1.15).allowsHitTesting(false)))
+                    return AnyView(view
+                        .background(shape.fill(StarMangaPalette.panelRaised.opacity(0.92)))
+                        .overlay(shape.strokeBorder(selected ? StarMangaPalette.cyan.opacity(0.85) : StarMangaPalette.paper.opacity(0.28),lineWidth:1.5).allowsHitTesting(false)))
                 }
                 if themeSystem.isAnimeFreshSeries {
                     let effectiveRadius: CGFloat = {

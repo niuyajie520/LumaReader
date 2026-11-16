@@ -7,6 +7,7 @@
 // All developers and AI assistants must follow the project-root AGENTS.md.
 // === PROJECT RED LINE / 项目红线 END ===
 import SwiftUI
+import LumaReaderStudyKit
 import AppKit
 
 enum ReaderTheme: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -85,113 +86,100 @@ extension LumaMotion {
 // Responsive tactile button style: responds immediately on pointer-down (isPressed -> scale(0.97))
 // with subtle hover illumination and interruptible spring physics.
 struct LumaTactileButtonStyle: ButtonStyle {
+    // 统一按钮系统（LumaButtonSystem.swift）：圆角 10、最小高 36、悬停只加淡底、按下 0.97。
     @Environment(\.lumaInk) private var ink
     @Environment(\.lumaGlass) private var glass
-    var pressScale: CGFloat = 0.96
-    var cornerRadius: CGFloat = 8
+    var pressScale: CGFloat = LumaButtonMetric.pressScale
+    var cornerRadius: CGFloat = LumaButtonMetric.cornerRadius
     var horizontalPadding: CGFloat = 8
     var verticalPadding: CGFloat = 5
     var prominent: Bool = false
     var accent: Color = .accentColor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
-    @Environment(\.lumaSurfacePolish) private var polished
+    @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed
+        let pressed = configuration.isPressed && isEnabled
+        let still = reduceMotion || motionLevel == .off
+        let shape = RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous)
         configuration.label
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .frame(minWidth:40,minHeight:36)
-            .contentShape(Rectangle())
+            .frame(minWidth: 36, minHeight: LumaButtonSize.regular.height)
+            .contentShape(shape)
             .background {
                 if prominent {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(accent.opacity(pressed ? 0.82 : (isHovered ? 0.92 : 1.0)))
+                    shape.fill(accent.opacity(pressed ? 0.84 : (isHovered ? 0.92 : 1.0)))
                 } else {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(ink.opacity(pressed ? 0.11 : (isHovered ? 0.055 : 0)))
+                    shape.fill(ink.opacity(pressed ? LumaButtonMetric.pressFill : (isHovered ? LumaButtonMetric.hoverFill : 0)))
                 }
             }
             .overlay {
-                if glass {
-                    RoundedRectangle(cornerRadius:cornerRadius,style:.continuous)
-                        .strokeBorder(LinearGradient(colors:[accent.opacity(0.28),accent.opacity(0.07)],startPoint:.topLeading,endPoint:.bottomTrailing),lineWidth:0.7)
+                if glass && !prominent {
+                    shape.strokeBorder(ink.opacity(isHovered ? LumaButtonMetric.strokeOpacity : 0), lineWidth: 1)
                         .allowsHitTesting(false)
                 }
             }
             .foregroundStyle(prominent ? accent.lumaContrastingInk : ink)
-            .scaleEffect(reduceMotion || motionLevel == .off ? 1.0 : (pressed ? pressScale : 1.0))
-            .animation(LumaMotion.adjusted(polished ? SurfaceMotion.press:LumaMotion.press,level:motionLevel,reduceMotion:reduceMotion), value: pressed)
+            .opacity(isEnabled ? 1 : LumaButtonMetric.disabledOpacity)
+            .scaleEffect(still || !pressed ? 1.0 : LumaButtonMetric.pressScale)
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: still), value: isHovered)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: pressed)
             .onHover { isHovered = $0 }
     }
 }
 
 // Sidebar row button style with Lens directional specular rim on active selection and tactile press response.
 struct LumaSidebarButtonStyle: ButtonStyle {
+    // 侧栏行：整行按钮，按下只缩 0.985；选中是强调色淡底，圆角 10。
     @Environment(\.lumaInk) private var ink
     var isSelected: Bool = false
     var accent: Color = .accentColor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
-    @Environment(\.lumaSurfacePolish) private var polished
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let fillOpacity: Double = isSelected
-            ? (pressed ? 0.12 : 0.085)
-            : (pressed ? 0.09 : (isHovered ? 0.045 : 0))
+        let still = reduceMotion || motionLevel == .off
+        let shape = RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous)
+        let fill: Color = isSelected
+            ? accent.opacity(LumaButtonMetric.selectedFill * 0.6 + (pressed ? 0.04 : 0))
+            : ink.opacity(pressed ? LumaButtonMetric.pressFill * 0.8 : (isHovered ? LumaButtonMetric.hoverFill * 0.75 : 0))
         configuration.label
-            .frame(maxWidth:.infinity,minHeight:44)
+            .frame(maxWidth: .infinity, minHeight: LumaButtonSize.large.height)
             .contentShape(Rectangle())
-            .background {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill((isSelected ? accent:ink).opacity(fillOpacity))
-                    .overlay {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [
-                                            .white.opacity(colorScheme == .dark ? 0.16 : 0.45),
-                                            accent.opacity(0.18),
-                                            .clear
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 0.75
-                                )
-                        }
-                    }
-            }
-            .scaleEffect(reduceMotion || motionLevel == .off ? 1:(pressed ? 0.985:1))
-            .animation(LumaMotion.adjusted(SurfaceMotion.press,level:motionLevel,reduceMotion:reduceMotion),value:pressed)
-            .animation(LumaMotion.adjusted(SurfaceMotion.interactive,level:motionLevel,reduceMotion:reduceMotion),value:isSelected)
+            .background(shape.fill(fill))
+            .scaleEffect(still || !pressed ? 1 : LumaButtonMetric.rowPressScale)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: pressed)
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: still), value: isSelected)
             .onHover { isHovered = $0 }
     }
 }
 
 // Press feedback stays; repeated pointer movement changes only a static tint.
 struct LumaBookCardButtonStyle: ButtonStyle {
+    // 书封：悬停不放大、不上浮，只出现一层很淡的阴影；按下缩 0.985。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
-    @Environment(\.lumaSurfacePolish) private var polished
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let scale: CGFloat = reduceMotion || motionLevel == .off ? 1.0 : (pressed ? 0.972 : (isHovered ? 1.018:1.0))
+        let still = reduceMotion || motionLevel == .off
         configuration.label
             .contentShape(Rectangle())
-            .scaleEffect(scale)
-            .offset(y:reduceMotion || motionLevel != .enhanced ? 0:(isHovered && !pressed ? -4:0))
-            .background { RoundedRectangle(cornerRadius:10).fill(Color.black.opacity(0.025)).shadow(color:.black.opacity(0.10),radius:12,y:7).opacity(isHovered ? 1:0) }
-            .animation(LumaMotion.adjusted(polished ? SurfaceMotion.interactive:LumaMotion.interactive,level:motionLevel,reduceMotion:reduceMotion),value:isHovered)
-            .animation(LumaMotion.adjusted(polished ? SurfaceMotion.press:LumaMotion.press,level:motionLevel,reduceMotion:reduceMotion), value: pressed)
+            .scaleEffect(still || !pressed ? 1.0 : LumaButtonMetric.rowPressScale)
+            .background {
+                RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius)
+                    .fill(Color.black.opacity(0.02))
+                    .shadow(color: .black.opacity(0.08), radius: 10, y: 5)
+                    .opacity(isHovered ? 1 : 0)
+            }
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: still), value: isHovered)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: pressed)
             .onHover { isHovered = $0 }
     }
 }
@@ -201,15 +189,13 @@ struct LumaSwatchButtonStyle: ButtonStyle {
     var isSelected: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
-    @Environment(\.lumaSurfacePolish) private var polished
 
     func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed
-        let scale: CGFloat = reduceMotion || motionLevel == .off ? 1.0 : (pressed ? 0.90 : 1.0)
+        let still = reduceMotion || motionLevel == .off
         configuration.label
-            .frame(width:40,height:40).contentShape(Rectangle())
-            .scaleEffect(scale)
-            .animation(LumaMotion.adjusted(polished ? SurfaceMotion.press:LumaMotion.press,level:motionLevel,reduceMotion:reduceMotion), value: pressed)
+            .frame(width: LumaButtonSize.large.height - 4, height: LumaButtonSize.large.height - 4).contentShape(Rectangle())
+            .scaleEffect(still || !configuration.isPressed ? 1.0 : LumaButtonMetric.pressScale)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: configuration.isPressed)
     }
 }
 
@@ -220,16 +206,23 @@ extension Color {
     }
 }
 
-struct LumaHeaderButtonStyle:ButtonStyle {
+struct LumaHeaderButtonStyle: ButtonStyle {
     @Environment(\.lumaInk) private var ink
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var motionLevel
-    @Environment(\.lumaSurfacePolish) private var polished
-    func makeBody(configuration:Configuration)->some View {
-        configuration.label.frame(minWidth:44,minHeight:44).contentShape(Rectangle())
-            .background(ink.opacity(configuration.isPressed ? 0.1:0),in:RoundedRectangle(cornerRadius:9))
-            .scaleEffect(reduceMotion || motionLevel == .off ? 1:(configuration.isPressed ? 0.97:1))
-            .animation(LumaMotion.adjusted(.easeOut(duration:0.1),level:motionLevel,reduceMotion:reduceMotion),value:configuration.isPressed)
+    @State private var isHovered = false
+    func makeBody(configuration: Configuration) -> some View {
+        let still = reduceMotion || motionLevel == .off
+        let pressed = configuration.isPressed
+        configuration.label
+            .frame(minWidth: LumaButtonSize.large.height, minHeight: LumaButtonSize.large.height)
+            .contentShape(Rectangle())
+            .background(ink.opacity(pressed ? LumaButtonMetric.pressFill : (isHovered ? LumaButtonMetric.hoverFill : 0)),
+                        in: RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous))
+            .scaleEffect(still || !pressed ? 1 : LumaButtonMetric.pressScale)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: pressed)
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: still), value: isHovered)
+            .onHover { isHovered = $0 }
     }
 }
 

@@ -149,7 +149,8 @@ final class LibraryStore {
     @ObservationIgnored private var monetTask: Task<Void,Never>?
 
     // Independent theme preferences. Existing Monet preferences are preserved.
-    var visualThemeSystem = LumaVisualThemeSystem(rawValue:UserDefaults.standard.string(forKey:LumaVisualThemeSystem.storageKey) ?? "monet") ?? .monet {
+    // 1.28：深空与漫画合并为「星漫」（沿用 space 的存储值）；原来选漫画的自动换成星漫。
+    var visualThemeSystem = LumaVisualThemeSystem(rawValue:{ let raw = UserDefaults.standard.string(forKey:LumaVisualThemeSystem.storageKey) ?? "monet"; return raw == "manga" ? "space" : raw }()) ?? .monet {
         didSet {
             guard oldValue != visualThemeSystem else { return }
             UserDefaults.standard.set(visualThemeSystem.rawValue,forKey:LumaVisualThemeSystem.storageKey)

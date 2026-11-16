@@ -173,7 +173,7 @@ public struct LumaMiniPracticeRoot: View {
                 }
             } else {
                 Button { confusableScope = "all" } label: { Label("全部易混词", systemImage: confusableScope == "all" ? "checkmark" : "square.stack") }
-                Button { confusableScope = "hard" } label: { Label("仅易错的", systemImage: confusableScope == "hard" ? "checkmark" : "exclamationmark.triangle") }
+                Button { confusableScope = "hard" } label: { Label("仅易错的", systemImage: confusableScope == "hard" ? "checkmark" : "flame") }
                 if !library.categories.isEmpty {
                     Divider()
                     ForEach(library.categories, id: \.self) { name in

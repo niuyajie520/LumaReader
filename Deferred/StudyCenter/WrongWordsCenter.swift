@@ -204,7 +204,7 @@ public enum WrongWordsFilter: String, CaseIterable, Identifiable, Sendable {
         case .all: return "square.grid.2x2"
         case .due: return "clock.badge.exclamationmark"
         case .highFrequency: return "flame"
-        case .stubborn: return "exclamationmark.triangle"
+        case .stubborn: return "flame"
         case .slow: return "tortoise"
         case .records: return "clock.arrow.circlepath"
         }
@@ -520,46 +520,52 @@ public struct WrongWordsCenterView: View {
 
     // MARK: Overview
 
+    /// DESIGN.md 拒绝清单：不把「大数字 + 小标签」统计卡排成一排。
+    /// 改为一行安静的摘要：图标 + 数字 + 名称，用间隔点分开，不加卡片底。
     private func overview(wide: Bool) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: wide ? 170 : 140), spacing: 8)],
-                  spacing: 8) {
-            compactStat("今日到期", "\(model.dueWords)", "clock.badge.exclamationmark", accent)
-            compactStat("累计错词", "\(model.totalWords)", "text.badge.xmark", semanticTint(.orange))
-            compactStat("顽固", "\(model.stubbornCount)", "exclamationmark.triangle.fill", semanticTint(.purple))
-            compactStat("近 7 天正确率", model.records.isEmpty ? "—" : "\(Int((model.last7Accuracy * 100).rounded()))%",
-                        "chart.line.uptrend.xyaxis", accent)
+        let accuracy = model.records.isEmpty ? "—" : "\(Int((model.last7Accuracy * 100).rounded()))%"
+        let due = inlineStat("今日到期", "\(model.dueWords)", "clock", accent)
+        let total = inlineStat("累计错词", "\(model.totalWords)", "text.badge.xmark", semanticTint(.orange))
+        let stubborn = inlineStat("顽固", "\(model.stubbornCount)", "exclamationmark.triangle.fill", semanticTint(.red))
+        let rate = inlineStat("近 7 天正确率", accuracy, "chart.line.uptrend.xyaxis", accent)
+        let gap: CGFloat = wide ? 14 : 10
+        // 窄窗口放不下一行时折成两行，不截断文字。
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: gap) {
+                due; separatorDot; total; separatorDot; stubborn; separatorDot; rate
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: gap) { due; separatorDot; total }
+                HStack(spacing: gap) { stubborn; separatorDot; rate }
+            }
         }
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func compactStat(_ title: String, _ value: String, _ symbol: String, _ tint: Color) -> some View {
-        HStack(spacing: 8) {
+    private var separatorDot: some View {
+        Text("·")
+            .lumaFont(size: 12)
+            .foregroundStyle(ink.opacity(0.28))
+    }
+
+    private func inlineStat(_ title: String, _ value: String, _ symbol: String, _ tint: Color) -> some View {
+        HStack(spacing: 5) {
             Image(systemName: symbol)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(value)
-                    .lumaFont(size: 17, weight: .bold, design: .rounded)
-                    .monospacedDigit()
-                    .foregroundStyle(ink)
-                    .contentTransition(.numericText())
-                Text(title)
-                    .lumaFont(size: 10)
-                    .foregroundStyle(ink.opacity(0.52))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
+            Text(title)
+                .lumaFont(size: 12)
+                .foregroundStyle(ink.opacity(0.6))
+            Text(value)
+                .lumaFont(size: 13, weight: .semibold)
+                .monospacedDigit()
+                .foregroundStyle(ink)
+                .contentTransition(.numericText())
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(surface.opacity(appearance.isDark ? 0.62 : 0.42))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(tint.opacity(0.12), lineWidth: 0.7)
-        )
+        .fixedSize()
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Main table
@@ -793,7 +799,7 @@ public struct WrongWordsCenterView: View {
     }
 
     private func masteryBadge(_ entry: WrongWordEntry) -> some View {
-        let color: Color = entry.isStubborn ? semanticTint(.purple) : (entry.mastery == .mastered ? semanticTint(.green) : (entry.mastery == .reviewing ? accent : semanticTint(.orange)))
+        let color: Color = entry.isStubborn ? semanticTint(.red) : (entry.mastery == .mastered ? semanticTint(.green) : (entry.mastery == .reviewing ? accent : semanticTint(.orange)))
         return HStack(spacing: 3) {
             if let mark = entry.mark {
                 Text(mark.title)
@@ -935,7 +941,7 @@ public struct WrongWordsCenterView: View {
                     .trim(from: 0, to: max(0.001, model.reviewProgress))
                     .stroke(accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .animation(animated ? .spring(response: 0.45, dampingFraction: 0.84) : nil,
+                    .animation(animated ? .smooth(duration: 0.25) : nil,
                                value: model.reviewProgress)
                 Text("\(Int((model.reviewProgress * 100).rounded()))%")
                     .lumaFont(size: 14, weight: .bold, design: .rounded)

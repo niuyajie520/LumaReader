@@ -1523,6 +1523,15 @@ public struct LumaStudyCenterHostView: View {
     }
 
     @State private var dictationMoreShown = false
+    /// 专注模式：打字时淡出标题区和底栏。默认关，可在练习选项里打开（换新键名，旧版自动开启的设置不再生效）。
+    @AppStorage("luma.dictation.focusMode.v2") private var dictationFocusMode = false
+    @State private var dictationChromeDimmed = false
+    /// 星漫月球基地：答对后宇航员竖大拇指一小会儿。
+    @State private var moonBaseCheering = false
+    private var moonBaseMood: MoonBaseMood {
+        if dictationErrorFlash || vm.dictationMachine.requiresCorrection { return .wrong }
+        return moonBaseCheering ? .correct : .idle
+    }
     @State private var dictationWrongWindow: NSWindow?
     /// 「本轮」的起点：只有真正从头开始一轮听写才会刷新（并写入工作区，退出应用不丢）。
     @State private var dictationRoundStartedAt: Date?
@@ -1736,7 +1745,7 @@ public struct LumaStudyCenterHostView: View {
                                 } label: { Label("小窗听写（悬浮置顶）", systemImage: "pip") }
                                 Button { mode = "学习_听力_学习记录" } label: { Label("学习记录", systemImage: "chart.bar.xaxis") }
                                 Button { mode = "学习_听力_慢反应词" } label: { Label("慢反应词 (\((vm.storeSnapshot.slowReactionWords ?? []).count))", systemImage: "tortoise") }
-                                Button { mode = "学习_听力_顽固单词" } label: { Label("顽固单词", systemImage: "exclamationmark.triangle") }
+                                Button { mode = "学习_听力_顽固单词" } label: { Label("顽固单词", systemImage: "flame") }
                             }
                         } else if mode.contains("写作") || mode == "学习_草稿" {
                             Section("写作") {
@@ -1755,8 +1764,8 @@ public struct LumaStudyCenterHostView: View {
                             Button {
                                 let count = vm.syncWithConnectedCloudDrives()
                                 cloudSyncBannerText = count > 0
-                                    ? "☁️ 已将 luma_study_store.json (词库/慢反应词/顽固词/写作草稿与作文) 同步至 \(count) 个云盘目录"
-                                    : "☁️ 已保存本地学习中心快照（连接 iCloud/OneDrive/Google Drive 后自动跨设备同步）"
+                                    ? "已将学习数据同步至 \(count) 个云盘目录"
+                                    : "已保存本地快照，连接云盘后会自动同步"
                                 topSyncToast = count > 0 ? "已同步至 \(count) 个云盘" : "已保存本地快照（连接云盘后自动同步）"
                             } label: { Label("同步学习数据到云盘", systemImage: "icloud.and.arrow.up") }
                             Button {
@@ -1770,7 +1779,7 @@ public struct LumaStudyCenterHostView: View {
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "ellipsis")
+                            Image(systemName: "ellipsis.circle")
                             if let current = studyMoreMenuCurrentTitle {
                                 Text(current)
                             }
@@ -2157,8 +2166,8 @@ public struct LumaStudyCenterHostView: View {
             case "sync":
                 let count = vm.syncWithConnectedCloudDrives()
                 cloudSyncBannerText = count > 0
-                    ? "☁️ 已将 luma_study_store.json 同步至 \(count) 个云盘目录"
-                    : "☁️ 已保存本地学习中心快照"
+                    ? "已将学习数据同步至 \(count) 个云盘目录"
+                    : "已保存本地快照"
                 topSyncToast = count > 0 ? "已同步至 \(count) 个云盘" : "已保存本地快照"
             case "reading":
                 exitToReading = true; showWritingExit = true
@@ -2609,12 +2618,14 @@ public struct LumaStudyCenterHostView: View {
 
     // MARK: - 1. Listening Shelf, Kokoro Neural Voice Toolbar, Visual-Center Dictation Box & Reaction Latency Pod
 
+    /// 标题写清归属：词本 · 本轮 / 词本 · 错词复习（v4 硬约束 2.4E）。
     private var dictationModeTitle: String {
+        let owner = deckTitle(for: vm.selectedDeck)
         switch vm.dictationMachine.mode {
-        case .wrongWordReview: return "错词复习"
-        case .stubbornWordReview: return "顽固单词复习"
-        case .slowReactionReview: return "⚡ 慢反应词 · 提速巩固"
-        default: return "词汇听写"
+        case .wrongWordReview: return "\(owner) · 错词复习"
+        case .stubbornWordReview: return "\(owner) · 顽固单词"
+        case .slowReactionReview: return "\(owner) · 慢反应词"
+        default: return "\(owner) · 本轮"
         }
     }
 
@@ -2832,104 +2843,6 @@ public struct LumaStudyCenterHostView: View {
         .preferredColorScheme(appearance.isDark ? .dark : .light)
     }
 
-    private var dictationToolbar: some View {
-        HStack(spacing: 8) {
-            Picker("词库", selection: dictationDeckBinding) {
-                if vm.selectedDeck.hasPrefix("__mixed_wrong__") {
-                    Text("多词本错词合练").tag(vm.selectedDeck)
-                }
-                ForEach(visibleListeningDeckIDs, id: \.self) { id in
-                    Text(deckTitle(for: id)).tag(id)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 150)
-            .help("切换词库（自动继续该词库进度）")
-            .sheet(isPresented: $vm.mixedWrongSheetShown) { mixedWrongReviewSheet }
-
-            Picker("发音人", selection: dictationVoiceBinding) {
-                ForEach(KokoroVoiceSlot.allCases) { slot in
-                    Text(kokoro.useAppleSystemSpeech ? slot.displayName : slot.kittenDisplayName).tag(slot)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 106)
-            .help("切换当前发音人")
-
-            Picker("语速", selection: $vm.speechRateMultiplier) {
-                Text("0.5x").tag(Float(0.5))
-                Text("0.75x").tag(Float(0.75))
-                Text("0.85x").tag(Float(0.85))
-                Text("1.0x").tag(Float(1.0))
-                Text("1.15x").tag(Float(1.15))
-                Text("1.25x").tag(Float(1.25))
-                Text("1.5x").tag(Float(1.5))
-                Text("1.8x").tag(Float(1.8))
-                Text("2.0x").tag(Float(2.0))
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 84)
-            .help("语速（WSOLA 硬件不变调倍速）")
-
-            Button {
-                openSpeechSettings()
-            } label: {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(kokoro.isReady ? appearance.accent : appearance.ink.opacity(0.38))
-                        .frame(width: 7, height: 7)
-                    Image(systemName: "slider.horizontal.3")
-                }
-            }
-            .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 34))
-            .help(kokoro.isReady ? "发音设置（Kitten 语音已就绪）" : "发音设置（配置 4 槽位自然发音或语音服务）")
-            .accessibilityLabel("发音设置")
-            .sheet(isPresented: $vm.speechSettingsShown) {
-                speechSettingsSheet
-            }
-
-            Menu {
-                Button("重新开始本轮", systemImage: "arrow.clockwise") {
-                    selectDeckAndStartDictation(deck: vm.selectedDeck, mode: vm.dictationMachine.mode, resume: false)
-                }
-                Button("错词复习", systemImage: "arrow.counterclockwise") {
-                    openWrongWordReviewPage()
-                }
-                Button("多词本错词合练…", systemImage: "square.stack") {
-                    showMixedWrongSelector()
-                }
-                Button("慢反应词提速 (1.25x)", systemImage: "bolt.badge.clock") {
-                    vm.speechRateMultiplier = 1.25
-                    selectDeckAndStartDictation(deck: vm.selectedDeck, mode: .slowReactionReview, resume: false)
-                }
-                Button("停止播放", systemImage: "stop.fill") {
-                    ttsEngine.stop(); audio.stop(); kokoro.stop()
-                }
-                if isImportedDeck(vm.selectedDeck) {
-                    Divider()
-                    deckActions(vm.selectedDeck)
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .frame(width: 34, height: 34)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .studyGlassCapsule(cornerRadius: 17)
-            .help("更多词库与听写操作")
-        }
-    }
-
-    private var dictationProgressLine: String {
-        let remaining: Int = vm.dictationMachine.pendingQueue.count
-        let done: Int = vm.dictationMachine.completedWordIDs.count
-        let today: Int = DictationSessionStateMachine.todayDictatedWordCount(from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString())
-        return "已完成 \(done) · 剩余 \(remaining) · 今日 \(today) 词"
-    }
 
     // MARK: - 听写视觉中心大输入框与错误震动/红光脉冲动效
 
@@ -3056,7 +2969,7 @@ public struct LumaStudyCenterHostView: View {
     }
 
     /// 顶部右侧三合一功能胶囊（参考书库主页右上角「+  ⋯  ⚙」三键胶囊排版）：
-    /// 依次为：「01:44:08 计时暂停键」 │ 「1.5× 倍速键」 │ 「⋯ (ellipsis.circle) 更多功能菜单键」
+    /// 依次为：「01:44:08 计时暂停键」 │ 「⋯ 练习选项」。倍速收进练习选项，不在外面重复。
     private var dictationTopRightCapsules: some View {
         // 手动暂停与「30 秒无操作自动停止计时」共用同一块琥珀色提示
         let paused = !listeningDailyTimer.running || listeningDailyTimer.idleFrozen
@@ -3069,12 +2982,18 @@ public struct LumaStudyCenterHostView: View {
                     listeningDailyTimer.start()
                 }
             } label: {
-                Text(Self.formatTimerDigits(listeningDailyTimer.seconds))
-                    .lumaFont(size: 16, weight: .medium, design: .monospaced)
-                    .monospacedDigit()
-                    .tracking(1.0)
+                HStack(spacing: 4) {
+                    if paused {
+                        Image(systemName: LumaSymbol.pause.rawValue)
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    Text(Self.formatTimerDigits(listeningDailyTimer.seconds))
+                        .lumaFont(size: 16, weight: .medium, design: .monospaced)
+                        .monospacedDigit()
+                        .tracking(paused ? 0.4 : 1.0)
+                }
                     .foregroundStyle(dictTextPrimary)
-                    .frame(width: 110, height: 40)
+                    .frame(width: 118, height: 40)
                     .background(
                         Capsule(style: .continuous)
                             .fill(paused ? dictPauseFill : Color.clear)
@@ -3094,38 +3013,6 @@ public struct LumaStudyCenterHostView: View {
                 .fill(dictTextPrimary.opacity(0.16))
                 .frame(width: 1, height: 18)
 
-            // 2. 倍速按钮：「1.5×」点击弹出 0.5× ~ 2.0× 倍速菜单
-            Menu {
-                ForEach([Float(0.5), 0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.8, 2.0], id: \.self) { spd in
-                    Button {
-                        vm.speechRateMultiplier = spd
-                    } label: {
-                        if abs(vm.speechRateMultiplier - spd) < 0.01 {
-                            Label(Self.formatSpeedText(spd), systemImage: "checkmark")
-                        } else {
-                            Text(Self.formatSpeedText(spd))
-                        }
-                    }
-                }
-            } label: {
-                Text(Self.formatSpeedText(vm.speechRateMultiplier))
-                    .lumaFont(size: 16, weight: .semibold, design: .rounded)
-                    .monospacedDigit()
-                    .foregroundStyle(dictAccentPink)
-                    .frame(width: 64, height: 40)
-                    .contentShape(Rectangle())
-            }
-            .menuIndicator(.hidden)
-            .menuStyle(.borderlessButton)
-            .help("选择语音播报倍速")
-            .contextMenu {
-                Button("听写快捷键…") { showListeningShortcuts = true }
-            }
-
-            Rectangle()
-                .fill(dictTextPrimary.opacity(0.16))
-                .frame(width: 1, height: 18)
-
             // 3. 三个点功能键（参考主页右上角 ellipsis.circle 排版）：统一收纳词库、多本重练、错词、记录、语音与设置
             Button {
                 if !dictationMoreShown { dictationSettingsTab = .practice }
@@ -3139,9 +3026,12 @@ public struct LumaStudyCenterHostView: View {
             }
             .menuIndicator(.hidden)
             .menuStyle(.borderlessButton)
-            .help("听写设置")
-            .accessibilityLabel("听写设置")
+            .help("练习选项")
+            .accessibilityLabel("练习选项")
             .accessibilityIdentifier("study.dictation.more")
+            .contextMenu {
+                Button("听写快捷键…") { showListeningShortcuts = true }
+            }
             .popover(isPresented: $dictationMoreShown, arrowEdge: .top) {
                 dictationMorePanel
             }
@@ -3199,22 +3089,27 @@ public struct LumaStudyCenterHostView: View {
             ?? Date()
     }
 
-    /// 徽章与窗口口径一致：只数本轮（本轮起点之后）产生的错题。
+    /// 本轮 = 本轮实际在练的词本 + 会话 ID；徽章、错题窗口、进度行共用这一口径。
+    private var dictationRoundScope: RoundScope {
+        RoundScope(deckIDs: dictationUnitDeckIDs, roundID: vm.dictationMachine.sessionID)
+    }
+
+    /// 徽章与窗口口径一致：只数本轮（deckID + roundID）产生的错题。
+    /// 按**词**计数，不按错误次数：同一个词错 5 次仍然只算 1 个（错几次在窗口里用「×N」表示）。
     private var dictationUnitWrongCount: Int {
-        let decks = Set(dictationUnitDeckIDs)
-        let roundID = vm.dictationMachine.sessionID
+        let scope = dictationRoundScope
         let allowedWordIDs = vm.dictationMachine.roundWordIDs
-        let attempts = vm.storeSnapshot.effectiveWrongLogs.filter {
-            $0.sessionID == roundID && decks.contains($0.deckID) && allowedWordIDs.contains($0.wordID)
-        }.count
-        let roundWordIDs = Set(vm.storeSnapshot.dictationLogs.filter {
-            $0.sessionID == roundID && decks.contains($0.deckID)
+        var wordIDs = Set(vm.storeSnapshot.effectiveWrongLogs.filter {
+            scope.contains($0) && allowedWordIDs.contains($0.wordID)
         }.map(\.wordID))
-        let meaningIDs = Set(vm.storeSnapshot.roundMeaningWordIDs?[roundID.uuidString] ?? [])
-        let meanings = allWords.filter {
-            decks.contains($0.deckID) && meaningIDs.contains($0.id) && roundWordIDs.contains($0.id)
-        }.count
-        return attempts + meanings
+        let roundWordIDs = scope.wordIDs(in: vm.storeSnapshot.dictationLogs)
+        let meaningIDs = scope.meaningWordIDs(in: vm.storeSnapshot)
+        wordIDs.formUnion(
+            allWords.filter {
+                scope.deckIDs.contains($0.deckID) && meaningIDs.contains($0.id) && roundWordIDs.contains($0.id)
+            }.map(\.id)
+        )
+        return wordIDs.count
     }
 
     private func openDictationRecentWindow() {
@@ -3320,7 +3215,6 @@ public struct LumaStudyCenterHostView: View {
             words: allWords.filter { decks.contains($0.deckID) },
             deckIDs: decks,
             deckTitle: title,
-            roundStartedAt: effectiveDictationRoundStart,
             roundID: vm.dictationMachine.sessionID,
             roundWordIDs: vm.dictationMachine.roundWordIDs,
             onChange: { _ in vm.save() }
@@ -3332,7 +3226,7 @@ public struct LumaStudyCenterHostView: View {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false
         )
-        window.title = "编辑本轮错题 · \(title)"
+        window.title = "\(title) · 本轮错题"
         window.contentView = NSHostingView(rootView: content)
         window.minSize = NSSize(width: 720, height: 440)
         window.center()
@@ -3347,7 +3241,7 @@ public struct LumaStudyCenterHostView: View {
     private var dictationMorePanel: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("听写设置").lumaFont(size: 17, weight: .semibold)
+                Text("练习选项").lumaFont(size: 17, weight: .semibold)
                 Spacer()
                 Button("完成") { dictationMoreShown = false }
                     .keyboardShortcut(.defaultAction)
@@ -3395,29 +3289,20 @@ public struct LumaStudyCenterHostView: View {
         Section {
             Button {
                 dictationMoreShown = false
-                DispatchQueue.main.async { openDictationUnitWrongWindow() }
+                revisitPreviousWord()
             } label: {
-                HStack(spacing: 10) {
-                    Label("编辑本轮错题", systemImage: "square.and.pencil")
-                        .font(.system(size: 15, weight: .semibold))
-                    Spacer(minLength: 8)
-                    Text("\(dictationUnitWrongCount)")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .frame(maxWidth: .infinity)
+                Label("回到上一个词", systemImage: "chevron.backward")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .help("打开独立窗口，查看本轮全部错题并批量编辑、导出")
-            .accessibilityIdentifier("study.dictation.editUnitWrong")
+            .buttonStyle(LumaButtonStyle(.secondary, size: .large, ink: dictTheme.ink, accent: dictTheme.accent, fullWidth: true))
+            .disabled(previousDictationWord == nil || vm.dictationMachine.requiresCorrection)
 
             Button {
                 dictationMoreShown = false
                 DispatchQueue.main.async { openDictationRecentWindow() }
             } label: {
                 HStack(spacing: 10) {
-                    Label("最近听的词本 / 单元", systemImage: "clock.arrow.circlepath")
+                    Label("最近听的词本", systemImage: "clock.arrow.circlepath")
                         .font(.system(size: 14, weight: .medium))
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
@@ -3426,8 +3311,7 @@ public struct LumaStudyCenterHostView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
+            .buttonStyle(LumaButtonStyle(.secondary, size: .large, ink: dictTheme.ink, accent: dictTheme.accent, fullWidth: true))
             .help("打开独立窗口，按最近练习时间列出词本 / 单元，点一行就切过去继续听")
             .accessibilityIdentifier("study.dictation.recentDictions")
         }
@@ -3439,14 +3323,22 @@ public struct LumaStudyCenterHostView: View {
                     Text("循环复习").tag(NewWordDictationStrategy.repeating)
                 }
                 .pickerStyle(.menu)
-                .help("快速过词：错一次就跳过。循环复习：订正后按 5、55、155、255 词间隔复现。")
+                .help("快速过词：错一次就跳过，稍后再拼对一次即可。循环复习：订正后按 5、55、155、255 词间隔复现；高档答错先隔 5 词确认，再退回上一档；本轮错满 3 次挪到最后单独练。")
             }
-            Toggle("显示中文释义", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { vm.showMeaning },
                 set: { vm.showMeaning = $0; vm.save() }
-            ))
+            )) {
+                Label("显示中文释义  ⌥⌘M", systemImage: "character.bubble")
+            }
 
-            Toggle("显示首字母提示", isOn: $showFirstLetterHint)
+            Toggle(isOn: $showFirstLetterHint) {
+                Label("首字母提示  ⌘/", systemImage: "lightbulb")
+            }
+
+            Toggle(isOn: $dictationFocusMode) {
+                Label("专注模式：打字时淡出四周", systemImage: "eye")
+            }
 
             LabeledContent("播报倍速") {
                 HStack(spacing: 8) {
@@ -3548,12 +3440,16 @@ public struct LumaStudyCenterHostView: View {
         .listRowBackground(rowBg)
     }
 
-    /// 进度压缩为一行紧凑文字（取代原通栏进度条）；数据与原卡片完全相同：已完成 / 总数、剩余、今日、百分比。
-    private func dictationProgressCard(total: Int, todayCount: Int) -> some View {
+    /// 进度压缩为一行紧凑文字：已完成 / 总数、剩余、本轮已听、百分比，全部属于本词本本轮。
+    private func dictationProgressCard(total: Int, roundHeardCount: Int) -> some View {
         let done = vm.dictationMachine.completedWordIDs.count
         let remaining = vm.dictationMachine.pendingQueue.count
         let pct = min(100.0, max(0.0, Double(done) / Double(total) * 100.0))
-        let line = "已完成 \(done) / \(total) · 剩余 \(remaining) · 今日 \(todayCount) · " + String(format: "%.1f%%", pct)
+        // 学 Anki 把三类分开数：还没学的新词 · 正在重现的错词 · 已毕业。全部属于本词本本轮。
+        let newCount = vm.dictationMachine.pendingLearningWords.count
+        let retrying = vm.dictationMachine.pendingWrongRetryWords.count
+        _ = remaining
+        let line = "新词 \(newCount) · 重现中 \(retrying) · 已毕业 \(done) / \(total) · 本轮已听 \(roundHeardCount) · " + String(format: "%.1f%%", pct)
 
         let ratio = min(1.0, max(0.0, Double(done) / Double(total)))
 
@@ -3572,8 +3468,8 @@ public struct LumaStudyCenterHostView: View {
                 ring.scaleEffect(richMotion ? scale : 1)
             } keyframes: { _ in
                 KeyframeTrack {
-                    SpringKeyframe(1.45, duration: 0.14, spring: .snappy)
-                    SpringKeyframe(1.0, duration: 0.32, spring: .bouncy)
+                    SpringKeyframe(1.15, duration: 0.12, spring: .snappy)
+                    SpringKeyframe(1.0, duration: 0.22, spring: .smooth)
                 }
             }
             .accessibilityHidden(true)
@@ -3614,7 +3510,9 @@ public struct LumaStudyCenterHostView: View {
         var result: [String] = []
         let allLogs = dictationLogsNewestFirst
         let suppressed = Set(vm.storeSnapshot.suppressedWrongLogIDs ?? [])
-        for log in allLogs where !log.isCorrect && !suppressed.contains(log.id) {
+        // 听写页只服务本轮：最近错词同样按 deckID + roundID 过滤，不显示其他单元或上一轮。
+        let scope = dictationRoundScope
+        for log in allLogs where !log.isCorrect && !suppressed.contains(log.id) && scope.contains(log) {
             if let unrevealed = currentUnrevealedID, log.wordID == unrevealed {
                 continue
             }
@@ -3669,7 +3567,7 @@ public struct LumaStudyCenterHostView: View {
     private var dictationRecentWrongWordsCard: some View {
         let candidates = recentWrongWordStrings
         return HStack(spacing: 18) {
-            Text("最近错词")
+            Text("本轮错词")
                 .lumaFont(size: 12, weight: .medium)
                 .foregroundStyle(dictTextSecondary)
                 .fixedSize()
@@ -3696,7 +3594,7 @@ public struct LumaStudyCenterHostView: View {
 
                 if candidates.isEmpty {
                     HStack {
-                        Text("暂无最近错词记录")
+                        Text("本轮还没有错词")
                             .lumaFont(size: 13.5)
                             .foregroundStyle(dictTextSecondary)
                             .lineLimit(1)
@@ -3765,7 +3663,7 @@ public struct LumaStudyCenterHostView: View {
     // 听写进度条（dictationProgressRail）：提供主听写进度通栏、今日听写数、剩余词数与精确百分比。
     // Preserve dictation progress rail, geometry, and real-time statistics.
     // === PROJECT RED LINE / 项目红线 END ===
-    private func dictationProgressRail(total: Int, todayCount: Int) -> some View {
+    private func dictationProgressRail(total: Int, roundHeardCount: Int) -> some View {
         let done = vm.dictationMachine.completedWordIDs.count
         let remaining = vm.dictationMachine.pendingQueue.count
         let ratio = min(1.0, max(0.0, Double(done) / Double(total)))
@@ -3800,7 +3698,7 @@ public struct LumaStudyCenterHostView: View {
             HStack(spacing: 8) {
                 Text("剩余 \(remaining) 词")
                 Spacer(minLength: 8)
-                Text("今日已听写 \(todayCount) 词")
+                Text("本轮已听 \(roundHeardCount) 词")
             }
             .lumaFont(size: 10.5, weight: .medium, monospacedDigits: true)
             .foregroundStyle(dictTextSecondary.opacity(0.9))
@@ -3831,8 +3729,13 @@ public struct LumaStudyCenterHostView: View {
             text: text, availableWidth: availableWidth,
             ceiling: min(180, max(140, dictationFontCeiling)) * scale
         )
+        let starManga = dictTheme.visualThemeSystem == "space"
         return ZStack {
-            shape.fill(dictBgColor)
+            shape.fill(starManga ? StarMangaPalette.panel.opacity(0.94) : dictBgColor)
+            if starManga {
+                // 星漫：分镜角线 + 底部网点，只做装饰，不改输入框尺寸与排版。
+                StarMangaPanelDecor(tint: dictationErrorFlash ? StarMangaPalette.alert : StarMangaPalette.cyan)
+            }
             shape.fill(
                 RadialGradient(
                     colors: [
@@ -4055,7 +3958,7 @@ public struct LumaStudyCenterHostView: View {
     }
 
     /// 头部两行：①左侧安全留白（避开红绿灯）+ 返回 + 标题/紧凑进度 + 计时·倍速·更多胶囊；②最近错词。
-    private func dictationPracticeHeader(total: Int, todayCount: Int) -> some View {
+    private func dictationPracticeHeader(total: Int, roundHeardCount: Int) -> some View {
         VStack(spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 Color.clear.frame(width: 72, height: 1).allowsHitTesting(false)
@@ -4065,16 +3968,48 @@ public struct LumaStudyCenterHostView: View {
                         .lumaFont(size: 16, weight: .semibold)
                         .foregroundStyle(dictTextPrimary)
                         .lineLimit(1)
-                    dictationProgressCard(total: total, todayCount: todayCount)
+                    dictationProgressCard(total: total, roundHeardCount: roundHeardCount)
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 8)
+                dictationRoundWrongBadge
                 dictationTopRightCapsules
             }
             dictationRecentWrongWordsCard
                 .padding(.leading, 84)
         }
         .modifier(DictationHeaderEntrance(enabled: dictRichMotion))
+    }
+
+    /// 「本轮错题 N」：本轮数字常驻标题行，点开独立窗口编辑。
+    private var dictationRoundWrongBadge: some View {
+        let count = dictationUnitWrongCount
+        return Button {
+            openDictationUnitWrongWindow()
+        } label: {
+            HStack(spacing: 6) {
+                Text("本轮错题")
+                    .lumaFont(size: 13, weight: .medium)
+                Text("\(count)")
+                    .lumaFont(size: 13, weight: .bold, design: .rounded, monospacedDigits: true)
+                    .foregroundStyle(count > 0 ? Color.red : dictTextSecondary)
+            }
+            .foregroundStyle(dictTextPrimary)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(LumaIconButtonStyle(ink: dictTextPrimary, accent: dictAccentPink, motionEnabled: !reduceMotion))
+        .studyGlassCapsule(cornerRadius: 20)
+        .fixedSize()
+        .help(dictationUnitWrongBadgeHelp)
+        .accessibilityLabel("本轮错题 \(count) 个词")
+        .accessibilityIdentifier("study.dictation.editUnitWrong")
+    }
+
+    /// 徽章只按词计数：一个词错多次仍然只算一个词。
+    private var dictationUnitWrongBadgeHelp: String {
+        "查看并编辑本轮全部错题（只含本词本本轮，按词计数，一个词错多次也只算一个词）"
     }
 
     private static let dictationStatusAnchor = "dictation.status.anchor"
@@ -4155,7 +4090,7 @@ public struct LumaStudyCenterHostView: View {
         let font = Font.system(size: 22, weight: .bold, design: .rounded)
         return VStack(spacing: 7) {
             HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.circle.fill")
+                Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 13, weight: .semibold))
                 Text("刚才这个词拼错了")
                     .lumaFont(size: 12.5, weight: .medium)
@@ -4204,27 +4139,17 @@ public struct LumaStudyCenterHostView: View {
     }
 
     private func dictationPracticeActions(availableWidth: CGFloat) -> some View {
-        // One unified action area: the same six native Buttons, actions, shortcuts,
-        // disabled conditions and Tab order. Secondary actions are icon-only with help text.
+        // One action area: replay/slow, meaning-unclear, and the single primary Submit.
         let compact = availableWidth < LumaControlMetric.actionBarCompactThreshold
         let layout = compact
             ? AnyLayout(VStackLayout(spacing: 6))
             : AnyLayout(HStackLayout(spacing: 6))
         return layout {
+            // v4：外露只留「重播/慢放」一组、「意思不清」与唯一主按钮「提交」。
+            // 上一个、显示中文、首字母提示收进「练习选项」，快捷键 ⌥⌘M、⌘/ 照旧可用。
             HStack(spacing: 2) {
                 dictationIconAction(
-                    symbol: "backward.end.fill",
-                    label: "上一个",
-                    help: "上一个词",
-                    disabled: previousDictationWord == nil || vm.dictationMachine.requiresCorrection
-                ) {
-                    revisitPreviousWord()
-                }
-
-                dictationActionDivider
-
-                dictationIconAction(
-                    symbol: kokoro.isPreparingAudio ? "hourglass" : "speaker.wave.2.fill",
+                    symbol: "speaker.wave.2",
                     label: "重播",
                     help: kokoro.isPreparingAudio ? "语音准备中… · ⌘R" : "重播 · ⌘R",
                     value: kokoro.isPreparingAudio ? "准备中" : "",
@@ -4234,32 +4159,11 @@ public struct LumaStudyCenterHostView: View {
                 }
 
                 dictationIconAction(
-                    symbol: "tortoise.fill",
+                    symbol: "tortoise",
                     label: "慢放",
                     help: "慢放 0.75× · ⇧⌘R"
                 ) {
                     replayCurrentWord(overrideRate: 0.75)
-                }
-
-                dictationActionDivider
-
-                dictationIconAction(
-                    symbol: "character.bubble",
-                    label: vm.showMeaning ? "隐藏中文" : "显示中文",
-                    help: (vm.showMeaning ? "隐藏中文" : "显示中文") + " · ⌥⌘M",
-                    selected: vm.showMeaning
-                ) {
-                    vm.showMeaning.toggle()
-                    vm.save()
-                }
-
-                dictationIconAction(
-                    symbol: "lightbulb",
-                    label: showFirstLetterHint ? "隐藏提示" : "首字母提示",
-                    help: (showFirstLetterHint ? "隐藏提示" : "首字母提示") + " · ⌘/",
-                    selected: showFirstLetterHint
-                ) {
-                    showFirstLetterHint.toggle()
                 }
 
                 dictationActionDivider
@@ -4352,17 +4256,22 @@ public struct LumaStudyCenterHostView: View {
                 let answerWidth = 916 * answerScale
                 let answerHeight = 260 * answerScale
                 let total = max(1, dictationTotalWords)
-                let todayCount = DictationSessionStateMachine.todayDictatedWordCount(
-                    from: vm.storeSnapshot.dictationLogs, on: Self.todayDateString()
-                )
+                // 听写页只显示本轮数字（v4 硬约束 2.4B）；全部词本的「今日」只在听力主页出现。
+                let roundHeardCount = dictationRoundScope.firstAttemptCount(in: vm.storeSnapshot.dictationLogs)
                 VStack(spacing: 0) {
                     ScrollViewReader { scrollProxy in
                         ScrollView(.vertical) {
                             if vm.dictationMachine.currentWord != nil {
                                 DictationPracticeLayout(minimumHeight: max(0, viewport.size.height - 32 - actionBarHeight)) {
-                                    dictationPracticeHeader(total: total, todayCount: todayCount)
+                                    // 进度只在标题下显示一次（原通栏进度条与之重复，已去掉）。
+                                    // 专注模式：开始打字后标题区淡出，鼠标一动就回来。
+                                    dictationPracticeHeader(total: total, roundHeardCount: roundHeardCount)
                                         .id(Self.dictationCanvasTopAnchor)
-                                    dictationProgressRail(total: total, todayCount: todayCount)
+                                        .opacity(dictationChromeDimmed ? 0.18 : 1)
+                                        .allowsHitTesting(!dictationChromeDimmed)
+                                    // DictationPracticeLayout 固定要求 4 个子视图（标题 / 第二行 / 输入框 / 状态），
+                                    // 少一个就不排版、全部叠在中间。原进度条已删，这里放一个零高占位，不能去掉。
+                                    Color.clear.frame(height: 0).accessibilityHidden(true)
                                     dictationAnswerBox(width: answerWidth, minimumHeight: answerHeight)
                                     dictationPracticeStatus
                                 }
@@ -4372,7 +4281,7 @@ public struct LumaStudyCenterHostView: View {
                                 .padding(.vertical, 16)
                             } else {
                                 VStack(spacing: 20) {
-                                    dictationPracticeHeader(total: total, todayCount: todayCount)
+                                    dictationPracticeHeader(total: total, roundHeardCount: roundHeardCount)
                                     dictationSummaryView
                                 }
                                 .padding(24)
@@ -4397,6 +4306,7 @@ public struct LumaStudyCenterHostView: View {
                     }
                     if vm.dictationMachine.currentWord != nil {
                         dictationPracticeActions(availableWidth: contentWidth)
+                            .opacity(dictationChromeDimmed ? 0.18 : 1)
                             .padding(.horizontal, 24)
                             .padding(.top, 4)
                             .padding(.bottom, 16)
@@ -4408,7 +4318,30 @@ public struct LumaStudyCenterHostView: View {
 
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                // 星漫主题：听写页是月球基地。场景只在四周空白处，不拦截点击。
+                if dictTheme.visualThemeSystem == "space" {
+                    MoonBaseScene(mood: moonBaseMood, dimmed: dictationChromeDimmed)
+                        .ignoresSafeArea()
+                }
+            }
             .background(dictTheme.background.ignoresSafeArea())
+            .animation(reduceMotion ? nil : .smooth(duration: dictationChromeDimmed ? 0.25 : 0.15), value: dictationChromeDimmed)
+            .onChange(of: dictationSuccessTick) { _, _ in
+                guard dictTheme.visualThemeSystem == "space" else { return }
+                moonBaseCheering = true
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    moonBaseCheering = false
+                }
+            }
+            .onChange(of: vm.dictationInput) { _, text in
+                let shouldDim = dictationFocusMode && !text.isEmpty
+                if shouldDim != dictationChromeDimmed { dictationChromeDimmed = shouldDim }
+            }
+            .onContinuousHover { phase in
+                if case .active = phase, dictationChromeDimmed { dictationChromeDimmed = false }
+            }
             .alert("听写快捷键", isPresented: $showListeningShortcuts) {
                 Button("好", role: .cancel) {}
             } message: { Text(DictationShortcutPolicy.helpText) }
@@ -4757,13 +4690,13 @@ public struct LumaStudyCenterHostView: View {
                 }
                 Spacer()
                 if !slowRecords.isEmpty {
-                    Button("⚡ 1.25x 倍速巩固全部 (\(slowRecords.count))") {
+                    Button("1.25× 倍速巩固全部（\(slowRecords.count)）") {
                         vm.speechRateMultiplier = 1.25
                         startSlowReactionDictation(records: slowRecords)
                     }
                     .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 16, height: 34))
 
-                    Button("🔥 1.5x 极限真题语速突击") {
+                    Button("1.5× 语速突击") {
                         vm.speechRateMultiplier = 1.5
                         startSlowReactionDictation(records: slowRecords)
                     }
@@ -4903,16 +4836,16 @@ public struct LumaStudyCenterHostView: View {
                             .foregroundStyle(appearance.ink.opacity(0.72))
                             .lineLimit(2)
                         HStack(spacing: 10) {
-                            Button("🎧 直接听写本词典") {
+                            Button("听写本词典") {
                                 _ = saveImportedWords(book.words)
                                 selectDeckAndStartDictation(deck: book.id, mode: .newTask, resume: true)
                                 mode = "学习_听力_今日计划"
                             }
                             .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 30))
 
-                            Button("📥 加入我的听写词库") {
+                            Button("加入听写词库") {
                                 _ = saveImportedWords(book.words)
-                                cloudSyncBannerText = "已将《\(book.title)》（共 \(book.words.count) 词）加入听写词库！"
+                                cloudSyncBannerText = "已将《\(book.title)》（共 \(book.words.count) 词）加入听写词库"
                             }
                             .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 30))
                         }
@@ -4972,7 +4905,7 @@ public struct LumaStudyCenterHostView: View {
                                     deckTitle: "写作错词与高分搭配本"
                                 )
                                 _ = saveImportedWords([accumWord])
-                                cloudSyncBannerText = "已将「\(item.word)」加入《写作错词与高分搭配本》！"
+                                cloudSyncBannerText = "已将「\(item.word)」加入《写作错词与高分搭配本》"
                             }
                             .font(.caption)
                         }
@@ -5262,7 +5195,7 @@ public struct LumaStudyCenterHostView: View {
                 }
 
                 if let writingVocabToastMessage {
-                    Text(writingVocabToastMessage)
+                    Label(writingVocabToastMessage, systemImage: "checkmark.circle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(appearance.accent)
                 }
@@ -5385,14 +5318,14 @@ public struct LumaStudyCenterHostView: View {
             deckTitle: "写作错词与高分搭配本"
         )
         _ = saveImportedWords([word])
-        writingVocabToastMessage = "✓ 已将固定搭配「\(enPart)」导入《写作错词与高分搭配本》，可在听力模块直接听写！"
+        writingVocabToastMessage = "已将固定搭配「\(enPart)」导入《写作错词与高分搭配本》，可在听力模块直接听写"
     }
 
     private func importCollocationsFromTopicToListening(_ topic: LumaTask2TopicItem) {
         for pt in topic.positivePoints + topic.negativePoints {
             importSingleCollocationStringToListening(pt, sourceTitle: topic.shortTitle)
         }
-        writingVocabToastMessage = "✓ 已将「\(topic.shortTitle)」全部 \(topic.positivePoints.count + topic.negativePoints.count) 组高分搭配导入《写作错词与高分搭配本》！"
+        writingVocabToastMessage = "已将「\(topic.shortTitle)」全部 \(topic.positivePoints.count + topic.negativePoints.count) 组高分搭配导入《写作错词与高分搭配本》"
     }
 
     private var writingHistoryAndFeedbackView: some View {
@@ -5407,7 +5340,7 @@ public struct LumaStudyCenterHostView: View {
                         .foregroundStyle(appearance.ink.opacity(0.72))
                 }
                 Spacer()
-                Button("🎧 去听写我的写作错词与搭配本") {
+                Button("去听写写作错词与搭配本") {
                     selectDeckAndStartDictation(deck: "vocab_writing_accumulations", mode: .newTask, resume: true)
                     mode = "学习_听力_今日计划"
                 }
@@ -5448,7 +5381,7 @@ public struct LumaStudyCenterHostView: View {
                         deckTitle: "写作错词与高分搭配本"
                     )
                     _ = saveImportedWords([w])
-                    writingVocabToastMessage = "✓ 已将「\(cleanEn)（\(finalZH)）」导入《写作错词与高分搭配本》，可在听力部分听写！"
+                    writingVocabToastMessage = "已将「\(cleanEn)（\(finalZH)）」导入《写作错词与高分搭配本》，可在听力部分听写"
                     customPhraseToImport = ""
                     customPhraseMeaningZH = ""
                 }
@@ -5458,7 +5391,7 @@ public struct LumaStudyCenterHostView: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(appearance.surface))
 
             if let writingVocabToastMessage {
-                Text(writingVocabToastMessage)
+                Label(writingVocabToastMessage, systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(appearance.accent)
             }
@@ -5489,9 +5422,9 @@ public struct LumaStudyCenterHostView: View {
                                         .padding(.vertical, 3)
                                         .background(Capsule().fill(appearance.selected))
                                     Spacer()
-                                    Button("📥 一键将本篇错词与优美搭配导入听力生词本") {
+                                    Button("把本篇错词与搭配导入听力生词本") {
                                         let count = importSubmissionVocabularyToListening(sub: sub, audit: audit, evaluation: effectiveEval)
-                                        writingVocabToastMessage = "✓ 已将《\(sub.examTitle)》中的 \(count) 个错词与高分固定搭配导入《写作错词与高分搭配本》！"
+                                        writingVocabToastMessage = "已将《\(sub.examTitle)》中的 \(count) 个错词与高分固定搭配导入《写作错词与高分搭配本》"
                                     }
                                     .buttonStyle(StudyGlassCapsuleButtonStyle(selected: true, horizontalPadding: 12, height: 28))
 
@@ -5542,7 +5475,7 @@ public struct LumaStudyCenterHostView: View {
                                                     deckTitle: "写作错词与高分搭配本"
                                                 )
                                                 _ = saveImportedWords([w])
-                                                writingVocabToastMessage = "✓ 已将正确拼写「\(corrected)（\(zh)）」加入《写作错词与高分搭配本》！"
+                                                writingVocabToastMessage = "已将正确拼写「\(corrected)（\(zh)）」加入《写作错词与高分搭配本》"
                                             }
                                             .font(.caption)
                                             .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 10, height: 24))
@@ -5566,7 +5499,7 @@ public struct LumaStudyCenterHostView: View {
                                         }
                                     }
                                     if let evaluateWriting {
-                                        Button(vm.evaluatingSubmission == sub.id ? "评估中..." : "发送此作文至已配置 AI 评估") {
+                                        Button(vm.evaluatingSubmission == sub.id ? "评估中…" : "发送此作文至已配置 AI 评估") {
                                             vm.evaluatingSubmission = sub.id
                                             Task {
                                                 defer { vm.evaluatingSubmission = nil }
@@ -5615,7 +5548,7 @@ public struct LumaStudyCenterHostView: View {
                                                 Button("+ 将此高分搭配/修正词加入听力生词本") {
                                                     let extracted = WritingReviewPanel.extractVocabularyWords(from: [correction], examTitle: sub.examTitle)
                                                     _ = saveImportedWords(extracted)
-                                                    writingVocabToastMessage = "✓ 已将「\(extracted.first?.word ?? correction.upgradedExpression)」导入《写作错词与高分搭配本》！"
+                                                    writingVocabToastMessage = "已将「\(extracted.first?.word ?? correction.upgradedExpression)」导入《写作错词与高分搭配本》"
                                                 }
                                                 .font(.caption)
                                                 .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 10, height: 24))
@@ -5852,7 +5785,7 @@ public struct LumaStudyCenterHostView: View {
                         Button {
                             mode = "学习_听力_顽固单词"
                         } label: {
-                            Label("顽固单词本", systemImage: "exclamationmark.triangle")
+                            Label("顽固单词本", systemImage: "flame")
                         }
                         Divider()
                         Button {
@@ -5923,20 +5856,14 @@ public struct LumaStudyCenterHostView: View {
                             !session.isSessionFinished && (!session.completedWordIDs.isEmpty || !session.attemptLogs.isEmpty) ? session : nil
                         }
                         VStack(alignment: .leading, spacing: 8) {
-                            Spacer(minLength: 16)
-                            HStack(spacing: 10) {
-                                Image(systemName: deck == "vocab_writing_accumulations" ? "pencil.and.list.clipboard" : "headphones")
-                                    .font(.system(size: 23, weight: .light))
-                                    .foregroundStyle(appearance.accent)
-                                Spacer()
-                            }
+                            Spacer(minLength: 28)
                             Text(title)
                                 .lumaFont(size: 16, weight: .semibold)
                                 .foregroundStyle(appearance.ink)
                                 .multilineTextAlignment(.leading)
                                 .lineLimit(2)
                             if let resumable {
-                                Text("\(resumable.completedWordIDs.count) / \(resumable.completedWordIDs.count + resumable.pendingQueue.count)")
+                                Text("本轮 \(resumable.completedWordIDs.count) / \(resumable.completedWordIDs.count + resumable.pendingQueue.count)")
                                     .font(.caption)
                                     .foregroundStyle(appearance.accent)
                             } else {
@@ -5944,13 +5871,13 @@ public struct LumaStudyCenterHostView: View {
                                     .font(.caption)
                                     .foregroundStyle(appearance.ink.opacity(0.68))
                             }
-                            if deck == "vocab_writing_accumulations" {
-                                Text("作文好词搭配与纠错生词本")
-                                    .font(.caption2)
-                                    .foregroundStyle(appearance.accent)
-                            }
                             Spacer(minLength: 4)
+                            // 整张卡 = 开始 / 继续听写（主操作）；右下角「查看单词」是唯一的次级动作。
                             HStack(spacing: 8) {
+                                Label(resumable == nil ? "开始听写" : "继续听写", systemImage: "play.fill")
+                                    .lumaFont(size: 12, weight: .semibold)
+                                    .foregroundStyle(appearance.accent)
+                                Spacer(minLength: 4)
                                 Button {
                                     withAnimation(.easeOut(duration: 0.16)) {
                                         if selectedScenarioPreviewDeckID == deck && showListeningCategoryWordBrowser {
@@ -5961,28 +5888,15 @@ public struct LumaStudyCenterHostView: View {
                                         }
                                     }
                                 } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: isPreviewingThisDeck ? "book.fill" : "book")
-                                            .font(.system(size: 11, weight: .semibold))
-                                        Text(isPreviewingThisDeck ? "正在看词" : "查看单词")
-                                            .lumaFont(size: 11.5, weight: .medium)
-                                    }
-                                    .frame(maxWidth: .infinity)
+                                    Image(systemName: "list.bullet")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .frame(width: 28, height: 28)
+                                        .contentShape(Rectangle())
                                 }
-                                .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, selected: isPreviewingThisDeck, horizontalPadding: 8, height: 28))
-
-                                Button {
-                                    startDictationFromLibraryCard(deck)
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 10.5, weight: .semibold))
-                                        Text(resumable == nil ? "开始听写" : "继续听写")
-                                            .lumaFont(size: 11.5, weight: .semibold)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(StudyScrollCapsuleButtonStyle(theme: appearance, onAccent: dictOnAccent, prominent: true, horizontalPadding: 8, height: 28))
+                                .buttonStyle(.plain)
+                                .foregroundStyle(isPreviewingThisDeck ? appearance.accent : appearance.ink.opacity(0.55))
+                                .help("查看单词")
+                                .accessibilityLabel("查看单词")
                             }
                         }
                         .padding(16)
@@ -5996,15 +5910,10 @@ public struct LumaStudyCenterHostView: View {
                                 )
                         )
                         .contentShape(RoundedRectangle(cornerRadius: 16))
-                        .onTapGesture(count: 2) {
+                        .onTapGesture {
                             startDictationFromLibraryCard(deck)
                         }
-                        .onTapGesture(count: 1) {
-                            withAnimation(.easeOut(duration: 0.16)) {
-                                selectedScenarioPreviewDeckID = deck
-                                showListeningCategoryWordBrowser = true
-                            }
-                        }
+                        .help(deck == "vocab_writing_accumulations" ? "作文好词搭配与纠错生词本 · 点按开始听写" : "点按开始听写 · 右键更多操作")
                         .contextMenu { deckActions(deck) }
                         .draggable("luma-deck:" + deck)
                         .dropDestination(for: String.self) { items, _ in
@@ -6040,21 +5949,6 @@ public struct LumaStudyCenterHostView: View {
                             }
                             .padding(10)
                             .allowsHitTesting(false)
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            Menu {
-                                deckActions(deck)
-                            } label: {
-                                Image(systemName: "ellipsis.circle.fill")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(appearance.ink.opacity(0.45))
-                                    .frame(width: 32, height: 32)
-                            }
-                            .menuStyle(.borderlessButton)
-                            .menuIndicator(.hidden)
-                            .fixedSize()
-                            .padding(6)
-                            .help("词库操作（置顶 / 排序 / 编辑词条 / 重命名 / 删除）")
                         }
                         .scaleEffect(dropTargetDeckID == deck ? 1.02 : 1.0)
                         .id(deck)
@@ -6909,8 +6803,8 @@ public struct LumaStudyCenterHostView: View {
                 )
                 .shadow(color: theme.accent.opacity(dark ? 0.28 : 0.18), radius: 8, x: 0, y: 4)
         }
-        .scaleEffect(isDropTargeted ? 1.08 : 1.0)
-        .animation(.spring(response: 0.24, dampingFraction: 0.78), value: isDropTargeted)
+        // DESIGN.md：不放大、不回弹；拖入时靠描边加粗与底色提示
+        .animation(.snappy(duration: 0.14), value: isDropTargeted)
     }
 
     /// 专门的「听力 · 三级分类」文件管理器界面（完全融合莫奈取色与液态玻璃，无左侧多余边栏按键）
@@ -6985,21 +6879,6 @@ public struct LumaStudyCenterHostView: View {
                     .padding(.horizontal, 4)
                     .studyGlassCapsule(cornerRadius: 19)
 
-                    if !finderCurrentPath.isEmpty {
-                        Button {
-                            finderNavigate(to: Array(finderCurrentPath.dropLast()))
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.turn.left.up")
-                                    .font(.system(size: 11.5, weight: .semibold))
-                                Text("上级")
-                                    .lumaFont(size: 12.5, weight: .medium)
-                            }
-                        }
-                        .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 34))
-                        .help("返回上一级文件夹")
-                    }
-
                     Text(currentTitle)
                         .lumaFont(size: 28, weight: .bold, design: .serif)
                         .foregroundStyle(theme.ink)
@@ -7010,7 +6889,7 @@ public struct LumaStudyCenterHostView: View {
 
                     // 视图切换液态玻璃胶囊（图标 / 分栏 / 列表）
                     HStack(spacing: 2) {
-                        ForEach([("icons", "square.grid.2x2", "图标网格"), ("columns", "rectangle.split.3x1", "三级分栏"), ("list", "list.bullet", "树形列表")], id: \.0) { modeID, iconName, label in
+                        ForEach([("icons", "square.grid.2x2", "图标"), ("columns", "rectangle.split.3x1", "分栏")], id: \.0) { modeID, iconName, label in
                             let isModeSel = (finderViewMode == modeID)
                             Button {
                                 // 1.9.5: never cross-fade two huge folder views; the
@@ -7101,7 +6980,7 @@ public struct LumaStudyCenterHostView: View {
                             Image(systemName: "folder.fill")
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(theme.accent)
-                            Text("全部听力分类")
+                            Text("听力分类")
                                 .font(.system(size: 12.5, weight: finderCurrentPath.isEmpty ? .semibold : .medium))
                                 .foregroundStyle(finderCurrentPath.isEmpty ? theme.accent : theme.ink)
                         }
@@ -7160,9 +7039,9 @@ public struct LumaStudyCenterHostView: View {
                             startDictationForFolder(path: finderCurrentPath, words: currentFolderWords)
                         } label: {
                             HStack(spacing: 5) {
-                                Image(systemName: "headphones")
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                Text("全部听写 (\(currentFolderWords.count))")
+                                Image(systemName: LumaSymbol.startNewWords.rawValue)
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                Text("听写这里 · \(currentFolderWords.count) 词")
                                     .font(.system(size: 12.5, weight: .semibold))
                             }
                             .foregroundStyle(dictOnAccent)
@@ -7183,10 +7062,9 @@ public struct LumaStudyCenterHostView: View {
 
                 // MARK: 3. 主文件管理器画布（完全融合莫奈取色与液态玻璃，无左侧多余边栏）
                 Group {
+                    // 视图只保留「图标 / 分栏」两种；旧的「树形列表」偏好自动落到图标视图。
                     if finderViewMode == "columns" {
                         finderThreeColumnBrowserView(index: index)
-                    } else if finderViewMode == "list" {
-                        finderExpandableListView(index: index)
                     } else {
                         finderIconGridView(childFolders: childFolders, currentFolderWords: currentFolderWords, index: index)
                     }
@@ -7320,69 +7198,32 @@ public struct LumaStudyCenterHostView: View {
                                     }
 
                                     Spacer()
-
-                                    // 词数胶囊
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "text.book.closed")
-                                            .font(.system(size: 10, weight: .semibold))
-                                        Text("\(folder.totalWordCount) 词")
-                                            .lumaFont(size: 11.5, weight: .semibold, design: .rounded, monospacedDigits: true)
-                                    }
-                                    .foregroundStyle(theme.accent)
-                                    .padding(.horizontal, 9)
-                                    .padding(.vertical, 4)
-                                    .background(Capsule().fill(theme.selected))
-                                    .overlay(Capsule().strokeBorder(theme.accent.opacity(0.24), lineWidth: 0.8))
                                 }
 
-                                // 标题与层级说明
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 5) {
-                                        Text(folder.displayBadgeName)
-                                            .lumaFont(size: 16, weight: .bold, design: .rounded)
-                                            .foregroundStyle(theme.ink)
-                                            .lineLimit(1)
-                                        if folder.isCustom {
-                                            Image(systemName: "pencil.circle")
-                                                .font(.system(size: 11))
-                                                .foregroundStyle(theme.accent.opacity(0.75))
-                                        }
-                                    }
-
-
-                                }
-
-                                Divider().overlay(theme.line.opacity(0.35))
-
-                                // 底部快捷操作栏：直接一键听写 + 进入分类提示
+                                // 标题 + 词数；整张卡点开文件夹，右下角的播放键是唯一的次级动作（听写本文件夹）。
+                                Text(folder.displayBadgeName)
+                                    .lumaFont(size: 16, weight: .bold, design: .rounded)
+                                    .foregroundStyle(theme.ink)
+                                    .lineLimit(1)
                                 HStack(alignment: .center, spacing: 8) {
+                                    Text("\(folder.totalWordCount) 词")
+                                        .lumaFont(size: 12, weight: .medium, monospacedDigits: true)
+                                        .foregroundStyle(dictTextSecondary)
+                                    Spacer(minLength: 4)
                                     if !fWords.isEmpty {
                                         Button {
                                             startDictationForFolder(path: folder.path, words: fWords)
                                         } label: {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: "headphones")
-                                                    .font(.system(size: 10.5, weight: .bold))
-                                                Text("一键听写")
-                                                    .lumaFont(size: 11.5, weight: .semibold)
-                                                    .lineLimit(1)
-                                                    .fixedSize(horizontal:true, vertical:false)
-                                            }
-                                            .foregroundStyle(dictOnAccent)
-                                            .padding(.horizontal, 11)
-                                            .padding(.vertical, 5)
-                                            .background(Capsule().fill(theme.accent))
+                                            Image(systemName: LumaSymbol.startNewWords.rawValue)
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(theme.accent)
+                                                .frame(width: 28, height: 28)
+                                                .background(Circle().fill(theme.selected))
+                                                .contentShape(Circle())
                                         }
                                         .buttonStyle(.plain)
-                                        .help("直接开始本分类全部单词听写")
-                                    }
-
-                                    Spacer()
-
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 9.5, weight: .semibold))
-                                            .foregroundStyle(dictTextSecondary)
+                                        .help("听写本文件夹全部 \(fWords.count) 词")
+                                        .accessibilityLabel("听写本文件夹")
                                     }
                                 }
                             }
@@ -7427,7 +7268,7 @@ public struct LumaStudyCenterHostView: View {
                                     presentFinderFolderIconEditor(path: folder.path, name: folder.name)
                                 }
                                 if !fWords.isEmpty {
-                                    Button("🎧 听写此分类全部单词 (\(fWords.count) 词)", systemImage: "headphones") {
+                                    Button("听写本文件夹（\(fWords.count) 词）", systemImage: "play.fill") {
                                         startDictationForFolder(path: folder.path, words: fWords)
                                     }
                                 }
@@ -7724,22 +7565,13 @@ public struct LumaStudyCenterHostView: View {
         var selected = false
         let horizontalPadding: CGFloat
         let height: CGFloat
-        @State private var hovered = false
 
         func makeBody(configuration: Configuration) -> some View {
-            let shape = Capsule()
-            configuration.label
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .font(.system(size: 13, weight: prominent ? .semibold : .medium))
-                .foregroundStyle(prominent ? onAccent : theme.ink)
-                .padding(.horizontal, horizontalPadding)
-                .frame(minHeight: height)
-                .background(shape.fill(prominent ? theme.accent : theme.selected))
-                .overlay(shape.strokeBorder(selected || hovered ? theme.accent : theme.line, lineWidth: 1).allowsHitTesting(false))
-                .opacity(configuration.isPressed ? 0.8 : 1)
-                .contentShape(shape)
-                .onHover { hovered = $0 }
+            LumaButtonStyle(prominent ? .primary : .secondary,
+                            size: LumaButtonSize.nearest(to: height),
+                            ink: theme.ink, accent: theme.accent, onAccent: onAccent,
+                            selected: selected && !prominent)
+                .makeBody(configuration: configuration)
         }
     }
 
@@ -7863,7 +7695,7 @@ public struct LumaStudyCenterHostView: View {
                     Button {
                         startDictationForFolder(path: activePath, words: words)
                     } label: {
-                        Label("🎧 听写本文件夹全部 \(words.count) 词", systemImage: "play.fill")
+                        Label("听写本文件夹（\(words.count) 词）", systemImage: "play.fill")
                             .lumaFont(size: 12.5, weight: .semibold)
                     }
                     .buttonStyle(StudyGlassCapsuleButtonStyle(prominent: true, horizontalPadding: 14, height: 30))
@@ -8319,7 +8151,7 @@ public struct LumaStudyCenterHostView: View {
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(Color.red.opacity(0.14)))
                                 } else if isMastered {
-                                    Text("✓ 已掌握")
+                                    Label("已掌握", systemImage: "checkmark")
                                         .lumaFont(size: 11, weight: .semibold)
                                         .foregroundStyle(appearance.accent)
                                         .padding(.horizontal, 8)
@@ -8438,7 +8270,7 @@ public struct LumaStudyCenterHostView: View {
         var current = visibleListeningDeckIDs
         guard let fromIdx = current.firstIndex(of: draggedDeck),
               let toIdx = current.firstIndex(of: targetDeck) else { return }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+        withAnimation(.smooth(duration: 0.25)) {
             let item = current.remove(at: fromIdx)
             current.insert(item, at: toIdx)
             customDeckOrderRaw = current.joined(separator: "|")
@@ -8509,7 +8341,7 @@ public struct LumaStudyCenterHostView: View {
         var cats = orderedListeningCategories
         guard let fromIdx = cats.firstIndex(of: dragged),
               let toIdx = cats.firstIndex(of: target) else { return }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+        withAnimation(.smooth(duration: 0.25)) {
             let item = cats.remove(at: fromIdx)
             cats.insert(item, at: toIdx)
             listeningCategoriesRaw = cats.joined(separator: "|")
@@ -8748,7 +8580,7 @@ public struct LumaStudyCenterHostView: View {
         let totalErrors: Int = rows.reduce(0) { $0 + $1.errors }
         let hasErrors: Bool = totalErrors > 0
         return VStack(alignment: .leading, spacing: StudyMetrics.sectionSpacing) {
-            HStack(spacing: 16) {
+            statGroup {
                 statCard(title: "一次拼对率", value: rows.isEmpty ? "—" : String(format: "%.0f%%", Double(firstTry) / Double(rows.count) * 100),
                          subtitle: "\(firstTry) / \(rows.count) 词")
                 statCard(title: "错词", value: "\(rows.filter { $0.errors > 0 }.count) 词", subtitle: "共错 \(totalErrors) 次")
@@ -9081,6 +8913,10 @@ public struct LumaStudyCenterHostView: View {
                 (!dueOnly || (snapshot.reviewSchedule?[$0.id]?.dueAt ?? .distantPast) <= now)
             }
         }
+        if mode == .newTask && reviewIDs == nil && !dueOnly {
+            // 昨天学过、今天到期的词先做一次隔天无提示回忆，再进新词。
+            words = WordReviewOrdering.dueFirst(words, schedule: snapshot.reviewSchedule, now: now)
+        }
         if mode == .wrongWordReview {
             words.sort { a, b in
                 let ra = snapshot.reviewSchedule?[a.id]?.ebbinghausRetrievability(at: now) ?? 0.0
@@ -9202,7 +9038,7 @@ public struct LumaStudyCenterHostView: View {
         if reduceMotion {
             dictationErrorFlash = true
         } else {
-            let duration = system == "space" ? 0.34 : (system == "manga" ? 0.24 : 0.46)
+            let duration = system == "space" ? 0.28 : (system == "manga" ? 0.22 : 0.30)
             withAnimation(.easeInOut(duration:duration)) {
                 dictationErrorShake += 1
                 dictationErrorFlash = true
@@ -9227,12 +9063,12 @@ public struct LumaStudyCenterHostView: View {
 
         if let log = vm.dictationMachine.attemptLogs.last {
             vm.storeSnapshot.dictationLogs.append(log)
-            if !log.isCorrect || vm.dictationMachine.completedWordIDs.contains(word.id) {
-                var progress = vm.storeSnapshot.reviewSchedule?[word.id] ?? WordReviewProgress(dueAt: Date())
-                progress.record(cleanRecall: log.isCorrect, reactionSeconds: reactionSecs, at: Date())
-                if vm.storeSnapshot.reviewSchedule == nil { vm.storeSnapshot.reviewSchedule = [:] }
-                vm.storeSnapshot.reviewSchedule?[word.id] = progress
-            }
+            // 每次提交都更新复习进度；但只有「隔天（或到期后）的无提示答对」才推进长期间隔，
+            // 当场订正后的拼对只算当堂练对，明天再考一次。
+            var progress = vm.storeSnapshot.reviewSchedule?[word.id] ?? WordReviewProgress(dueAt: Date())
+            progress.record(cleanRecall: log.isCorrect, reactionSeconds: reactionSecs, at: Date())
+            if vm.storeSnapshot.reviewSchedule == nil { vm.storeSnapshot.reviewSchedule = [:] }
+            vm.storeSnapshot.reviewSchedule?[word.id] = progress
             if log.isCorrect {
                 var slowList = vm.storeSnapshot.slowReactionWords ?? []
                 if reactionSecs > SlowReactionWordRecord.slowThresholdSeconds {
@@ -9304,6 +9140,13 @@ public struct LumaStudyCenterHostView: View {
             vm.dictationFeedback = "已记入错词，继续下一词"
             requestDictationStatusScroll(true)
             speakCurrentWord()
+        case .needsPhraseFix(let fragment):
+            // 长措辞只差虚词：词还留在屏幕上，标出片段要求重拼一次，不算错词。
+            dictationMissedWord = nil
+            vm.dictationFeedback = "只差「\(fragment)」，按整条措辞重拼一次"
+            triggerDictationErrorAnimation()
+            requestDictationStatusScroll(true)
+            speakCurrentWord()
         case .needsCorrection(let count):
             // 这个词仍然留在屏幕上，订正提示已经带红字标错与中文，不再重复一张卡片。
             dictationMissedWord = nil
@@ -9315,17 +9158,26 @@ public struct LumaStudyCenterHostView: View {
             dictationErrorFlash = false
             dictationMissedWord = nil
             if reactionSecs > SlowReactionWordRecord.slowThresholdSeconds {
-                vm.dictationFeedback = String(format: "✓ 拼写正确，但从语音播完到敲下回车耗时 %.1f 秒（> 5.0 秒阈值），已自动标记为「慢反应词」加入提速巩固！", reactionSecs)
+                vm.dictationFeedback = String(format: "拼写正确 · 用时 %.1f 秒，超过 5 秒，已记为慢反应词", reactionSecs)
             } else {
-                vm.dictationFeedback = String(format: "✓ %@（反应耗时 %.1f 秒，达标 ≤5.0s）", exited ? "本轮复习完成。" : "拼写正确。", reactionSecs)
+                vm.dictationFeedback = String(format: "%@ · 用时 %.1f 秒", exited ? "这个词本轮完成" : "拼写正确", reactionSecs)
             }
             requestDictationStatusScroll(false)
             speakCurrentWord()
         case .requeuedForRetry(_, let offset):
             dictationErrorFlash = false
             dictationMissedWord = nil
-            let cycle = vm.dictationMachine.wrongRetryCycleByWordID[word.id, default: 1]
-            vm.dictationFeedback = "✓ 艾宾浩斯错词循环（第 \(cycle)/4 轮）：将在第 \(offset) 个单词后再次复现检测"
+            let machine = vm.dictationMachine
+            let cycle = machine.wrongRetryCycleByWordID[word.id, default: 1]
+            if machine.deferredToEndWordIDs.contains(word.id) {
+                vm.dictationFeedback = "本轮已错 3 次，这个词挪到本轮最后单独练"
+            } else if let target = machine.relearnTargetCycleByWordID[word.id] {
+                let ladder = DictationTuning.newWordLadder
+                let gap = ladder[max(0, min(target - 1, ladder.count - 1))]
+                vm.dictationFeedback = "隔 \(offset) 个词再确认一次，对了回到第 \(target) 档（隔 \(gap) 词）"
+            } else {
+                vm.dictationFeedback = "第 \(cycle)/4 档 · 隔 \(offset) 个词再听"
+            }
             requestDictationStatusScroll(false)
             speakCurrentWord()
         case .promotedToStubbornWords:
@@ -9433,12 +9285,13 @@ public struct LumaStudyCenterHostView: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("学习统计与能力诊断（原生 Swift Charts）")
+                        Text("学习统计")
                             .lumaFont(size: 30, weight: .bold, design: .serif)
                             .foregroundStyle(appearance.ink)
-                        Text("涵盖 GitHub 风格年度阅读/听写/写作热力图打卡墙、小作文 (TA/CC/LR/GRA) 与大作文 (TR/CC/LR/GRA) 四维能力走势及近期卡分点诊断。")
+                        Text("年度打卡与写作四维走势。")
                             .lumaFont(size: 13)
                             .foregroundStyle(appearance.ink.opacity(0.68))
+                            .help("年度阅读、听写、写作热力图；小作文 TA/CC/LR/GRA 与大作文 TR/CC/LR/GRA 四维能力走势及近期卡分点诊断。")
                     }
                     Spacer()
                     Picker("模块", selection: $vm.statsScope) {
@@ -9458,7 +9311,7 @@ public struct LumaStudyCenterHostView: View {
                 }
 
                 if vm.statsScope == .all {
-                    HStack(spacing: 16) {
+                    statGroup {
                         statCard(
                             title: "真实总学习时长",
                             value: "\(overview.totalStudySeconds / 60) 分钟",
@@ -9476,12 +9329,12 @@ public struct LumaStudyCenterHostView: View {
                         )
                     }
                 } else if vm.statsScope == .listening {
-                    HStack(spacing: 16) {
+                    statGroup {
                         statCard(title: "听写完成单词数", value: "\(listeningStats.completedUniqueWordsCount) 词", subtitle: "总错误次数：\(listeningStats.totalErrorCount)")
                         statCard(title: "首次正确率", value: String(format: "%.1f%%", listeningStats.firstAttemptAccuracyPercent), subtitle: "顽固单词数：\(listeningStats.stubbornWordsCount) · 慢反应词：\((vm.storeSnapshot.slowReactionWords ?? []).count)")
                     }
                 } else {
-                    HStack(spacing: 16) {
+                    statGroup {
                         statCard(title: "完成作文篇数", value: "\(writingStats.totalSubmissionsCount) 篇", subtitle: "Task 1: \(writingStats.task1Count) 篇 · Task 2: \(writingStats.task2Count) 篇")
                         statCard(title: "平均字数与官方标准均分", value: "\(writingStats.averageWordCount) 词", subtitle: "官方标准预估均分：\(writingStats.averageEstimatedBand.map { String(format: "Band %.1f", $0) } ?? "暂无数据")")
                     }
@@ -9563,17 +9416,17 @@ public struct LumaStudyCenterHostView: View {
 
             if let day = inspected {
                 HStack(spacing: 16) {
-                    Text("📅 \(day.dateString)")
+                    Label(day.dateString, systemImage: "calendar")
                         .font(.caption.bold().monospacedDigit())
                         .foregroundStyle(appearance.ink)
                     Text("当日总投入：\(day.totalMinutes) 分钟")
                         .font(.caption.bold())
                         .foregroundStyle(appearance.accent)
-                    Text("📖 阅读：\(day.readingMinutes) 分钟")
+                    Label("阅读 \(day.readingMinutes) 分钟", systemImage: "book")
                         .font(.caption)
-                    Text("🎧 听写：\(day.listeningMinutes) 分钟")
+                    Label("听写 \(day.listeningMinutes) 分钟", systemImage: "headphones")
                         .font(.caption)
-                    Text("✍️ 写作：\(day.writingMinutes) 分钟")
+                    Label("写作 \(day.writingMinutes) 分钟", systemImage: "pencil")
                         .font(.caption)
                     Spacer()
                     Text("连续打卡 \(heatmap.currentStreakDays) 天 · 年度活跃 \(heatmap.activeDaysCount) 天")
@@ -9761,21 +9614,39 @@ public struct LumaStudyCenterHostView: View {
         )
     }
 
+    /// DESIGN.md 拒绝清单：不把「大数字 + 小标签」统计卡排成一排。
+    /// 统计改为一个分组面板里的列表行：名称在左、数值在右，补充说明进 `.help`。
+    private func statGroup<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(appearance.surface))
+    }
+
     private func statCard(title: String, value: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
                 .lumaFont(size: 13)
-                .foregroundStyle(appearance.ink.opacity(0.7))
-            Text(value)
-                .lumaFont(size: 24, weight: .bold)
-                .foregroundStyle(appearance.ink)
+                .foregroundStyle(appearance.ink.opacity(0.75))
+            Spacer(minLength: 12)
             Text(subtitle)
                 .lumaFont(size: 12)
-                .foregroundStyle(appearance.ink.opacity(0.65))
+                .foregroundStyle(appearance.ink.opacity(0.5))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Text(value)
+                .lumaFont(size: 15, weight: .semibold)
+                .monospacedDigit()
+                .foregroundStyle(appearance.ink)
+                .fixedSize()
         }
-        .padding(18)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(appearance.surface))
+        .help(subtitle)
+        .accessibilityElement(children: .combine)
     }
 
     static func todayDateString() -> String {
@@ -10356,25 +10227,22 @@ struct DictationToolbarClusterButtonStyle: ButtonStyle {
     @State private var hovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
-        let scale: CGFloat = reduceMotion ? 1.0 : (configuration.isPressed ? 0.92 : (hovered ? 1.08 : 1.0))
+        let scale: CGFloat = reduceMotion ? 1.0 : (configuration.isPressed ? 0.97 : 1.0)
         configuration.label
             .background(Color.white.opacity(hovered ? 0.12 : 0), in: Capsule(style: .continuous))
             .scaleEffect(scale)
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .spring(response: 0.16, dampingFraction: 0.8), value: hovered)
-            .animation(reduceMotion ? nil : .spring(response: 0.12, dampingFraction: 0.82), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.14), value: configuration.isPressed)
     }
 }
 
 /// 学习中心内原 .plain 按钮：外观不变，增加按下缩放/变暗与松手轻回弹。
 struct StudyFluidPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // 统一按钮系统：只有按下反馈。
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.97 : 1))
-            .opacity(configuration.isPressed ? 0.78 : 1)
-            .animation(reduceMotion ? nil : .spring(response: configuration.isPressed ? 0.12 : 0.2, dampingFraction: configuration.isPressed ? 0.82 : 0.8), value: configuration.isPressed)
+        LumaPressStyle().makeBody(configuration: configuration)
     }
 }
 
@@ -10945,7 +10813,7 @@ struct LumaChoiceQuizView: View {
                 Divider()
                 Button { LumaChoiceQuizProgress.setCursor(0, for: deckID); LumaChoiceQuizProgress.saveDraft(nil, for: deckID); reviewCursor = 0; startRound() } label: { Label("从词库开头重新背", systemImage: "arrow.counterclockwise") }
                 Button { showHelp = true } label: { Label("键盘与手柄操作", systemImage: "gamecontroller") }
-            } label: { Image(systemName: "ellipsis") }
+            } label: { Image(systemName: "ellipsis.circle") }
             .menuStyle(.button).menuIndicator(.hidden)
             .buttonStyle(StudyGlassCapsuleButtonStyle(horizontalPadding: 12, height: 32))
             .fixedSize()
@@ -11153,7 +11021,7 @@ struct LumaChoiceQuizView: View {
                 if !wrongWords.isEmpty {
                     Menu {
                         Button(showSummaryWords ? "收起错词明细" : "查看错词明细") { showSummaryWords.toggle() }
-                    } label: { Image(systemName: "ellipsis") }
+                    } label: { Image(systemName: "ellipsis.circle") }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .accessibilityLabel("结果操作")
@@ -11398,8 +11266,8 @@ struct LumaChoiceOptionPressStyle: ButtonStyle {
     var enabled: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(enabled && configuration.isPressed ? 0.985 : 1)
-            .animation(enabled ? .easeOut(duration: 0.14) : nil, value: configuration.isPressed)
+            .scaleEffect(enabled && configuration.isPressed ? LumaButtonMetric.rowPressScale : 1)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: !enabled), value: configuration.isPressed)
     }
 }
 
@@ -12021,7 +11889,7 @@ struct LumaChoiceLibraryView: View {
                     }
                 }
                 Spacer(minLength: 6)
-                Menu { deckMenu(deck) } label: { Image(systemName: "ellipsis") }
+                Menu { deckMenu(deck) } label: { Image(systemName: "ellipsis.circle") }
                     .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
                     .foregroundStyle(appearance.ink.opacity(0.5))
             }

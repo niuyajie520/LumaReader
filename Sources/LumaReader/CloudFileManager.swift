@@ -91,6 +91,29 @@ final class CloudFilesModel {
         if entry.directory { directory = entry.url; await refresh() }
         else { NSWorkspace.shared.open(entry.url) }
     }
+    /// 从云盘根目录到当前文件夹的每一级，用于面包屑。
+    var trail: [URL] {
+        guard let root, let directory else { return [] }
+        let base = root.standardizedFileURL
+        var path: [URL] = [base]
+        let rootCount = base.pathComponents.count
+        let parts = directory.standardizedFileURL.pathComponents
+        guard parts.count > rootCount else { return path }
+        var current = base
+        for part in parts[rootCount...] {
+            current = current.appendingPathComponent(part, isDirectory: true)
+            path.append(current)
+        }
+        return path
+    }
+    /// 跳到面包屑里的某一级（只允许根目录及其子目录）。
+    func go(to url: URL) async {
+        guard !busy, let root else { return }
+        let base = root.standardizedFileURL.path
+        let target = url.standardizedFileURL
+        guard target.path == base || target.path.hasPrefix(base + "/") else { return }
+        directory = target; selected = nil; await refresh()
+    }
     func up() async {
         guard !busy, let root, let directory, directory.standardizedFileURL != root.standardizedFileURL else { return }
         self.directory = directory.deletingLastPathComponent(); await refresh()
@@ -134,6 +157,7 @@ struct CloudFileManagerView: View {
     var body: some View {
         let palette = store.readingPalette(dark: scheme == .dark)
         VStack(spacing: 10) {
+            // 第一行：折叠 · 标题 · 云盘切换 · 项数（只显示一次）· 搜索 · 唯一的「⋯」
             HStack(spacing: 8) {
                 Button {
                     var transaction = Transaction(); transaction.disablesAnimations = reduceMotion
@@ -143,7 +167,7 @@ struct CloudFileManagerView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(palette.muted)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
-                        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: expanded)
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: expanded)
                         .frame(width: 30, height: 30)
                         .background(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -153,7 +177,6 @@ struct CloudFileManagerView: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { collapseHovered = $0 }
-                .disabled(false)
                 .help(L10n.text(expanded ? "折叠云盘文件" : "展开云盘文件"))
                 .accessibilityLabel(L10n.text(expanded ? "折叠云盘文件" : "展开云盘文件"))
                 .accessibilityValue(L10n.text(expanded ? "已展开" : "已折叠"))
@@ -166,40 +189,63 @@ struct CloudFileManagerView: View {
                         .labelsHidden()
                         .frame(width: 148)
                 }
-                if expanded {
-                    Button { Task { await model.up() } } label: { Image(systemName: "arrow.up") }
-                        .buttonStyle(.borderless).help(L10n.text("上一级")).accessibilityLabel(L10n.text("上一级"))
-                    Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                        .buttonStyle(.borderless).help(L10n.text("刷新")).accessibilityLabel(L10n.text("刷新"))
-                    Text(model.directory?.path ?? L10n.text("选择已连接的云盘"))
-                        .font(.caption)
-                        .foregroundStyle(palette.muted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .layoutPriority(1)
-                }
+                Text("\(model.visible.count) " + L10n.text("项"))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(palette.muted)
                 Spacer(minLength: 8)
                 if expanded {
                     TextField(L10n.text("搜索当前文件夹"), text: $model.query)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 110, idealWidth: 156, maxWidth: 200)
                     Menu {
-                        Button(L10n.text("新建文件夹")) { newFolder = true; target = nil; name = "新建文件夹"; showName = true }
-                        Button(L10n.text("上传文件…")) { importFiles() }
-                        Button(L10n.text("在 Finder 中打开")) { if let url = model.directory { NSWorkspace.shared.open(url) } }
+                        Button(L10n.text("新建文件夹"), systemImage: "folder.badge.plus") { newFolder = true; target = nil; name = "新建文件夹"; showName = true }
+                        Button(L10n.text("上传文件…"), systemImage: "square.and.arrow.up") { importFiles() }
+                        Divider()
+                        Button(L10n.text("刷新"), systemImage: "arrow.clockwise") { Task { await model.refresh() } }
+                        Button(L10n.text("在 Finder 中打开"), systemImage: "folder") { if let url = model.directory { NSWorkspace.shared.open(url) } }
                     } label: { Image(systemName: "ellipsis.circle") }
                         .menuStyle(.borderlessButton)
                         .menuIndicator(.hidden)
                         .frame(width: 26)
-                        .help(L10n.text("新建、上传或在 Finder 中打开"))
-                } else {
-                    Text("\(model.visible.count) " + L10n.text("项"))
-                        .font(.caption)
-                        .foregroundStyle(palette.muted)
+                        .help(L10n.text("新建、上传、刷新或在 Finder 中打开"))
                 }
             }
             if expanded {
-                if model.busy { ProgressView().controlSize(.small).frame(maxWidth: .infinity, alignment: .leading) }
+                // 第二行：可点击的面包屑，代替原来的「上一级」按钮和整串路径。
+                HStack(spacing: 4) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            let trail = model.trail
+                            ForEach(Array(trail.enumerated()), id: \.offset) { index, url in
+                                if index > 0 {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(palette.muted)
+                                }
+                                let isLast = index == trail.count - 1
+                                Button {
+                                    Task { await model.go(to: url) }
+                                } label: {
+                                    Text(index == 0 ? provider.title : url.lastPathComponent)
+                                        .font(.system(size: 12, weight: isLast ? .semibold : .regular))
+                                        .foregroundStyle(isLast ? palette.ink : palette.muted)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isLast)
+                            }
+                        }
+                    }
+                    ProgressView()
+                        .controlSize(.small)
+                        .opacity(model.busy ? 1 : 0)
+                        .frame(width: 18)
+                        .accessibilityHidden(!model.busy)
+                }
                 VStack(spacing: 0) {
                     HStack(spacing: 8) {
                         Text(L10n.text("名称")).frame(maxWidth: .infinity, alignment: .leading)
@@ -211,26 +257,38 @@ struct CloudFileManagerView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     Divider().opacity(0.14)
-                    ScrollView {
-                        LazyVStack(spacing: 1) {
-                            if model.visible.isEmpty {
-                                Text(L10n.text("此文件夹为空")).font(.caption).foregroundStyle(palette.muted).padding(18)
-                            }
-                            ForEach(model.visible) { entry in
-                                CloudFileListRow(
-                                    entry: entry,
-                                    palette: palette,
-                                    store: store,
-                                    selected: model.selected == entry.id,
-                                    onSelect: { model.selected = entry.id },
-                                    onOpen: { Task { await model.enter(entry) } },
-                                    onRename: { target = entry; newFolder = false; name = entry.name; showName = true },
-                                    onReveal: { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) },
-                                    onTrash: { target = entry; showTrash = true }
-                                )
+                    if model.visible.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: model.query.isEmpty ? "folder" : "magnifyingglass")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundStyle(palette.muted)
+                            Text(L10n.text(model.query.isEmpty ? "这个文件夹是空的" : "没有找到匹配的文件"))
+                                .font(.callout)
+                                .foregroundStyle(palette.muted)
+                            if model.query.isEmpty {
+                                Button(L10n.text("上传文件…")) { importFiles() }
                             }
                         }
-                        .padding(.vertical, 2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 1) {
+                                ForEach(model.visible) { entry in
+                                    CloudFileListRow(
+                                        entry: entry,
+                                        palette: palette,
+                                        store: store,
+                                        selected: model.selected == entry.id,
+                                        onSelect: { model.selected = entry.id },
+                                        onOpen: { Task { await model.enter(entry) } },
+                                        onRename: { target = entry; newFolder = false; name = entry.name; showName = true },
+                                        onReveal: { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) },
+                                        onTrash: { target = entry; showTrash = true }
+                                    )
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
                 .frame(height: max(200, preferredHeight))
@@ -238,28 +296,6 @@ struct CloudFileManagerView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(palette.chrome.opacity(0.16))
                 )
-                HStack(spacing: 8) {
-                    Text("\(model.visible.count) " + L10n.text("项")).font(.caption).foregroundStyle(palette.muted)
-                    if let selected = model.selection {
-                        Text(selected.name).font(.caption).foregroundStyle(palette.muted).lineLimit(1)
-                    }
-                    Spacer()
-                    Button(L10n.text("打开")) { if let entry = model.selection { Task { await model.enter(entry) } } }
-                        .disabled(model.selection == nil)
-                    Menu {
-                        Button(L10n.text("重命名…")) { target = model.selection; newFolder = false; name = target?.name ?? ""; showName = true }
-                            .disabled(model.selection == nil)
-                        Button(L10n.text("在 Finder 中显示")) { if let entry = model.selection { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) } }
-                            .disabled(model.selection == nil)
-                        Divider()
-                        Button(L10n.text("移到废纸篓…"), role: .destructive) { target = model.selection; showTrash = true }
-                            .disabled(model.selection == nil)
-                    } label: { Image(systemName: "ellipsis.circle") }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .frame(width: 26)
-                        .help(L10n.text("重命名、显示或移到废纸篓"))
-                }
             }
         }
         .padding(14)

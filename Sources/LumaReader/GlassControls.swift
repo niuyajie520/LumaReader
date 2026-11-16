@@ -1,4 +1,5 @@
 import SwiftUI
+import LumaReaderStudyKit
 
 /// One optical container per control cluster. The fallback keeps the same shape and hit targets.
 struct LumaGlassCluster<Content:View>: View {
@@ -39,18 +40,20 @@ struct SearchAnchorPreference: PreferenceKey {
 }
 
 struct InteractiveToolbarButtonStyle: ButtonStyle {
+    // 工具栏图标：悬停只出现淡底（不再放大 1.12），按下 0.97。
     @State private var hovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.lumaMotionLevel) private var level
-    func makeBody(configuration:Configuration)->some View {
-        let scale = reduceMotion || level == .off ? 1.0:(configuration.isPressed ? 0.90:hovered ? 1.12:1.0)
+    func makeBody(configuration: Configuration) -> some View {
+        let still = reduceMotion || level == .off
         configuration.label
-            .background(.white.opacity(hovered ? 0.12:0),in:RoundedRectangle(cornerRadius:10))
-            .scaleEffect(scale)
+            .background(Color.primary.opacity(configuration.isPressed ? LumaButtonMetric.pressFill : (hovered ? LumaButtonMetric.hoverFill : 0)),
+                        in: RoundedRectangle(cornerRadius: LumaButtonMetric.cornerRadius, style: .continuous))
+            .scaleEffect(still || !configuration.isPressed ? 1.0 : LumaButtonMetric.pressScale)
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
-            .animation(reduceMotion || level == .off ? nil:.spring(response:0.26,dampingFraction:0.68),value:hovered)
-            .animation(reduceMotion || level == .off ? nil:MotionTokens.micro,value:configuration.isPressed)
+            .animation(LumaButtonMetric.hoverAnimation(reduceMotion: still), value: hovered)
+            .animation(LumaButtonMetric.pressAnimation(reduceMotion: still), value: configuration.isPressed)
     }
 }
 struct AnimatedSettingsGlyph: View {
@@ -62,11 +65,9 @@ struct AnimatedSettingsGlyph: View {
         Image(systemName:"gearshape")
             .rotationEffect(.degrees(reduceMotion || level == .off ? 0:(active ? 180:0)+(hovered ? 35:0)))
             .contentShape(Rectangle())
-            .phaseAnimator([1.0,1.18,1.0],trigger:active) { icon,scale in
-                icon.scaleEffect(reduceMotion || level == .off ? 1:scale)
-            } animation: { _ in MotionTokens.micro }
+            // DESIGN.md：点击图标不弹跳、不回弹；只保留旋转表示开合。
             .onHover { hovered = $0 }
-            .animation(reduceMotion || level == .off ? nil:.interpolatingSpring(stiffness:220,damping:16),value:active)
+            .animation(reduceMotion || level == .off ? nil:.smooth(duration:0.22),value:active)
             .animation(reduceMotion || level == .off ? nil:MotionTokens.micro,value:hovered)
     }
 }
