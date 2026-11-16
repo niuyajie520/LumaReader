@@ -28,41 +28,31 @@ iOS 的 `isFirstAttemptInSession` 恒为 true，macOS 没有这个 bug；同一�
 时间相关函数一律接受 `now` 与 `calendar`，不用隐式当前时间——Android 侧只要传同样的
 `ZonedDateTime` 与 `Calendar`（或 `java.time`）就能得到同样的结果。
 
-## Android 的路线
+## Android：已按这份合同实现
 
-1. 用 Kotlin 实现 `DictationAnswerPolicy`、`DictationPhraseDiff`、`DictationEntryKind`、
-   `WordReviewProgress.record(...)`、`WordReviewOrdering.dueFirst(...)`。
-2. 把 `behaviour.json` 读进 JUnit 参数化测试，逐条断言。
-3. 数据层直接复用同一份 `luma_study_store.json`（`schemaVersion` 相同），
-   Compose 只做 UI；不要另起一套字段。
-4. UI 规范（颜色、字号、圆角、动效时长）放在 `constants.json` 的 `design` 段，
-   Compose 的 Theme 从这里生成，避免「iOS 改完 Android 还是旧尺寸」。
+`android/` 是一个独立 Gradle 工程（Kotlin 2.0.21 / AGP 8.7.3 / JDK 17 / minSdk 26）：
 
-## 谁在用 LumaCore
+| 模块 | 内容 |
+| --- | --- |
+| `android/core` | 纯 Kotlin JVM，逐行对应 `Packages/LumaCore`：`DictationRules.kt`（判题 / 长措辞 / 纯英文输入）、`WordReview.kt`（艾宾浩斯 + 同日不推进 + FSRS 字段）、`DictationSession.kt`（四档阶梯、错词插回、错满 3 次挪队尾、退一档）、`VocabularyWord.kt`、`SyncMerge.kt` |
+| `android/core/src/test` | `SpecFixtureTest.kt` 自带极简 JSON 解析器，**直接读 `spec/behaviour.json`** 逐条断言（10 个用例），不另写期望值 |
+| `android/app` | Compose 界面：听写 / 阅读 / 词库 / 设置 四个 Tab，`StudyStore.kt` 读写同一份 `luma_study_store.json`，`SyncManager.kt` 用 SAF 目录做与 iOS 相同的 `device-*.json` 合并，`BookLibrary.kt` 自写 EPUB 解析（无第三方依赖） |
 
-- macOS（`Deferred/StudyCenter`）：`LumaCoreBridge.swift` 里 `@_exported import LumaCore`，
-  判题、复习日程、词条模型全部走内核。
-- iPhone（`iOS/LumaReaderIOS`）：`generate_project.py` 用 `XCLocalSwiftPackageReference`
-  指向 `../Packages/LumaCore`，app target 链接 `LumaCore` 产品；`Core/LumaCoreBridge.swift`
-  同样 `@_exported import LumaCore`，iOS 侧的判题 / 长措辞小错 / 词条分类代码已删除。
-- Android：还没开始，先把 `behaviour.json` 当验收清单。
+本地跑：
 
-## 内核里已经有什么（specification = 2）
+```bash
+export JAVA_HOME=/path/to/jdk17
+export ANDROID_HOME=/path/to/android-sdk
+cd android
+./gradlew :core:test :app:assembleDebug   # 或者用自己装的 gradle 8.10.2
+```
 
-| 模块 | 文件 | 覆盖内容 |
-| --- | --- | --- |
-| 判题 | `DictationRules.swift` | 规范化、连字符/空格互换、长措辞虚词小错 |
-| 复习日程 | `WordReview.swift` | 艾宾浩斯 1/3/5/7/10/14、同日不推进、隔天到期优先 |
-| 听写会话 | `DictationSession.swift` | 四档词距、快速过词跳题、错词插回、三档退档、顽固词 |
-| 云同步 | `SyncMerge.swift` | 词条/进度/日志/顽固词/慢反应/每日阅读的合并规则 |
+一条命令出包：`bash Scripts/release.sh --target android`（跑内核测试 + 编 APK + 打源码包）。
 
-macOS 与 iPhone 都链接 `LumaCore`，两边的 `*Bridge.swift` 只做 `@_exported import`，
-所以判定逻辑改一次两端同时生效。
+## 仍与 iOS/macOS 不同的地方（都是 UI 层，不涉及规则）
 
-## 现在还没抽出来的部分
-
-- **数据落盘**：`luma_study_store.json` 的字段读写、schemaVersion 迁移、备份策略仍在各平台的持久层里
-  （`StudyPersistence` / `Core/StudyStore.swift`）。字段名以 `docs/PLATFORM-PLAN.md` 的表格为准。
-- **界面**：没有也不应该进内核——macOS 用 AppKit + SwiftUI，iPhone 用 SwiftUI，Android 用 Compose。
-- **合成语音**：macOS 走本地 ONNX（Kitten 15M/41M + Python 守护进程），iPhone 目前用系统语音，
-  Android 建议先用系统 TTS，再接同一个 ONNX 模型。
+- 阅读器：Android 是**滚动阅读 + 点击查词**（WebView + 注入取词脚本），没有照搬 iOS 那张「快照式分页」；
+  分页是表现层，不影响学习数据。
+- 朗读：三端都用系统 TTS，没有内置神经语音（macOS 那份 Kitten ONNX 依赖上位机进程，手机端跑不动）。
+- 云同步：iPhone 用 iCloud Drive 目录，Android 用系统文件选择器授权的云盘目录，**文件格式与合并规则相同**，
+  所以两个手机端可以互相同步；桌面端的数据靠 `导入/导出` 走同一个 JSON。

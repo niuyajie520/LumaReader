@@ -3,7 +3,9 @@
 #
 #   bash Scripts/release.sh --target macos      # 只出 macOS：编译 + 校验 + 源码 ZIP
 #   bash Scripts/release.sh --target ios        # 只出 iPhone：重新生成工程 + 编译 + 源码 ZIP
-#   bash Scripts/release.sh --target both       # 两个都出
+#   bash Scripts/release.sh --target android    # 只出安卓：跑内核测试 + 编 APK + 源码 ZIP
+#   bash Scripts/release.sh --target both       # macOS + iPhone
+#   bash Scripts/release.sh --target all        # 三个平台都出
 #   bash Scripts/release.sh --target ios --test # 额外跑 iPhone 的 6 个 UI 用例
 #   bash Scripts/release.sh --target macos --install  # 额外替换 /Applications（会弹窗启动，默认不做）
 #
@@ -28,8 +30,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$TARGET" != "macos" && "$TARGET" != "ios" && "$TARGET" != "both" ]]; then
-  echo "用法：bash Scripts/release.sh --target macos|ios|both [--test] [--install]" >&2
+if [[ "$TARGET" != "macos" && "$TARGET" != "ios" && "$TARGET" != "android" && "$TARGET" != "both" && "$TARGET" != "all" ]]; then
+  echo "用法：bash Scripts/release.sh --target macos|ios|android|both|all [--test] [--install]" >&2
   exit 2
 fi
 
@@ -38,8 +40,10 @@ MACOS_VERSION="$($PY Scripts/sync-version.py --print macos | sed -n 1p)"
 MACOS_BUILD="$($PY Scripts/sync-version.py --print macos | sed -n 2p)"
 IOS_VERSION="$($PY Scripts/sync-version.py --print ios | sed -n 1p)"
 IOS_BUILD="$($PY Scripts/sync-version.py --print ios | sed -n 2p)"
+ANDROID_VERSION="$($PY Scripts/sync-version.py --print android | sed -n 1p)"
+ANDROID_BUILD="$($PY Scripts/sync-version.py --print android | sed -n 2p)"
 
-echo "== 版本源 version.json：macOS ${MACOS_VERSION}(${MACOS_BUILD})，iOS ${IOS_VERSION}(${IOS_BUILD})"
+echo "== 版本源 version.json：macOS ${MACOS_VERSION}(${MACOS_BUILD})，iOS ${IOS_VERSION}(${IOS_BUILD})，Android ${ANDROID_VERSION}(${ANDROID_BUILD})"
 $PY Scripts/sync-version.py
 echo "== 检查 spec 与 LumaCore 是否一致"
 $PY Scripts/check-core-spec.py
@@ -103,10 +107,36 @@ build_ios() {
   stage_zip "LumaReader-iPhone-${IOS_VERSION}-B${IOS_BUILD}-Source" "$root" "工程：LumaReader-iPhone/iOS/LumaReaderIOS.xcodeproj（签名后可直接装真机）"
 }
 
+
+build_android() {
+  local java_home="${JAVA_HOME:-$(cat /tmp/javahome.txt 2>/dev/null || true)}"
+  local gradle="${GRADLE_BIN:-/tmp/gradledist/gradle-8.10.2/bin/gradle}"
+  local sdk="${ANDROID_HOME:-/tmp/android-sdk}"
+  if [[ -z "$java_home" || ! -x "$gradle" ]]; then
+    echo "== Android：找不到 JDK 或 Gradle（设 JAVA_HOME / GRADLE_BIN）" >&2
+    return 1
+  fi
+  echo "== Android：跑内核测试 + 编 Debug APK"
+  ( cd android && JAVA_HOME="$java_home" ANDROID_HOME="$sdk" "$gradle" :core:test :app:assembleDebug -q )
+  local apk="android/app/build/outputs/apk/debug/app-debug.apk"
+  [[ -f "$apk" ]] || { echo "   没找到 APK" >&2; return 1; }
+  local stage="/tmp/luma-release-android-$ANDROID_BUILD"
+  rm -rf "$stage" && mkdir -p "$stage/LumaReader-Android"
+  local root="$stage/LumaReader-Android"
+  rsync -a --exclude '.gradle' --exclude 'build' --exclude '.idea' --exclude 'local.properties' \
+        android/ "$root/android/"
+  rsync -a spec/ "$root/spec/"
+  cp version.json "$root/version.json"
+  cp "$apk" "$root/LumaReader-Android-${ANDROID_VERSION}-B${ANDROID_BUILD}-debug.apk"
+  stage_zip "LumaReader-Android-${ANDROID_VERSION}-B${ANDROID_BUILD}-Source" "$root" "APK 在包内（debug 签名，可直接 adb install）"
+}
+
 case "$TARGET" in
   macos) build_macos ;;
   ios) build_ios ;;
+  android) build_android ;;
   both) build_macos; build_ios ;;
+  all) build_macos; build_ios; build_android ;;
 esac
 
 echo "== 完成（版本源：version.json）"

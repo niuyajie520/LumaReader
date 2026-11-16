@@ -4,7 +4,7 @@
 用法：
   python3 Scripts/sync-version.py            # 写入（release.json / iOS 工程生成脚本）
   python3 Scripts/sync-version.py --check    # 只检查是否一致，不一致退出码 1
-  python3 Scripts/sync-version.py --print macos|ios  # 打印 version / build
+  python3 Scripts/sync-version.py --print macos|ios|android  # 打印 version / build
 
 `version.json` 是唯一版本源：改版本只改它，然后跑 release.sh（或本脚本 + 构建）。
 """
@@ -17,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERSION_FILE = os.path.join(ROOT, "version.json")
 RELEASE_FILE = os.path.join(ROOT, "release.json")
 IOS_GENERATOR = os.path.join(ROOT, "iOS", "generate_project.py")
+ANDROID_GRADLE = os.path.join(ROOT, "android", "app", "build.gradle.kts")
 
 
 def load():
@@ -34,14 +35,22 @@ def ios_generator_value(text, key):
     return match.group(1) if match else None
 
 
+def sync_message(prefix, macos, ios, android):
+    parts = [f"macOS {macos['version']}({macos['build']})", f"iOS {ios['version']}({ios['build']})"]
+    if android:
+        parts.append(f"Android {android['version']}({android['build']})")
+    return prefix + "：" + "，".join(parts)
+
+
 def main(argv):
     data = load()
     macos = data["macos"]
     ios = data["ios"]
+    android = data.get("android")
 
     if "--print" in argv:
         which = argv[argv.index("--print") + 1]
-        meta = macos if which == "macos" else ios
+        meta = {"macos": macos, "ios": ios, "android": android}.get(which) or macos
         print(meta["version"])
         print(meta["build"])
         return 0
@@ -66,6 +75,18 @@ def main(argv):
     if current_ios_build != ios["build"]:
         problems.append(f"iOS CURRENT_PROJECT_VERSION={current_ios_build} 应为 {ios['build']}")
 
+    if android:
+        with open(ANDROID_GRADLE, encoding="utf-8") as handle:
+            gradle = handle.read()
+        current_code = re.search(r"versionCode\s*=\s*(\d+)", gradle)
+        current_name = re.search(r'versionName\s*=\s*"([^"]+)"', gradle)
+        code = current_code.group(1) if current_code else None
+        name = current_name.group(1) if current_name else None
+        if name != android["version"]:
+            problems.append(f"Android versionName={name} 应为 {android['version']}")
+        if code != str(android["build"]):
+            problems.append(f"Android versionCode={code} 应为 {android['build']}")
+
     if problems:
         if check_only:
             print("版本不一致：", file=sys.stderr)
@@ -84,9 +105,14 @@ def main(argv):
         generator = re.sub(r'"CURRENT_PROJECT_VERSION": "[^"]+"', f'"CURRENT_PROJECT_VERSION": "{ios["build"]}"', generator)
         with open(IOS_GENERATOR, "w", encoding="utf-8") as handle:
             handle.write(generator)
-        print(f"已同步：macOS {macos['version']}({macos['build']})，iOS {ios['version']}({ios['build']})")
+        if android:
+            with open(ANDROID_GRADLE, "w", encoding="utf-8") as handle:
+                gradle = re.sub(r"versionCode\s*=\s*\d+", f'versionCode = {android["build"]}', gradle)
+                gradle = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{android["version"]}"', gradle)
+                handle.write(gradle)
+        print(sync_message("已同步", macos, ios, android))
     else:
-        print(f"版本一致：macOS {macos['version']}({macos['build']})，iOS {ios['version']}({ios['build']})")
+        print(sync_message("版本一致", macos, ios, android))
     return 0
 
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-11-16 13:05:00 (UTC-07:00) · Android 版 1.0.0 (build 5) · 第一个可运行版本
+由 DeepSeek 更改 在 13:05:00，本次把第三个平台补齐，内容如下：
+- 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）
+- 类型：android / new-platform
+- 结构与复用：
+  - `android/core`（纯 Kotlin JVM）逐行对应 `Packages/LumaCore`：判题、长措辞小错、四档阶梯、错词插回、退一档、错满 3 次挪队尾、艾宾浩斯复习、同日不推进、云同步合并算法。
+  - `android/core/src/test/SpecFixtureTest.kt` 自带极简 JSON 解析器，**直接读 `spec/behaviour.json`**，10 个用例全绿。
+  - `android/app`（Compose）四个 Tab：听写 / 阅读 / 词库 / 设置；`StudyStore.kt` 读写与 macOS 完全同格式的 `luma_study_store.json`（保留未知字段，可双向导入）；`SyncManager.kt` 用 SAF 授权目录做与 iPhone 相同的 `device-*.json` 合并；`BookLibrary.kt` 自写 EPUB 解析（zip + container.xml + OPF，无第三方依赖）。
+- 手机适配（这几处是模拟器里真跑出来的问题，不是设想）：
+  - 键盘弹出会同时触发 `adjustResize` 与 `imePadding`，两者叠加把整屏挤到顶部、提交按钮只剩一条蓝边 → 去掉 `imePadding`，正文改为可滚动、输入框与提交按钮固定在键盘上方。
+  - M3 的 `FilterChip` 在自定义配色下选中态几乎看不出来 → 换成自写 `LumaChip`（选中=浅色填充+主色文字，未选中=描边）。
+  - 听写进行中隐藏底部 TabBar，避免误切走丢进度。
+  - 状态栏与标题重叠 → 把 Scaffold 的安全区 padding 真正传给四个 Tab。
+  - `DocumentBuilderFactory.setFeature("...load-external-dtd")` 在 Android 的 XML 解析器上直接抛异常，导致书架里的 EPUB 全部打不开 → 用 `runCatching` 忽略。
+- 版本源：`version.json` 新增 `android: 1.0.0(5)`；`Scripts/sync-version.py` 支持 `--print android` 并同步 `android/app/build.gradle.kts` 的 `versionCode/versionName`；`Scripts/release.sh` 新增 `--target android` 与 `--target all`。
+- 验证（Android 模拟器 Pixel 7 / API 35，arm64）：
+  - `:core:test` 10 用例通过；`:app:assembleDebug` 成功，APK 16 MB。
+  - 真跑：听写首页 → 开一轮 20 词 → 答错（`zzz`）得到「挪到本轮最后」+「刚才那个词：atmosphere」→ 下一词释义正常显示 → 点「看答案」→ 照抄 `hydrosphere` → 「对了」，进度 20/0 → 19/1；阅读导入示例 EPUB（3 章）→ 点词「twice」→ 加入生词本 → 词库 6063 → 6064。
+  - 落盘核对：`files/StudyCenter/luma_study_store.json` 2.0 MB，字段与 macOS 一致（`isFirstAttemptInSession`、`sessionErrorCountForWord`、ISO8601 时间戳、`reviewSchedule.stage/lapses`）。
+- 未验证：真机 TTS 是否出声（模拟器无语音引擎）；SAF 选目录后重启的持久授权；Google Play 上架所需的签名与 `targetSdk` 政策；大词库（>2 万条）下的列表性能。
+
 ## 2026-11-16 12:10:00 (UTC-07:00) · 发布到 GitHub（macOS 1.33.0 + iPhone 1.0.0）
 由 DeepSeek 更改 在 12:10:00，本次把两个平台的版本推到公开仓库，内容如下：
 - 执行者：DeepSeek（运行于 DSH agent · deepseek-flash）

@@ -11,6 +11,7 @@
     <img alt="SwiftUI, AppKit and WebKit" src="https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit%20%2B%20WebKit-1B6AC9">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue">
     <a href="https://github.com/niuyajie520/LumaReader/releases/tag/ios-1.0.0-b5"><img alt="iPhone build" src="https://img.shields.io/badge/iPhone-1.0.0%20(5)-1B6AC9"></a>
+    <a href="https://github.com/niuyajie520/LumaReader/releases/tag/android-1.0.0-b5"><img alt="Android build" src="https://img.shields.io/badge/Android-1.0.0%20(5)-3DDC84?logo=android&logoColor=white"></a>
   </p>
 </div>
 
@@ -53,6 +54,26 @@ Fourteen independent visual systems, each with its own material language rather 
 
 The five classic palettes and the Monet seed-extraction pipeline are preserved as-is; every other system adds its own scene, glass parameters and motion identity. Windows, panels and cards stay translucent so the scene remains visible, with WCAG-AA text contrast.
 
+## Platforms
+
+| Platform | Status | What it has |
+| --- | --- | --- |
+| **macOS** | 1.33.0 (145) | Everything: reading, themes, annotations, dictation, writing, AI, cloud sync |
+| **iPhone** | 1.0.0 (5) | Dictation, reading (EPUB/TXT), vocabulary, folder cloud sync — `iOS/` |
+| **Android** | 1.0.0 (5) | Same three study tabs plus reading with tap-to-look-up — `android/` |
+
+All three share one rule set. Judgement, the four-step new-word ladder, wrong-word requeueing,
+the Ebbinghaus schedule and the sync-merge algorithm live either in
+[`Packages/LumaCore`](Packages/LumaCore) (Swift) or its line-by-line Kotlin twin
+[`android/core`](android/core), and both are validated against the same executable contract
+[`spec/behaviour.json`](spec/behaviour.json). Change a rule once, run three test suites.
+
+```
+version.json          single source of truth for all platform versions
+Scripts/sync-version.py   writes versions into release.json / iOS generator / android build.gradle.kts
+Scripts/release.sh --target macos|ios|android|both|all
+```
+
 ## Requirements
 
 - macOS 26 or later (Apple silicon)
@@ -82,15 +103,22 @@ bash Install.command
 swift build -c release          # compile
 swift test                      # run the test suites
 bash Scripts/build-macos.sh     # assemble, sign and verify "Luma Reader.app"
+
+bash Scripts/release.sh --target ios --test        # iPhone: regenerate project, build, 6 UI tests
+bash Scripts/release.sh --target android           # Android: core tests + debug APK
 ```
 
-The release identity lives only in [`release.json`](release.json) (`version`, `build`, `source_id`). `Install.command`, `Info.plist`, the source ZIP name and the bundle check all read that file — never hardcode a version elsewhere.
+Versions live only in [`version.json`](version.json) (macOS / iOS / Android). `Scripts/sync-version.py` pushes them into `release.json`, the iOS project generator and `android/app/build.gradle.kts`; `Install.command`, `Info.plist`, the source ZIP name and the bundle check all read from there — never hardcode a version elsewhere.
 
 ## Project layout
 
 ```text
+Packages/LumaCore/         Shared rules: judgement, review schedule, dictation state machine, sync merge
+spec/                      Executable behaviour contract (behaviour.json + constants.json), used by Swift & Kotlin
 Sources/LumaReader/        App shell, reader, themes, cloud, AI, diagnostics
 Deferred/StudyCenter/      Study kit: dictation, writing, speech, SQLite, persistence
+iOS/                       iPhone app (SwiftUI + WKWebView reader), generated Xcode project
+android/                   Android app (Kotlin + Compose), `:core` mirrors LumaCore
 Tests/                     Swift testing suites
 Scripts/                   Build, signing, packaging, voice setup, privacy gate
 Assets/                    App icons and marketing assets
